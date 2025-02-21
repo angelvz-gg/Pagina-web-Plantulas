@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verificar Asignaciones</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Estilos específicos para la tabla de asignaciones (opcional, pueden integrarse en styles.css) */
+    .assignments-table {
+      width: 90%;
+      margin: 20px auto;
+      border-collapse: collapse;
+    }
+    .assignments-table th,
+    .assignments-table td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+    }
+    .assignments-table th {
+      background-color: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Verificar Asignaciones</h1>
+    <p>Consulta las asignaciones realizadas para las actividades (por ejemplo, lavado de planta) y revisa el rol asignado a cada operario.</p>
+    <button onclick="window.location.href='dashboard_medico.html'">🔙 Volver a Dashboard</button>
+  </header>
+  
+  <main>
+    <section>
+      <table class="assignments-table">
+        <thead>
+          <tr>
+            <th>ID Operario</th>
+            <th>Nombre Operario</th>
+            <th>Actividad</th>
+            <th>Rol</th>
+            <th>Detalle (Ej. Variedad)</th>
+          </tr>
+        </thead>
+        <tbody id="assignmentsBody">
+          <!-- Se cargarán dinámicamente las asignaciones -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+  
+  <script>
+    // Ejemplo de datos simulados para el historial de asignaciones
+    const asignaciones = [
+      { operarioId: 1, nombre: "Operario A", actividad: "Lavado de Planta", rol: "Operario de Lavado", detalle: "Variedad X" },
+      { operarioId: 2, nombre: "Operario B", actividad: "Lavado de Planta", rol: "Operario de Lavado", detalle: "Variedad Y" },
+      { operarioId: 3, nombre: "Operario C", actividad: "Lavado de Planta", rol: "Encargado de Lavado", detalle: "Variedad Z" }
+      // Puedes agregar más registros según tus necesidades
+    ];
+
+    function cargarAsignaciones() {
+      const tbody = document.getElementById("assignmentsBody");
+      tbody.innerHTML = "";
+      
+      asignaciones.forEach(asignacion => {
+        const fila = document.createElement("tr");
+
+        // Celda: ID Operario
+        const tdId = document.createElement("td");
+        tdId.textContent = asignacion.operarioId;
+        fila.appendChild(tdId);
+
+        // Celda: Nombre Operario
+        const tdNombre = document.createElement("td");
+        tdNombre.textContent = asignacion.nombre;
+        fila.appendChild(tdNombre);
+
+        // Celda: Actividad
+        const tdActividad = document.createElement("td");
+        tdActividad.textContent = asignacion.actividad;
+        fila.appendChild(tdActividad);
+
+        // Celda: Rol asignado
+        const tdRol = document.createElement("td");
+        tdRol.textContent = asignacion.rol;
+        fila.appendChild(tdRol);
+
+        // Celda: Detalle (Ej. Variedad)
+        const tdDetalle = document.createElement("td");
+        tdDetalle.textContent = asignacion.detalle;
+        fila.appendChild(tdDetalle);
+
+        tbody.appendChild(fila);
+      });
+    }
+    
+    // Cargar las asignaciones al cargar la página
+    document.addEventListener("DOMContentLoaded", cargarAsignaciones);
+  </script>
+</body>
+</html>

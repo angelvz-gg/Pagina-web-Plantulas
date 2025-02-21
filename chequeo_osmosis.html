@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chequeo de Ósmosis Inversa</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Chequeo de Ósmosis Inversa</h1>
+    <p>Verifica el estado y funcionamiento del sistema de ósmosis inversa.</p>
+    <button onclick="window.location.href='dashboard_medios.html'">🔙 Volver al Dashboard</button>
+  </header>
+
+  <main>
+    <!-- Sección para registrar un nuevo chequeo -->
+    <section class="form-container">
+      <h2>Registro de Parámetros</h2>
+      <form id="osmosisForm">
+        <div>
+          <label for="flujoAgua">Flujo de Agua (L/h):</label>
+          <input type="number" id="flujoAgua" name="flujoAgua" placeholder="Ingrese flujo" required>
+        </div>
+        <div>
+          <label for="presionEntrada">Presión de Entrada (bar):</label>
+          <input type="number" id="presionEntrada" name="presionEntrada" placeholder="Ingrese presión" required>
+        </div>
+        <div>
+          <label for="presionSalida">Presión de Salida (bar):</label>
+          <input type="number" id="presionSalida" name="presionSalida" placeholder="Ingrese presión" required>
+        </div>
+        <div>
+          <label for="conductividad">Conductividad (µS/cm):</label>
+          <input type="number" id="conductividad" name="conductividad" placeholder="Ingrese conductividad" required>
+        </div>
+        <div>
+          <label for="observaciones">Observaciones:</label>
+          <input type="text" id="observaciones" name="observaciones" placeholder="Ingrese observaciones">
+        </div>
+        <button type="submit">Guardar Chequeo</button>
+      </form>
+    </section>
+
+    <!-- Sección para visualizar el historial de chequeos -->
+    <section>
+      <h2>Historial de Chequeos</h2>
+      <table class="schedule-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Flujo (L/h)</th>
+            <th>Presión Entrada (bar)</th>
+            <th>Presión Salida (bar)</th>
+            <th>Conductividad (µS/cm)</th>
+            <th>Observaciones</th>
+          </tr>
+        </thead>
+        <tbody id="historialBody">
+          <!-- Se llenarán con JavaScript -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    // Recupera o inicializa el historial de chequeos desde localStorage
+    let historialChequeos = JSON.parse(localStorage.getItem("historialChequeos")) || [];
+
+    // Función para actualizar la tabla con el historial de chequeos
+    function actualizarHistorial() {
+      const tbody = document.getElementById("historialBody");
+      tbody.innerHTML = "";
+      
+      historialChequeos.forEach(chequeo => {
+        const tr = document.createElement("tr");
+
+        const fechaCell = document.createElement("td");
+        fechaCell.textContent = chequeo.fecha;
+        tr.appendChild(fechaCell);
+
+        const flujoCell = document.createElement("td");
+        flujoCell.textContent = chequeo.flujoAgua;
+        tr.appendChild(flujoCell);
+
+        const presionEntradaCell = document.createElement("td");
+        presionEntradaCell.textContent = chequeo.presionEntrada;
+        tr.appendChild(presionEntradaCell);
+
+        const presionSalidaCell = document.createElement("td");
+        presionSalidaCell.textContent = chequeo.presionSalida;
+        tr.appendChild(presionSalidaCell);
+
+        const conductividadCell = document.createElement("td");
+        conductividadCell.textContent = chequeo.conductividad;
+        tr.appendChild(conductividadCell);
+
+        const observacionesCell = document.createElement("td");
+        observacionesCell.textContent = chequeo.observaciones;
+        tr.appendChild(observacionesCell);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Manejo del envío del formulario
+    document.getElementById("osmosisForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+      
+      const flujoAgua = document.getElementById("flujoAgua").value;
+      const presionEntrada = document.getElementById("presionEntrada").value;
+      const presionSalida = document.getElementById("presionSalida").value;
+      const conductividad = document.getElementById("conductividad").value;
+      const observaciones = document.getElementById("observaciones").value;
+      const fecha = new Date().toLocaleDateString();
+
+      const nuevoChequeo = { fecha, flujoAgua, presionEntrada, presionSalida, conductividad, observaciones };
+      
+      historialChequeos.push(nuevoChequeo);
+      localStorage.setItem("historialChequeos", JSON.stringify(historialChequeos));
+      
+      actualizarHistorial();
+      document.getElementById("osmosisForm").reset();
+      alert("Chequeo guardado exitosamente");
+    });
+
+    // Actualizar historial al cargar la página
+    document.addEventListener("DOMContentLoaded", actualizarHistorial);
+  </script>
+</body>
+</html>

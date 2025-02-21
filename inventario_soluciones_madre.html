@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario de Soluciones Madre</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Inventario de Soluciones Madre</h1>
+        <p>Consulta la cantidad restante de cada medio nutritivo madre.</p>
+        <button onclick="window.location.href='dashboard_juve.html'">🔙 Volver al Dashboard</button>
+    </header>
+
+    <main>
+        <section>
+            <h2>📊 Cantidad Disponible de Soluciones Madre</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Código del Medio</th>
+                        <th>Fecha de Preparación</th>
+                        <th>Cantidad Inicial (L)</th>
+                        <th>Cantidad Usada (L)</th>
+                        <th>Cantidad Restante (L)</th>
+                    </tr>
+                </thead>
+                <tbody id="inventario">
+                    <!-- Aquí se mostrarán los datos del inventario -->
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <script>
+        // Simulación de datos obtenidos de la base de datos
+        const soluciones = [
+            { codigo: "MN-001", fecha: "2024-06-01", cantidadInicial: 50, cantidadUsada: 20 },
+            { codigo: "MN-002", fecha: "2024-06-05", cantidadInicial: 30, cantidadUsada: 5 }
+        ];
+
+        function cargarInventario() {
+            const tabla = document.getElementById("inventario");
+            tabla.innerHTML = "";
+
+            soluciones.forEach(solucion => {
+                const fila = document.createElement("tr");
+                const cantidadRestante = solucion.cantidadInicial - solucion.cantidadUsada;
+                fila.innerHTML = `
+                    <td>${solucion.codigo}</td>
+                    <td>${solucion.fecha}</td>
+                    <td>${solucion.cantidadInicial} L</td>
+                    <td>${solucion.cantidadUsada} L</td>
+                    <td>${cantidadRestante} L</td>
+                `;
+                tabla.appendChild(fila);
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", cargarInventario);
+    </script>
+</body>
+</html>

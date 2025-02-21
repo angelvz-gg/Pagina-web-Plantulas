@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Esterilización en Autoclave</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Estilos específicos para la tabla de historial (opcional) */
+    .history-table {
+      width: 90%;
+      margin: 20px auto;
+      border-collapse: collapse;
+    }
+    .history-table th,
+    .history-table td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+    }
+    .history-table th {
+      background-color: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Esterilización en Autoclave</h1>
+    <p>Registra el proceso de esterilización, incluyendo el tipo de material, duración y número de esterilización para el mismo lote.</p>
+    <button onclick="window.location.href='dashboard_medios.html'">🔙 Volver al Dashboard</button>
+  </header>
+
+  <main>
+    <!-- Sección para registrar un nuevo proceso de esterilización -->
+    <section class="form-container">
+      <h2>Registrar Esterilización</h2>
+      <form id="autoclaveForm">
+        <div>
+          <label for="tipoMaterial">Tipo de Material:</label>
+          <input type="text" id="tipoMaterial" name="tipoMaterial" placeholder="Ej. Material X" required>
+        </div>
+        <div>
+          <label for="duracion">Duración (min):</label>
+          <input type="number" id="duracion" name="duracion" placeholder="Ej. 30" required>
+        </div>
+        <div>
+          <label for="numEsterilizacion">Número de Esterilización:</label>
+          <input type="number" id="numEsterilizacion" name="numEsterilizacion" placeholder="Ej. 2" required>
+        </div>
+        <div>
+          <label for="lote">Lote (opcional):</label>
+          <input type="text" id="lote" name="lote" placeholder="ID del lote">
+        </div>
+        <div>
+          <label for="observaciones">Observaciones:</label>
+          <input type="text" id="observaciones" name="observaciones" placeholder="Comentarios adicionales">
+        </div>
+        <button type="submit">Guardar Registro</button>
+      </form>
+    </section>
+
+    <!-- Sección para visualizar el historial de esterilizaciones -->
+    <section>
+      <h2>Historial de Esterilizaciones</h2>
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Tipo de Material</th>
+            <th>Duración (min)</th>
+            <th>Nº de Esterilización</th>
+            <th>Lote</th>
+            <th>Observaciones</th>
+          </tr>
+        </thead>
+        <tbody id="historialBody">
+          <!-- Se llenarán dinámicamente con JavaScript -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    // Recupera o inicializa el historial de esterilizaciones desde localStorage
+    let historialEsterilizaciones = JSON.parse(localStorage.getItem("historialEsterilizaciones")) || [];
+
+    // Función para actualizar la tabla del historial
+    function actualizarHistorial() {
+      const tbody = document.getElementById("historialBody");
+      tbody.innerHTML = "";
+      
+      historialEsterilizaciones.forEach(registro => {
+        const tr = document.createElement("tr");
+
+        const fechaCell = document.createElement("td");
+        fechaCell.textContent = registro.fecha;
+        tr.appendChild(fechaCell);
+
+        const materialCell = document.createElement("td");
+        materialCell.textContent = registro.tipoMaterial;
+        tr.appendChild(materialCell);
+
+        const duracionCell = document.createElement("td");
+        duracionCell.textContent = registro.duracion;
+        tr.appendChild(duracionCell);
+
+        const numCell = document.createElement("td");
+        numCell.textContent = registro.numEsterilizacion;
+        tr.appendChild(numCell);
+
+        const loteCell = document.createElement("td");
+        loteCell.textContent = registro.lote || "-";
+        tr.appendChild(loteCell);
+
+        const obsCell = document.createElement("td");
+        obsCell.textContent = registro.observaciones;
+        tr.appendChild(obsCell);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Manejo del formulario de esterilización
+    document.getElementById("autoclaveForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+      
+      const tipoMaterial = document.getElementById("tipoMaterial").value;
+      const duracion = document.getElementById("duracion").value;
+      const numEsterilizacion = document.getElementById("numEsterilizacion").value;
+      const lote = document.getElementById("lote").value;
+      const observaciones = document.getElementById("observaciones").value;
+      const fecha = new Date().toLocaleDateString();
+
+      const nuevoRegistro = { fecha, tipoMaterial, duracion, numEsterilizacion, lote, observaciones };
+      
+      historialEsterilizaciones.push(nuevoRegistro);
+      localStorage.setItem("historialEsterilizaciones", JSON.stringify(historialEsterilizaciones));
+      
+      actualizarHistorial();
+      document.getElementById("autoclaveForm").reset();
+      alert("Registro de esterilización guardado exitosamente.");
+    });
+
+    // Actualizar historial al cargar la página
+    document.addEventListener("DOMContentLoaded", actualizarHistorial);
+  </script>
+</body>
+</html>

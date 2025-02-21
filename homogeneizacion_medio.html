@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Homogeneización del Medio</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Homogeneización del Medio</h1>
+    <p>Registra el proceso de homogeneización del medio nutritivo madre.</p>
+    <button onclick="window.location.href='dashboard_medios.html'">🔙 Volver al Dashboard</button>
+  </header>
+
+  <main>
+    <!-- Sección para registrar un nuevo proceso de homogeneización -->
+    <section class="form-container">
+      <h2>Registrar Homogeneización</h2>
+      <form id="homogeneizacionForm">
+        <div>
+          <label for="fechaRegistro">Fecha:</label>
+          <input type="date" id="fechaRegistro" name="fechaRegistro" required>
+        </div>
+        <div>
+          <label for="horaRegistro">Hora:</label>
+          <input type="time" id="horaRegistro" name="horaRegistro" required>
+        </div>
+        <div>
+          <label for="codigoMedio">Código de Medio Nutritivo Madre:</label>
+          <input type="text" id="codigoMedio" name="codigoMedio" placeholder="Ej. MED001" required>
+        </div>
+        <div>
+          <label for="cantidadCreada">Cantidad Creada (L):</label>
+          <input type="number" step="0.01" id="cantidadCreada" name="cantidadCreada" placeholder="Ej. 50" required>
+        </div>
+        <div>
+          <label for="cantidadOcupada">Cantidad Ocupada (L):</label>
+          <input type="number" step="0.01" id="cantidadOcupada" name="cantidadOcupada" placeholder="Ej. 10" required>
+        </div>
+        <div>
+          <label for="observaciones">Observaciones:</label>
+          <input type="text" id="observaciones" name="observaciones" placeholder="Comentarios adicionales">
+        </div>
+        <button type="submit">Guardar Registro</button>
+      </form>
+    </section>
+
+    <!-- Sección para visualizar el historial de homogeneizaciones -->
+    <section>
+      <h2>Historial de Homogeneización</h2>
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Hora</th>
+            <th>Código Medio</th>
+            <th>Cantidad Creada (L)</th>
+            <th>Cantidad Ocupada (L)</th>
+            <th>Observaciones</th>
+          </tr>
+        </thead>
+        <tbody id="historialBody">
+          <!-- Se llenarán dinámicamente con JavaScript -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    // Recupera o inicializa el historial de homogeneización desde localStorage
+    let historialHomogeneizacion = JSON.parse(localStorage.getItem("historialHomogeneizacion")) || [];
+
+    // Función para actualizar la tabla del historial
+    function actualizarHistorial() {
+      const tbody = document.getElementById("historialBody");
+      tbody.innerHTML = "";
+      
+      historialHomogeneizacion.forEach(registro => {
+        const tr = document.createElement("tr");
+
+        const fechaCell = document.createElement("td");
+        fechaCell.textContent = registro.fecha;
+        tr.appendChild(fechaCell);
+
+        const horaCell = document.createElement("td");
+        horaCell.textContent = registro.hora;
+        tr.appendChild(horaCell);
+
+        const codigoCell = document.createElement("td");
+        codigoCell.textContent = registro.codigoMedio;
+        tr.appendChild(codigoCell);
+
+        const cantidadCreadaCell = document.createElement("td");
+        cantidadCreadaCell.textContent = registro.cantidadCreada;
+        tr.appendChild(cantidadCreadaCell);
+
+        const cantidadOcupadaCell = document.createElement("td");
+        cantidadOcupadaCell.textContent = registro.cantidadOcupada;
+        tr.appendChild(cantidadOcupadaCell);
+
+        const obsCell = document.createElement("td");
+        obsCell.textContent = registro.observaciones;
+        tr.appendChild(obsCell);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Manejo del envío del formulario
+    document.getElementById("homogeneizacionForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+      
+      const fecha = document.getElementById("fechaRegistro").value;
+      const hora = document.getElementById("horaRegistro").value;
+      const codigoMedio = document.getElementById("codigoMedio").value;
+      const cantidadCreada = document.getElementById("cantidadCreada").value;
+      const cantidadOcupada = document.getElementById("cantidadOcupada").value;
+      const observaciones = document.getElementById("observaciones").value;
+
+      const nuevoRegistro = { fecha, hora, codigoMedio, cantidadCreada, cantidadOcupada, observaciones };
+      
+      historialHomogeneizacion.push(nuevoRegistro);
+      localStorage.setItem("historialHomogeneizacion", JSON.stringify(historialHomogeneizacion));
+      
+      actualizarHistorial();
+      document.getElementById("homogeneizacionForm").reset();
+      alert("Registro guardado exitosamente");
+    });
+
+    // Actualizar historial al cargar la página
+    document.addEventListener("DOMContentLoaded", actualizarHistorial);
+  </script>
+</body>
+</html>

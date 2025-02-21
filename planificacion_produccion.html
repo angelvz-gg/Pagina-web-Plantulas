@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Distribución de Trabajo para Lavado</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Distribución de Trabajo para Lavado</h1>
+    <p>Asigna roles, turnos y tareas específicas para el lavado de planta.</p>
+    <button onclick="window.location.href='planificacion_produccion.html'">🔙 Volver a Planificación</button>
+  </header>
+  
+  <main>
+    <!-- Sección para asignar el supervisor temporal -->
+    <section class="form-container">
+      <h2>Asignar Supervisor Temporal</h2>
+      <form id="supervisorForm">
+        <label for="supervisor">Selecciona Supervisor Temporal:</label>
+        <select id="supervisor" name="supervisor">
+          <option value="">-- Seleccionar Supervisor --</option>
+          <!-- Opciones generadas dinámicamente -->
+        </select>
+        <button type="submit">Asignar Supervisor</button>
+      </form>
+    </section>
+    
+    <!-- Sección para asignar operarios y distribuir tareas -->
+    <section class="form-container">
+      <h2>Asignar Operarios y Distribuir Trabajo</h2>
+      
+      <!-- Buscador para agregar operarios -->
+      <form id="busquedaForm">
+        <label for="busquedaOperario">Buscar Operador (por ID o Nombre):</label>
+        <input type="text" id="busquedaOperario" list="listaOperarios" placeholder="Ingresa ID o nombre">
+        <datalist id="listaOperarios">
+          <!-- Opciones se generarán dinámicamente -->
+        </datalist>
+        <button type="button" id="agregarOperarioBtn">Agregar Operario</button>
+      </form>
+      
+      <!-- Tabla para mostrar los operarios agregados con campos adicionales -->
+      <table class="schedule-table">
+        <thead>
+          <tr>
+            <th>Operario</th>
+            <th>Variedad/Tarea de Lavado</th>
+            <th>Turno</th>
+            <th>Observaciones</th>
+          </tr>
+        </thead>
+        <tbody id="operariosBody">
+          <!-- Se agregarán filas dinámicamente -->
+        </tbody>
+      </table>
+      
+      <button id="guardarAsignacionesBtn">Guardar Asignaciones</button>
+    </section>
+  </main>
+  
+  <script>
+    // Datos simulados de operarios; en un entorno real estos vendrían de una base de datos.
+    const operarios = [
+      { id: 1, nombre: "Operario A" },
+      { id: 2, nombre: "Operario B" },
+      { id: 3, nombre: "Operario C" },
+      { id: 4, nombre: "Operario D" }
+    ];
+
+    // Función para generar las opciones del datalist (para búsqueda por ID o nombre)
+    function generarOpcionesDatalist() {
+      const datalist = document.getElementById("listaOperarios");
+      datalist.innerHTML = "";
+      operarios.forEach(operario => {
+        // Opción para el ID
+        const optionId = document.createElement("option");
+        optionId.value = String(operario.id);
+        datalist.appendChild(optionId);
+        // Opción para el nombre
+        const optionNombre = document.createElement("option");
+        optionNombre.value = operario.nombre;
+        datalist.appendChild(optionNombre);
+      });
+    }
+    
+    // Función para generar las opciones del <select> de supervisor temporal.
+    function generarOpcionesSupervisor() {
+      const selectSupervisor = document.getElementById("supervisor");
+      selectSupervisor.innerHTML = '<option value="">-- Seleccionar Supervisor --</option>';
+      operarios.forEach(operario => {
+        const option = document.createElement("option");
+        option.value = operario.id;
+        option.textContent = `${operario.id} - ${operario.nombre}`;
+        selectSupervisor.appendChild(option);
+      });
+    }
+    
+    // Función para buscar un operario por ID o nombre.
+    function buscarOperario(valorBusqueda) {
+      valorBusqueda = valorBusqueda.trim();
+      if (!valorBusqueda) return null;
+      return operarios.find(op => 
+        String(op.id) === valorBusqueda || op.nombre.toLowerCase() === valorBusqueda.toLowerCase()
+      );
+    }
+    
+    // Función para agregar un operario a la tabla de asignación con campos adicionales.
+    function agregarOperario() {
+      const busquedaInput = document.getElementById("busquedaOperario");
+      const valorBusqueda = busquedaInput.value;
+      const operarioEncontrado = buscarOperario(valorBusqueda);
+      if (!operarioEncontrado) {
+        alert("Operario no encontrado. Por favor, verifica el ID o el nombre.");
+        return;
+      }
+      
+      // Verificar que el operario no haya sido agregado ya
+      const tbody = document.getElementById("operariosBody");
+      const filasExistentes = tbody.querySelectorAll("tr");
+      for (let fila of filasExistentes) {
+        if (fila.getAttribute("data-operario-id") == operarioEncontrado.id) {
+          alert("El operario ya ha sido agregado.");
+          busquedaInput.value = "";
+          return;
+        }
+      }
+      
+      // Crear una nueva fila para el operario
+      const tr = document.createElement("tr");
+      tr.setAttribute("data-operario-id", operarioEncontrado.id);
+      
+      // Celda: Operario (ID - Nombre)
+      const tdNombre = document.createElement("td");
+      tdNombre.textContent = `${operarioEncontrado.id} - ${operarioEncontrado.nombre}`;
+      tr.appendChild(tdNombre);
+      
+      // Celda: Variedad/Tarea de Lavado (input para describir la tarea o variedad)
+      const tdVariedad = document.createElement("td");
+      const inputVariedad = document.createElement("input");
+      inputVariedad.type = "text";
+      inputVariedad.placeholder = "Ej. Variedad X o Tarea específica";
+      inputVariedad.name = `variedad_${operarioEncontrado.id}`;
+      tdVariedad.appendChild(inputVariedad);
+      tr.appendChild(tdVariedad);
+      
+      // Celda: Turno (input para definir el turno asignado)
+      const tdTurno = document.createElement("td");
+      const inputTurno = document.createElement("input");
+      inputTurno.type = "text";
+      inputTurno.placeholder = "Ej. Mañana, Tarde, Noche";
+      inputTurno.name = `turno_${operarioEncontrado.id}`;
+      tdTurno.appendChild(inputTurno);
+      tr.appendChild(tdTurno);
+      
+      // Celda: Observaciones (input para cualquier comentario adicional)
+      const tdObservaciones = document.createElement("td");
+      const inputObservaciones = document.createElement("input");
+      inputObservaciones.type = "text";
+      inputObservaciones.placeholder = "Observaciones";
+      inputObservaciones.name = `observaciones_${operarioEncontrado.id}`;
+      tdObservaciones.appendChild(inputObservaciones);
+      tr.appendChild(tdObservaciones);
+      
+      tbody.appendChild(tr);
+      busquedaInput.value = ""; // Limpiar el campo de búsqueda
+    }
+    
+    // Manejo del formulario de asignación del supervisor temporal.
+    document.getElementById("supervisorForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+      const supervisorId = document.getElementById("supervisor").value;
+      if (!supervisorId) {
+        alert("Por favor, selecciona un supervisor temporal.");
+      } else {
+        const supervisor = operarios.find(op => op.id == supervisorId);
+        alert("Supervisor temporal asignado: " + supervisor.nombre);
+        // Aquí se podría enviar la información a un servidor.
+      }
+    });
+    
+    // Agregar operario al hacer clic en "Agregar Operario"
+    document.getElementById("agregarOperarioBtn").addEventListener("click", agregarOperario);
+    
+    // Manejo del botón para guardar asignaciones de operarios para lavado.
+    document.getElementById("guardarAsignacionesBtn").addEventListener("click", function(e) {
+      const asignaciones = [];
+      const filas = document.querySelectorAll("#operariosBody tr");
+      filas.forEach(fila => {
+        const operarioId = fila.getAttribute("data-operario-id");
+        const nombreCelda = fila.cells[0].textContent;
+        const inputVariedad = fila.querySelector(`input[name="variedad_${operarioId}"]`);
+        const inputTurno = fila.querySelector(`input[name="turno_${operarioId}"]`);
+        const inputObservaciones = fila.querySelector(`input[name="observaciones_${operarioId}"]`);
+        const variedad = inputVariedad.value.trim();
+        const turno = inputTurno.value.trim();
+        const observaciones = inputObservaciones.value.trim();
+        asignaciones.push({ operarioId, nombre: nombreCelda, variedad, turno, observaciones });
+      });
+      console.log("Asignaciones:", asignaciones);
+      alert("Asignaciones guardadas. Revisa la consola para detalles.");
+      // Aquí se podría enviar la información a un servidor.
+    });
+    
+    // Inicializar al cargar la página
+    document.addEventListener("DOMContentLoaded", () => {
+      generarOpcionesDatalist();
+      generarOpcionesSupervisor();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Desinfección de Explantes</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Registro de Desinfección de Explantes</h1>
+        <p>Registra cada proceso de desinfección de los explantes.</p>
+        <button onclick="window.location.href='dashboard_juve.html'">🔙 Volver al Dashboard</button>
+    </header>
+
+    <main>
+        <form id="desinfeccionForm">
+            <label for="cantidad">Cantidad de Explantes a Desinfectar:</label>
+            <input type="number" id="cantidad" name="cantidad" required min="1">
+
+            <label for="fecha_inicio">Fecha y Hora de Inicio:</label>
+            <input type="datetime-local" id="fecha_inicio" name="fecha_inicio" required>
+
+            <label for="variedad">Variedad:</label>
+            <input type="text" id="variedad" name="variedad" required>
+
+            <label for="num_desinfeccion">Número de Desinfección:</label>
+            <input type="number" id="num_desinfeccion" name="num_desinfeccion" required min="1">
+
+            <label for="fecha_fin">Fecha y Hora de Finalización:</label>
+            <input type="datetime-local" id="fecha_fin" name="fecha_fin" required disabled>
+
+            <button type="button" id="iniciarDesinfeccion">Iniciar Desinfección</button>
+            <button type="submit" id="finalizarDesinfeccion" disabled>Finalizar Desinfección</button>
+        </form>
+    </main>
+
+    <script>
+        function getCurrentDateTime() {
+            const now = new Date();
+            now.setSeconds(0, 0); // Elimina los segundos y milisegundos
+            return now.toISOString().slice(0, 16);
+        }
+
+        function getFutureDateTime(seconds) {
+            const future = new Date();
+            future.setSeconds(future.getSeconds() + seconds);
+            future.setSeconds(0, 0);
+            return future.toISOString().slice(0, 16);
+        }
+
+        document.getElementById("fecha_inicio").setAttribute("min", getCurrentDateTime());
+        
+        document.getElementById("iniciarDesinfeccion").addEventListener("click", function() {
+            const fechaInicioInput = document.getElementById("fecha_inicio");
+            const fechaInicio = new Date(fechaInicioInput.value);
+            const now = new Date();
+            now.setSeconds(0, 0);
+            
+            if (fechaInicio && fechaInicio >= now) {
+                document.getElementById("fecha_fin").disabled = false;
+                document.getElementById("fecha_fin").setAttribute("min", getFutureDateTime(30));
+                document.getElementById("finalizarDesinfeccion").disabled = false;
+                this.disabled = true;
+            } else {
+                alert("La fecha y hora de inicio deben ser iguales o posteriores a la actual.");
+            }
+        });
+
+        document.getElementById("desinfeccionForm").addEventListener("submit", function(event) {
+            const fechaInicio = new Date(document.getElementById("fecha_inicio").value);
+            const fechaFin = new Date(document.getElementById("fecha_fin").value);
+
+            if (fechaFin <= fechaInicio) {
+                alert("La fecha y hora de finalización deben ser al menos 30 segundos después de la de inicio.");
+                event.preventDefault();
+                return;
+            }
+
+            alert("Registro de desinfección guardado correctamente.");
+            this.reset();
+            document.getElementById("fecha_fin").disabled = true;
+            document.getElementById("finalizarDesinfeccion").disabled = true;
+            document.getElementById("iniciarDesinfeccion").disabled = false;
+        });
+    </script>
+</body>
+</html>

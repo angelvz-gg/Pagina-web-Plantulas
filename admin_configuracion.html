@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuración General</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Configuración General</h1>
+    <p>Actualiza los parámetros y ajustes generales del sistema.</p>
+    <button onclick="window.location.href='admin_dashboard.html'">🔙 Volver al Panel de Administración</button>
+  </header>
+
+  <main>
+    <section class="form-container">
+      <h2>Ajustes del Sistema</h2>
+      <form id="configForm">
+        <div>
+          <label for="nombreEmpresa">Nombre de la Empresa:</label>
+          <input type="text" id="nombreEmpresa" name="nombreEmpresa" placeholder="Ej. Mi Empresa S.A. de C.V." required>
+        </div>
+        <div>
+          <label for="direccionEmpresa">Dirección:</label>
+          <input type="text" id="direccionEmpresa" name="direccionEmpresa" placeholder="Calle, Número, Colonia, Ciudad" required>
+        </div>
+        <div>
+          <label for="telefonoContacto">Teléfono de Contacto:</label>
+          <input type="tel" id="telefonoContacto" name="telefonoContacto" placeholder="Ej. 555-123-4567" required>
+        </div>
+        <div>
+          <label for="correoContacto">Correo de Contacto:</label>
+          <input type="email" id="correoContacto" name="correoContacto" placeholder="contacto@empresa.com" required>
+        </div>
+        <div>
+          <label for="urlLogo">URL del Logo:</label>
+          <input type="text" id="urlLogo" name="urlLogo" placeholder="http://ejemplo.com/logo.png">
+        </div>
+        <div>
+          <label for="mensajeBienvenida">Mensaje de Bienvenida:</label>
+          <input type="text" id="mensajeBienvenida" name="mensajeBienvenida" placeholder="Bienvenido a nuestro sistema" required>
+        </div>
+        <button type="submit">Guardar Configuración</button>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 Empresa. Todos los derechos reservados.</p>
+  </footer>
+
+  <script>
+    // Se usa localStorage para simular el almacenamiento de la configuración general.
+    const configKey = "configuracionGeneral";
+
+    // Función para cargar la configuración guardada
+    function cargarConfiguracion() {
+      const configGuardada = localStorage.getItem(configKey);
+      if (configGuardada) {
+        const config = JSON.parse(configGuardada);
+        document.getElementById("nombreEmpresa").value = config.nombreEmpresa || "";
+        document.getElementById("direccionEmpresa").value = config.direccionEmpresa || "";
+        document.getElementById("telefonoContacto").value = config.telefonoContacto || "";
+        document.getElementById("correoContacto").value = config.correoContacto || "";
+        document.getElementById("urlLogo").value = config.urlLogo || "";
+        document.getElementById("mensajeBienvenida").value = config.mensajeBienvenida || "";
+      }
+    }
+
+    // Manejo del envío del formulario
+    document.getElementById("configForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+
+      // Recoger los datos del formulario
+      const nombreEmpresa = document.getElementById("nombreEmpresa").value;
+      const direccionEmpresa = document.getElementById("direccionEmpresa").value;
+      const telefonoContacto = document.getElementById("telefonoContacto").value;
+      const correoContacto = document.getElementById("correoContacto").value;
+      const urlLogo = document.getElementById("urlLogo").value;
+      const mensajeBienvenida = document.getElementById("mensajeBienvenida").value;
+
+      const nuevaConfiguracion = {
+        nombreEmpresa,
+        direccionEmpresa,
+        telefonoContacto,
+        correoContacto,
+        urlLogo,
+        mensajeBienvenida
+      };
+
+      // Guardar en localStorage
+      localStorage.setItem(configKey, JSON.stringify(nuevaConfiguracion));
+
+      alert("Configuración actualizada correctamente.");
+    });
+
+    // Cargar la configuración al cargar la página
+    document.addEventListener("DOMContentLoaded", cargarConfiguracion);
+  </script>
+</body>
+</html>

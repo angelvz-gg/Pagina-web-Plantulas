@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Preparación de Soluciones Madre</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Preparación de Soluciones Madre</h1>
+        <p>Registro de la preparación de medios nutritivos madre.</p>
+        <button onclick="window.location.href='dashboard_juve.html'">🔙 Volver al Dashboard</button>
+    </header>
+
+    <main>
+        <form id="solucionForm">
+            <label for="codigo_medio">Código del Medio Nutritivo Madre:</label>
+            <input type="text" id="codigo_medio" name="codigo_medio" required>
+
+            <label for="fecha_preparacion">Fecha de Preparación:</label>
+            <input type="date" id="fecha_preparacion" name="fecha_preparacion" required>
+
+            <label for="cantidad_preparada">Cantidad Preparada (L):</label>
+            <input type="number" id="cantidad_preparada" name="cantidad_preparada" required min="0.1" step="0.1">
+
+            <button type="submit">Registrar Preparación</button>
+        </form>
+
+        <section id="listaSoluciones">
+            <h2>Soluciones Registradas</h2>
+            <ul id="soluciones"></ul>
+        </section>
+    </main>
+
+    <script>
+        document.getElementById("solucionForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            const codigoMedio = document.getElementById("codigo_medio").value;
+            const fechaPreparacion = document.getElementById("fecha_preparacion").value;
+            const cantidadPreparada = document.getElementById("cantidad_preparada").value;
+
+            const solucion = `Código: ${codigoMedio}, Fecha: ${fechaPreparacion}, Cantidad: ${cantidadPreparada} L`;
+
+            const lista = document.getElementById("soluciones");
+            const nuevaSolucion = document.createElement("li");
+            nuevaSolucion.textContent = solucion;
+            lista.appendChild(nuevaSolucion);
+
+            this.reset();
+        });
+    </script>
+</body>
+</html>

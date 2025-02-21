@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Historial de Planificación</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Estilos específicos para el historial (si es necesario, pueden integrarse en styles.css) */
+    .history-table {
+      width: 90%;
+      margin: 20px auto;
+      border-collapse: collapse;
+    }
+    .history-table th,
+    .history-table td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+    }
+    .history-table th {
+      background-color: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Historial de Planificación</h1>
+    <p>Revisa las planificaciones realizadas anteriormente.</p>
+    <button onclick="window.location.href='planificacion_produccion.html'">🔙 Volver a Planificación</button>
+  </header>
+  
+  <main>
+    <section>
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Actividad</th>
+            <th>Operarios Involucrados</th>
+            <th>Observaciones</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody">
+          <!-- Se cargarán los registros automáticamente -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+  
+  <script>
+    // Ejemplo de datos simulados para el historial de planificación
+    const historialPlanificacion = [
+      {
+        fecha: '01/02/2025',
+        actividad: 'Planificación de turnos y asignación de tareas',
+        operarios: 'Juan, María, Pedro',
+        observaciones: 'Todo conforme'
+      },
+      {
+        fecha: '02/02/2025',
+        actividad: 'Revisión de insumos y actualización de inventario',
+        operarios: 'Ana, Luis',
+        observaciones: 'Se solicitaron nuevos insumos'
+      },
+      {
+        fecha: '03/02/2025',
+        actividad: 'Programación de producción semanal',
+        operarios: 'Carlos, Sofía, Jorge',
+        observaciones: 'Ajuste en turnos'
+      }
+      // Puedes agregar más registros aquí...
+    ];
+
+    function cargarHistorial() {
+      const historyBody = document.getElementById("historyBody");
+      historyBody.innerHTML = "";
+
+      historialPlanificacion.forEach(registro => {
+        const fila = document.createElement("tr");
+
+        const celdaFecha = document.createElement("td");
+        celdaFecha.textContent = registro.fecha;
+        fila.appendChild(celdaFecha);
+
+        const celdaActividad = document.createElement("td");
+        celdaActividad.textContent = registro.actividad;
+        fila.appendChild(celdaActividad);
+
+        const celdaOperarios = document.createElement("td");
+        celdaOperarios.textContent = registro.operarios;
+        fila.appendChild(celdaOperarios);
+
+        const celdaObservaciones = document.createElement("td");
+        celdaObservaciones.textContent = registro.observaciones;
+        fila.appendChild(celdaObservaciones);
+
+        historyBody.appendChild(fila);
+      });
+    }
+
+    // Cargar el historial al cargar la página
+    document.addEventListener("DOMContentLoaded", cargarHistorial);
+  </script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rol de Limpieza</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Asignación de Limpieza</h1>
+        <p>Registro de operadores responsables de la limpieza y áreas asignadas.</p>
+        <button onclick="window.location.href='dashboard_juve.html'">🔙 Volver al Dashboard</button>
+    </header>
+
+    <main>
+        <form id="limpiezaForm">
+            <label for="operador">Operador Asignado:</label>
+            <input type="text" id="operador" name="operador" required>
+
+            <label for="area">Área a Limpiar:</label>
+            <input type="text" id="area" name="area" required>
+
+            <label for="fecha">Fecha de Asignación:</label>
+            <input type="date" id="fecha" name="fecha" required>
+
+            <button type="submit">Asignar Limpieza</button>
+        </form>
+
+        <section id="listaLimpieza">
+            <h2>Asignaciones de Limpieza</h2>
+            <ul id="asignaciones"></ul>
+        </section>
+    </main>
+
+    <script>
+        document.getElementById("limpiezaForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            const operador = document.getElementById("operador").value;
+            const area = document.getElementById("area").value;
+            const fecha = document.getElementById("fecha").value;
+
+            if (operador.toLowerCase().includes("reporte de siembra")) {
+                alert("⚠ El Encargado de Reporte de Siembra está exento de realizar limpieza.");
+                return;
+            }
+
+            const asignacion = `Operador: ${operador}, Área: ${area}, Fecha: ${fecha}`;
+            const lista = document.getElementById("asignaciones");
+            const nuevaAsignacion = document.createElement("li");
+            nuevaAsignacion.textContent = asignacion;
+            lista.appendChild(nuevaAsignacion);
+
+            alert(`🔔 Notificación enviada a ${operador} para la limpieza de ${area} el ${fecha}.`);
+
+            this.reset();
+        });
+    </script>
+</body>
+</html>

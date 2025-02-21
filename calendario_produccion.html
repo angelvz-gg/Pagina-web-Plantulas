@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendario de Producción</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Estilos simples para el calendario */
+    .calendar {
+      max-width: 600px;
+      margin: 20px auto;
+      border-collapse: collapse;
+      width: 100%;
+    }
+    .calendar th, .calendar td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    .calendar th {
+      background-color: #f2f2f2;
+    }
+    .task {
+      font-size: 0.9em;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Calendario de Producción</h1>
+    <p>Este calendario se genera automáticamente basado en la fecha actual.</p>
+    <button onclick="window.location.href='planificacion_produccion.html'">🔙 Volver a Planificación</button>
+  </header>
+
+  <main>
+    <table class="calendar">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Tarea de Producción</th>
+        </tr>
+      </thead>
+      <tbody id="calendarBody">
+        <!-- Las filas se generarán automáticamente -->
+      </tbody>
+    </table>
+  </main>
+
+  <script>
+    // Función que simula obtener una tarea para una fecha determinada.
+    function obtenerTareaParaFecha(fecha) {
+      // En un caso real, aquí se podría hacer un cálculo o consulta.
+      // Por ejemplo, asignamos una tarea en función del día de la semana.
+      const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const diaSemana = fecha.getDay();
+      let tarea = "";
+      switch(diaSemana) {
+        case 1: tarea = "Programar turnos y asignar tareas"; break;
+        case 2: tarea = "Verificar insumos y medio nutritivo"; break;
+        case 3: tarea = "Revisión de siembra y avances"; break;
+        case 4: tarea = "Actualizar reportes de producción"; break;
+        case 5: tarea = "Control de gastos y nómina"; break;
+        case 6: tarea = "Planificación de producción futura"; break;
+        default: tarea = "Mantenimiento y limpieza"; break;
+      }
+      return tarea;
+    }
+
+    // Función para formatear la fecha a formato DD/MM/YYYY
+    function formatearFecha(fecha) {
+      const dia = ("0" + fecha.getDate()).slice(-2);
+      const mes = ("0" + (fecha.getMonth() + 1)).slice(-2);
+      const anio = fecha.getFullYear();
+      return `${dia}/${mes}/${anio}`;
+    }
+
+    // Función para generar el calendario de los próximos 7 días.
+    function generarCalendario() {
+      const calendarBody = document.getElementById("calendarBody");
+      calendarBody.innerHTML = "";
+      
+      const hoy = new Date();
+      for (let i = 0; i < 7; i++) {
+        const fechaActual = new Date(hoy);
+        fechaActual.setDate(hoy.getDate() + i);
+        const tarea = obtenerTareaParaFecha(fechaActual);
+        
+        // Crear una nueva fila
+        const fila = document.createElement("tr");
+        
+        // Celda de la fecha
+        const celdaFecha = document.createElement("td");
+        celdaFecha.textContent = formatearFecha(fechaActual);
+        fila.appendChild(celdaFecha);
+        
+        // Celda de la tarea
+        const celdaTarea = document.createElement("td");
+        celdaTarea.innerHTML = `<span class="task">${tarea}</span>`;
+        fila.appendChild(celdaTarea);
+        
+        // Agregar la fila a la tabla
+        calendarBody.appendChild(fila);
+      }
+    }
+
+    // Ejecutar la función para generar el calendario al cargar la página
+    document.addEventListener("DOMContentLoaded", generarCalendario);
+  </script>
+</body>
+</html>

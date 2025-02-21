@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Gerente de Producción de Laboratorio</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Bienvenido, Gerente de Producción de Laboratorio</h1>
+        <p>Resumen de tus actividades y accesos rápidos.</p>
+        <button onclick="window.location.href='index.html'">🔙 Volver al Inicio</button>
+    </header>
+    
+    <main>
+        <section class="dashboard-grid">
+            <div class="card">
+                <h2>📝 Planificación de Producción</h2>
+                <p>Planifica las actividades y revisa el avance de la producción.</p>
+                <a href="planificacion_produccion.html">Planificar</a>
+            </div>
+			<div class="card">
+                <h2>🔬 Selección de Tuppers</h2>
+                <p>Coordina la selección de tuppers para envío a lavado.</p>
+                <a href="seleccion_tuppers.html">Gestionar Selección</a>
+            </div>
+			<div class="card">
+                <h2>🗂 Distribución de Trabajo para Lavado</h2>
+                <p>Asigna tareas y organiza el trabajo de los operarios.</p>
+                <a href="distribucion_trabajo.html">Organizar Tareas</a>
+            </div>
+			 <div class="card">
+                <h2>📝 Registro de Asignaciones</h2>
+                <p>Aquí se muestran las asignaciones ya hechas.</p>
+                <a href="verificar_asignaciones.html">Verificar Asignaciones</a>
+            </div>
+            <div class="card">
+                <h2>💰 Control de Gastos y Nómina</h2>
+                <p>Monitorea y administra los gastos y la nómina del laboratorio.</p>
+                <a href="control_gastos_nomina.html">Ver Detalles</a>
+            </div>
+        </section>
+    </main>
+    
+    <script src="app.js"></script>
+</body>
+</html>

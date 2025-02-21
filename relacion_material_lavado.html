@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relación de Material para Lavado</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Relación de Material para Lavado</h1>
+        <p>Registro de tuppers y variedades a lavar.</p>
+        <button onclick="window.location.href='dashboard_juve.html'">🔙 Volver al Dashboard</button>
+    </header>
+
+    <main>
+        <form id="lavadoForm">
+            <label for="cantidad_tuppers">Cantidad de Tuppers a Lavar:</label>
+            <input type="number" id="cantidad_tuppers" name="cantidad_tuppers" required min="1">
+
+            <label for="variedad">Variedad de los Tuppers:</label>
+            <input type="text" id="variedad" name="variedad" required>
+
+            <button type="submit">Registrar Lavado</button>
+        </form>
+
+        <section id="listaLavado">
+            <h2>Material a Lavar</h2>
+            <ul id="lavado"></ul>
+        </section>
+    </main>
+
+    <script>
+        document.getElementById("lavadoForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            const cantidadTuppers = document.getElementById("cantidad_tuppers").value;
+            const variedad = document.getElementById("variedad").value;
+
+            const registro = `Cantidad: ${cantidadTuppers} tuppers, Variedad: ${variedad}`;
+            const lista = document.getElementById("lavado");
+            const nuevoRegistro = document.createElement("li");
+            nuevoRegistro.textContent = registro;
+            lista.appendChild(nuevoRegistro);
+
+            alert(`🔔 Notificación enviada al Encargado de Limpieza del Incubador para lavar ${cantidadTuppers} tuppers de variedad ${variedad}.`);
+
+            this.reset();
+        });
+    </script>
+</body>
+</html>

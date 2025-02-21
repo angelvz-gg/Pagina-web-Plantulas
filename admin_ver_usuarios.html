@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Usuarios Registrados</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Usuarios Registrados</h1>
+    <p>Visualiza la información de todos los usuarios registrados.</p>
+    <button onclick="window.location.href='admin_dashboard.html'">🔙 Volver al Panel de Administración</button>
+  </header>
+  
+  <main>
+    <section class="form-container">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nombre Completo</th>
+            <th>Edad</th>
+            <th>Celular</th>
+            <th>Correo</th>
+            <th>Dirección</th>
+            <th>Rol</th>
+          </tr>
+        </thead>
+        <tbody id="usuariosBody">
+          <!-- Se insertarán dinámicamente los usuarios -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+  
+  <footer>
+    <p>&copy; 2025 Empresa. Todos los derechos reservados.</p>
+  </footer>
+  
+  <script>
+    function cargarUsuariosRegistrados() {
+      // Se recupera el array de usuarios registrado en localStorage
+      const usuariosRegistrados = JSON.parse(localStorage.getItem("usuariosRegistrados")) || [];
+      const tbody = document.getElementById("usuariosBody");
+      tbody.innerHTML = "";
+      
+      usuariosRegistrados.forEach(usuario => {
+        const tr = document.createElement("tr");
+
+        // Columna ID
+        const tdId = document.createElement("td");
+        tdId.textContent = usuario.id;
+        tr.appendChild(tdId);
+
+        // Columna Nombre Completo
+        const tdNombre = document.createElement("td");
+        tdNombre.textContent = usuario.nombre;
+        tr.appendChild(tdNombre);
+
+        // Columna Edad
+        const tdEdad = document.createElement("td");
+        tdEdad.textContent = usuario.edad || "-";
+        tr.appendChild(tdEdad);
+
+        // Columna Número Celular
+        const tdCelular = document.createElement("td");
+        tdCelular.textContent = usuario.celular || "-";
+        tr.appendChild(tdCelular);
+
+        // Columna Correo Electrónico
+        const tdCorreo = document.createElement("td");
+        tdCorreo.textContent = usuario.correo || "-";
+        tr.appendChild(tdCorreo);
+
+        // Columna Dirección: concatenamos calle, colonia, código postal y estado
+        const tdDireccion = document.createElement("td");
+        if (usuario.direccion) {
+          tdDireccion.textContent = `${usuario.direccion.calle}, ${usuario.direccion.colonia}, ${usuario.direccion.codigoPostal}, ${usuario.direccion.estado}`;
+        } else {
+          tdDireccion.textContent = "-";
+        }
+        tr.appendChild(tdDireccion);
+
+        // Columna Rol(s)
+        const tdRol = document.createElement("td");
+        tdRol.textContent = usuario.roles ? usuario.roles.join(", ") : "-";
+        tr.appendChild(tdRol);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", cargarUsuariosRegistrados);
+  </script>
+</body>
+</html>

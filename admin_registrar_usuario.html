@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registrar Usuario</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Registrar Usuario</h1>
+    <p>Crea nuevos usuarios y asigna roles iniciales.</p>
+    <button onclick="window.location.href='admin_dashboard.html'">🔙 Volver al Panel de Administración</button>
+  </header>
+  
+  <main>
+    <section class="form-container">
+      <h2>Formulario de Registro de Usuario</h2>
+      <form id="registroUsuarioForm">
+        <!-- Datos Personales -->
+        <div>
+          <label for="nombre">Nombre:</label>
+          <input type="text" id="nombre" name="nombre" placeholder="Ingrese su nombre" required>
+        </div>
+        <div>
+          <label for="apellidoPaterno">Apellido Paterno:</label>
+          <input type="text" id="apellidoPaterno" name="apellidoPaterno" placeholder="Ingrese su apellido paterno" required>
+        </div>
+        <div>
+          <label for="apellidoMaterno">Apellido Materno:</label>
+          <input type="text" id="apellidoMaterno" name="apellidoMaterno" placeholder="Ingrese su apellido materno" required>
+        </div>
+        <div>
+          <label for="edad">Edad:</label>
+          <input type="number" id="edad" name="edad" placeholder="Ingrese su edad" required min="1">
+        </div>
+        <div>
+          <label for="celular">Número Celular:</label>
+          <input type="tel" id="celular" name="celular" placeholder="Ingrese su número celular" required>
+        </div>
+        <div>
+          <label for="correo">Correo Electrónico:</label>
+          <input type="email" id="correo" name="correo" placeholder="Ingrese su correo electrónico" required>
+        </div>
+        
+        <!-- Dirección -->
+        <fieldset>
+          <legend>Dirección</legend>
+          <div>
+            <label for="calle">Calle:</label>
+            <input type="text" id="calle" name="calle" placeholder="Ingrese la calle" required>
+          </div>
+          <div>
+            <label for="colonia">Colonia:</label>
+            <input type="text" id="colonia" name="colonia" placeholder="Ingrese la colonia" required>
+          </div>
+          <div>
+            <label for="codigoPostal">Código Postal:</label>
+            <input type="text" id="codigoPostal" name="codigoPostal" placeholder="Ingrese el código postal" required>
+          </div>
+          <div>
+            <label for="estado">Estado:</label>
+            <input type="text" id="estado" name="estado" placeholder="Ingrese el estado" required>
+          </div>
+        </fieldset>
+
+        <!-- Datos de Usuario (Rol) -->
+        <div>
+          <label for="rol">Rol:</label>
+          <select id="rol" name="rol" required>
+            <option value="">Seleccione un rol</option>
+            <option value="ingeniero">Encargado General de Producción</option>
+            <option value="medico">Gerente de Producción de Laboratorio</option>
+            <option value="operario_medios">Responsable de Producción de Medios de Cultivo</option>
+            <option value="reporte_siembra">Responsable de Registro y Reporte de Siembra</option>
+            <option value="incubadora">Encargado de Incubadora y Suministro de Material</option>
+            <option value="limpieza_incubadora">Encargado de Organización y Limpieza de Incubadora</option>
+            <option value="operadora_cultivo">Operadora de Cultivo</option>
+            <option value="operadora_lavado">Operadora de Lavado</option>
+            <option value="supervisor_lavado">Supervisor de Lavado</option>
+            <option value="envio_planta">Encargado de Envío</option>
+          </select>
+        </div>
+        <div>
+          <label for="nivel">Nivel (opcional):</label>
+          <input type="number" id="nivel" name="nivel" placeholder="Ej. 1" min="1">
+        </div>
+        <button type="submit">Registrar Usuario</button>
+      </form>
+    </section>
+  </main>
+  
+  <script>
+    // Simulación: se guardan los usuarios registrados en localStorage.
+    document.getElementById("registroUsuarioForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+      
+      // Recoger datos del formulario
+      const nombre = document.getElementById("nombre").value;
+      const apellidoPaterno = document.getElementById("apellidoPaterno").value;
+      const apellidoMaterno = document.getElementById("apellidoMaterno").value;
+      const edad = document.getElementById("edad").value;
+      const celular = document.getElementById("celular").value;
+      const correo = document.getElementById("correo").value;
+      const calle = document.getElementById("calle").value;
+      const colonia = document.getElementById("colonia").value;
+      const codigoPostal = document.getElementById("codigoPostal").value;
+      const estado = document.getElementById("estado").value;
+      const rol = document.getElementById("rol").value;
+      const nivel = document.getElementById("nivel").value;
+      
+      // Simulación de generación de ID (en un entorno real, se generaría automáticamente en la base de datos)
+      let usuariosRegistrados = JSON.parse(localStorage.getItem("usuariosRegistrados")) || [];
+      const nuevoId = usuariosRegistrados.length > 0 
+                        ? usuariosRegistrados[usuariosRegistrados.length - 1].id + 1 
+                        : 100; // Comienza en 100 para usuarios nuevos
+
+      // Crear objeto usuario; se pueden combinar nombre y apellidos si se desea
+      const nuevoUsuario = {
+        id: nuevoId,
+        nombre: nombre + " " + apellidoPaterno + " " + apellidoMaterno,
+        edad: parseInt(edad),
+        celular: celular,
+        correo: correo,
+        direccion: {
+          calle: calle,
+          colonia: colonia,
+          codigoPostal: codigoPostal,
+          estado: estado
+        },
+        roles: [rol],
+        ...(nivel && { nivel: parseInt(nivel) })
+      };
+
+      usuariosRegistrados.push(nuevoUsuario);
+      localStorage.setItem("usuariosRegistrados", JSON.stringify(usuariosRegistrados));
+      
+      alert("Usuario registrado exitosamente.");
+      this.reset();
+    });
+  </script>
+</body>
+</html>

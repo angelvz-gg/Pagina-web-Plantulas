@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificación de Reportes de Producción</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Verificación de Reportes de Producción</h1>
+        <p>El Ing. Juve revisa los reportes ingresados por los operadores.</p>
+        <button onclick="window.location.href='dashboard_juve.html'">🔙 Volver al Dashboard</button>
+    </header>
+
+    <main>
+        <section id="listaReportes">
+            <h2>Reportes Pendientes de Verificación</h2>
+            <ul id="reportes">
+                <!-- Aquí se cargarán los reportes -->
+            </ul>
+        </section>
+    </main>
+
+    <script>
+        // Simulación de reportes obtenidos desde la base de datos
+        const reportes = [
+            { id: 1, operador: "Juan Pérez", variedad: "Rosa", cantidad: 50, fechaSiembra: "2024-06-01", tasaMultiplicacion: 2.5, tuppersLlenos: 10, tuppersVacios: 5, estado: "Pendiente", nota: "" },
+            { id: 2, operador: "María López", variedad: "Orquídea", cantidad: 30, fechaSiembra: "2024-06-02", tasaMultiplicacion: 1.8, tuppersLlenos: 7, tuppersVacios: 3, estado: "Pendiente", nota: "" }
+        ];
+
+        function cargarReportes() {
+            const lista = document.getElementById("reportes");
+            lista.innerHTML = "";
+
+            reportes.forEach((reporte, index) => {
+                const item = document.createElement("li");
+                item.innerHTML = `<strong>Operador:</strong> ${reporte.operador}, <strong>Variedad:</strong> ${reporte.variedad}, 
+                                  <strong>Cantidad:</strong> ${reporte.cantidad}, <strong>Fecha de Siembra:</strong> ${reporte.fechaSiembra}, 
+                                  <strong>Tasa de Multiplicación:</strong> ${reporte.tasaMultiplicacion}, 
+                                  <strong>Tuppers Llenos:</strong> ${reporte.tuppersLlenos}, <strong>Tuppers Vacíos:</strong> ${reporte.tuppersVacios} 
+                                  <br><strong>Estado:</strong> <span id="estado-${index}">${reporte.estado}</span>
+                                  <br><button onclick="verificarReporte(${index}, true)">✔ Verificar</button>
+                                  <button onclick="verificarReporte(${index}, false)">✖ Incorrecto</button>
+                                  <textarea id="nota-${index}" placeholder="Agregar nota (si es incorrecto)" style="display:none;"></textarea>`;
+                lista.appendChild(item);
+            });
+        }
+
+        function verificarReporte(index, correcto) {
+            const estadoElemento = document.getElementById(`estado-${index}`);
+            const notaElemento = document.getElementById(`nota-${index}`);
+
+            if (correcto) {
+                reportes[index].estado = "Verificado";
+                reportes[index].nota = "";
+                notaElemento.style.display = "none";
+                alert(`✅ Reporte de ${reportes[index].operador} ha sido verificado correctamente.`);
+            } else {
+                reportes[index].estado = "Incorrecto";
+                notaElemento.style.display = "block";
+                notaElemento.addEventListener("input", function () {
+                    reportes[index].nota = notaElemento.value;
+                });
+                alert(`⚠ Reporte de ${reportes[index].operador} marcado como INCORRECTO. Se enviará una notificación.`);
+            }
+            estadoElemento.textContent = reportes[index].estado;
+        }
+
+        document.addEventListener("DOMContentLoaded", cargarReportes);
+    </script>
+</body>
+</html>

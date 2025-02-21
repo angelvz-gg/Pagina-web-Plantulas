@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administrar Roles</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Administrar Roles</h1>
+    <p>Gestiona la creación, edición y eliminación de roles y sus privilegios.</p>
+    <button onclick="window.location.href='admin_dashboard.html'">🔙 Volver al Panel de Administración</button>
+  </header>
+
+  <main>
+    <!-- Sección para registrar un nuevo rol -->
+    <section class="form-container">
+      <h2>Registrar Nuevo Rol</h2>
+      <form id="registroRolForm">
+        <div>
+          <label for="nombreRol">Nombre del Rol:</label>
+          <input type="text" id="nombreRol" name="nombreRol" placeholder="Ej. Administrador, Gerente, Operario" required>
+        </div>
+        <div>
+          <label for="privilegios">Privilegios (separados por comas):</label>
+          <input type="text" id="privilegios" name="privilegios" placeholder="Ej. crear, editar, eliminar, consultar" required>
+        </div>
+        <button type="submit">Registrar Rol</button>
+      </form>
+    </section>
+
+    <!-- Sección para visualizar roles registrados -->
+    <section class="form-container">
+      <h2>Roles Registrados</h2>
+      <table class="history-table" id="tablaRoles">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nombre del Rol</th>
+            <th>Privilegios</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="rolesBody">
+          <!-- Se llenarán dinámicamente con JavaScript -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 Empresa. Todos los derechos reservados.</p>
+  </footer>
+
+  <script>
+    // Recupera o inicializa la lista de roles desde localStorage
+    let rolesRegistrados = JSON.parse(localStorage.getItem("rolesRegistrados")) || [];
+
+    // Función para actualizar la tabla de roles
+    function actualizarTablaRoles() {
+      const tbody = document.getElementById("rolesBody");
+      tbody.innerHTML = "";
+      
+      rolesRegistrados.forEach((rol, index) => {
+        const tr = document.createElement("tr");
+
+        // ID
+        const tdId = document.createElement("td");
+        tdId.textContent = rol.id;
+        tr.appendChild(tdId);
+
+        // Nombre del Rol
+        const tdNombre = document.createElement("td");
+        tdNombre.textContent = rol.nombre;
+        tr.appendChild(tdNombre);
+
+        // Privilegios (mostrados como lista separada por comas)
+        const tdPrivilegios = document.createElement("td");
+        tdPrivilegios.textContent = rol.privilegios.join(", ");
+        tr.appendChild(tdPrivilegios);
+
+        // Acciones: botón para eliminar el rol (podrías agregar editar si lo requieres)
+        const tdAcciones = document.createElement("td");
+        const btnEliminar = document.createElement("button");
+        btnEliminar.textContent = "Eliminar";
+        btnEliminar.onclick = () => eliminarRol(rol.id);
+        tdAcciones.appendChild(btnEliminar);
+        tr.appendChild(tdAcciones);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Función para eliminar un rol por su ID
+    function eliminarRol(id) {
+      rolesRegistrados = rolesRegistrados.filter(rol => rol.id !== id);
+      localStorage.setItem("rolesRegistrados", JSON.stringify(rolesRegistrados));
+      actualizarTablaRoles();
+      alert("Rol eliminado.");
+    }
+
+    // Manejo del envío del formulario de registro de rol
+    document.getElementById("registroRolForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+
+      const nombreRol = document.getElementById("nombreRol").value.trim();
+      const privilegiosInput = document.getElementById("privilegios").value.trim();
+      
+      // Convertir la cadena de privilegios en un arreglo (separado por comas)
+      const privilegios = privilegiosInput.split(",").map(p => p.trim()).filter(p => p);
+
+      // Generar un ID para el nuevo rol (puedes usar un contador o basarte en el largo del arreglo)
+      const nuevoId = rolesRegistrados.length > 0 
+                        ? rolesRegistrados[rolesRegistrados.length - 1].id + 1 
+                        : 1;
+
+      const nuevoRol = {
+        id: nuevoId,
+        nombre: nombreRol,
+        privilegios: privilegios
+      };
+
+      rolesRegistrados.push(nuevoRol);
+      localStorage.setItem("rolesRegistrados", JSON.stringify(rolesRegistrados));
+      actualizarTablaRoles();
+      this.reset();
+      alert("Rol registrado exitosamente.");
+    });
+
+    // Actualizar la tabla al cargar la página
+    document.addEventListener("DOMContentLoaded", actualizarTablaRoles);
+  </script>
+</body>
+</html>

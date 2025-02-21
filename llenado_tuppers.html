@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Llenado y Etiquetado</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Llenado y Etiquetado</h1>
+    <p>Registra el medio nutritivo contenido en cada tupper y la fecha de llenado.</p>
+    <button onclick="window.location.href='dashboard_medios.html'">🔙 Volver al Dashboard</button>
+  </header>
+
+  <main>
+    <!-- Sección para registrar el llenado y etiquetado -->
+    <section class="form-container">
+      <h2>Registrar Llenado y Etiquetado</h2>
+      <form id="llenadoForm">
+        <div>
+          <label for="codigoMedio">Código del Medio Nutritivo:</label>
+          <input type="text" id="codigoMedio" name="codigoMedio" placeholder="Ej. MED001" required>
+        </div>
+        <div>
+          <label for="fechaLlenado">Fecha de Llenado:</label>
+          <input type="date" id="fechaLlenado" name="fechaLlenado" required>
+        </div>
+        <button type="submit">Guardar Registro</button>
+      </form>
+    </section>
+
+    <!-- Sección para visualizar el historial de llenado y etiquetado -->
+    <section>
+      <h2>Historial de Llenado y Etiquetado</h2>
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Fecha de Llenado</th>
+            <th>Código del Medio Nutritivo</th>
+          </tr>
+        </thead>
+        <tbody id="historialBody">
+          <!-- Se llenarán dinámicamente con JavaScript -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    // Recupera o inicializa el historial de llenado y etiquetado desde localStorage
+    let historialLlenado = JSON.parse(localStorage.getItem("historialLlenado")) || [];
+
+    // Función para actualizar la tabla del historial
+    function actualizarHistorial() {
+      const tbody = document.getElementById("historialBody");
+      tbody.innerHTML = "";
+      
+      historialLlenado.forEach(registro => {
+        const tr = document.createElement("tr");
+        
+        const fechaCell = document.createElement("td");
+        fechaCell.textContent = registro.fechaLlenado;
+        tr.appendChild(fechaCell);
+        
+        const codigoCell = document.createElement("td");
+        codigoCell.textContent = registro.codigoMedio;
+        tr.appendChild(codigoCell);
+        
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Manejo del envío del formulario
+    document.getElementById("llenadoForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+      
+      const codigoMedio = document.getElementById("codigoMedio").value;
+      const fechaLlenado = document.getElementById("fechaLlenado").value;
+      
+      const nuevoRegistro = { codigoMedio, fechaLlenado };
+      
+      historialLlenado.push(nuevoRegistro);
+      localStorage.setItem("historialLlenado", JSON.stringify(historialLlenado));
+      
+      actualizarHistorial();
+      document.getElementById("llenadoForm").reset();
+      alert("Registro guardado exitosamente");
+    });
+
+    // Actualizar el historial al cargar la página
+    document.addEventListener("DOMContentLoaded", actualizarHistorial);
+  </script>
+</body>
+</html>
