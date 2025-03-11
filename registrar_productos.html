@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Registrar Usuario</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Registrar Productos</h1>
+      <p>Manten un registro de tu trabajo.</p>
+      <button onclick="window.location.href='admin_dashboard.html'">
+        🔙 Volver al Panel de Operador
+      </button>
+    </header>
+
+    <main>
+      <section class="form-container">
+        <h2>Formulario de Registro de Productos</h2>
+        <form id="registroProductos">
+          <!-- Datos Personales -->
+          <div>
+            <label for="codigo_variedad">Codigo de variedad:</label>
+            <input
+              type="text"
+              id="codigo_variedad"
+              name="codigo_variedad"
+              placeholder="Ingrese el codigo variedad"
+              required
+            />
+          </div>
+          <div>
+            <label for="nombre_variedad">Nombre de la variedad:</label>
+            <input
+              type="text"
+              id="nombre_variedad"
+              name="nombre_variedad"
+              placeholder="Ingrese el nombre de la variedad"
+              required
+            />
+          </div>
+          <div>
+            <label for="especie">Especie:</label>
+            <input
+              type="text"
+              id="especie"
+              name="especie"
+              placeholder="Ingrese la especie"
+              required
+            />
+          </div>
+          <div>
+            <label for="color">Color:</label>
+            <input
+              type="text"
+              id="color"
+              name="color"
+              placeholder="Ingrese el color"
+              required
+              min="1"
+            />
+          </div>
+          <div>
+            <label for="descripcion">Descripcion:</label>
+            <input
+              type="tel"
+              id="descripcion"
+              name="descripcion"
+              placeholder="Ingrese una descripcion"
+              required
+            />
+          </div>
+          <div>
+            <label for="fecha_registro">Fecha del Registro:</label>
+            <input
+              type="tel"
+              id="fecha_registro"
+              name="fecha_registro"
+              placeholder="Ingrese la fecha de registro"
+              required
+            />
+          </div>
+
+          <button type="submit">Registrar Producto</button>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      // Simulación: se guardan los usuarios registrados en localStorage.
+      document
+        .getElementById("registroProductoForm")
+        .addEventListener("submit", function (e) {
+          e.preventDefault();
+
+          // Recoger datos del formulario
+          const codigo_variedad =
+            document.getElementById("codigo_variedad").value;
+          const nombre_variedad =
+            document.getElementById("nombre_variedad").value;
+          const especie = document.getElementById("especie").value;
+          const color = document.getElementById("color").value;
+          const descripcion = document.getElementById("descripcion").value;
+          const fecha_registro =
+            document.getElementById("fecha_registro").value;
+
+          // Crear objeto producto
+          const nuevoProducto = {
+            codigo_variedad: codigo_variedad,
+            nombre_variedad: nombre_variedad,
+            especie: especie,
+            color: color,
+            descripcion: descripcion,
+            fecha_registro: fecha_registro,
+          };
+          registroProducto.push(nuevoProducto);
+          localStorage.setItem("registroProductoForm", JSON.stringify(Produ));
+
+          alert("Producto registrado exitosamente.");
+          this.reset();
+        });
+    </script>
+  </body>
+</html>
