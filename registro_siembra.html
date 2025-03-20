@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Registro y Reporte de Siembra</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Bienvenido, Responsable de Registro y Reporte de Siembra</h1>
+        <p>Resumen de tus actividades y accesos rápidos.</p>
+        <button onclick="window.location.href='index.html'">🔙 Volver al Inicio</button>
+    </header>
+    
+    <main>
+        <section class="dashboard-grid">
+            <div class="card">
+                <h2>📋 Consolidar Registros de Trabajo</h2>
+                <p>Registra y consolida los datos diarios de siembra.</p>
+                <a href="#consolidarRegistros">Ir a Registros</a>
+            </div>
+
+            <div class="card">
+                <h2>📊 Reportes de Siembra</h2>
+                <p>Consulta y actualiza los reportes diarios de siembra.</p>
+                <a href="reportes_siembra.html">Ver Reportes</a>
+            </div>
+
+            <div class="card">
+                <h2>📂 Historial de Reportes</h2>
+                <p>Accede al historial completo de reportes de siembra.</p>
+                <a href="historial_reportes.html">Ver Historial</a>
+            </div>
+            
+            <div class="card">
+                <h2>📑 Generación de Reportes</h2>
+                <p>Exporta los reportes en formato PDF o Excel.</p>
+                <a href="generacion_reportes.html">Generar Reportes</a>
+            </div>
+        </section>
+
+        <section id="consolidarRegistros">
+            <h2>📋 Consolidación de Registros de Trabajo</h2>
+            <form id="formRegistroSiembra">
+                <label for="fechaSiembra">Fecha de Siembra:</label>
+                <input type="date" id="fechaSiembra" required>
+                
+                <label for="operador">Operador:</label>
+                <input type="text" id="operador" required>
+                
+                <label for="cantidad">Cantidad Sembrada:</label>
+                <input type="number" id="cantidad" required>
+                
+                <button type="submit">Guardar Registro</button>
+            </form>
+        </section>
+
+        <section>
+            <h2>✅ Reportes Aprobados para Subir</h2>
+            <p>Los reportes que han sido revisados por el Encargado General de Producción y están listos para ser subidos a la base de datos.</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Operador</th>
+                        <th>Cantidad</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaReportesAprobados">
+                    <!-- Registros cargados dinámicamente -->
+                </tbody>
+            </table>
+        </section>
+    </main>
+    
+    <script src="app.js"></script>
+    <script>
+        document.getElementById("formRegistroSiembra").addEventListener("submit", function(event) {
+            event.preventDefault();
+            alert("Registro guardado correctamente.");
+            // Aquí se puede agregar la lógica para enviar los datos a la base de datos.
+        });
+
+        document.addEventListener("DOMContentLoaded", function() {
+            // Simulación de reportes aprobados (se conectará a BD en el futuro)
+            const reportesAprobados = [
+                { fecha: "2025-03-01", operador: "Juan Pérez", cantidad: 120, estado: "Aprobado" },
+                { fecha: "2025-03-02", operador: "María López", cantidad: 90, estado: "Aprobado" }
+            ];
+
+            const tabla = document.getElementById("tablaReportesAprobados");
+            reportesAprobados.forEach((reporte, index) => {
+                const fila = document.createElement("tr");
+                fila.innerHTML = `
+                    <td>${reporte.fecha}</td>
+                    <td>${reporte.operador}</td>
+                    <td>${reporte.cantidad}</td>
+                    <td>${reporte.estado}</td>
+                    <td><button onclick="confirmarSubida(${index})">📤 Subir</button></td>
+                `;
+                tabla.appendChild(fila);
+            });
+        });
+
+        function confirmarSubida(index) {
+            alert(`El reporte ${index + 1} ha sido marcado como subido a la base de datos.`);
+            // Aquí se integrará la lógica para actualizar en la base de datos.
+        }
+    </script>
+</body>
+</html>

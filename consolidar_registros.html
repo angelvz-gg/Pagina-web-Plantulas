@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consolidación de Registros</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>📋 Consolidación de Registros de Trabajo</h1>
+        <button onclick="window.location.href='dashboard_siembra.html'">🔙 Volver al Dashboard</button>
+    </header>
+    
+    <main>
+        <section>
+            <h2>Registrar Nueva Siembra</h2>
+            <form id="formRegistroSiembra">
+                <label for="fechaSiembra">Fecha de Siembra:</label>
+                <input type="date" id="fechaSiembra" required>
+                
+                <label for="operador">Operador:</label>
+                <input type="text" id="operador" required>
+                
+                <label for="cantidad">Cantidad Sembrada:</label>
+                <input type="number" id="cantidad" required>
+                
+                <button type="submit">Guardar Registro</button>
+            </form>
+        </section>
+        
+        <section>
+            <h2>📑 Registros Aprobados para Segunda Validación</h2>
+            <p>Estos registros ya fueron validados por el Encargado General de Producción y requieren una segunda validación antes de ser definitivos.</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Operador</th>
+                        <th>Cantidad</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaRegistrosAprobados">
+                    <!-- Registros cargados dinámicamente -->
+                </tbody>
+            </table>
+        </section>
+    </main>
+    
+    <script>
+        document.getElementById("formRegistroSiembra").addEventListener("submit", function(event) {
+            event.preventDefault();
+            alert("Registro guardado correctamente.");
+            // Aquí se puede agregar la lógica para enviar los datos a la base de datos.
+        });
+
+        document.addEventListener("DOMContentLoaded", function() {
+            // Simulación de registros aprobados por el Encargado General (en producción se conectará a BD)
+            const registrosAprobados = [
+                { fecha: "2025-03-01", operador: "Juan Pérez", cantidad: 120, estado: "Aprobado" },
+                { fecha: "2025-03-02", operador: "María López", cantidad: 90, estado: "Aprobado" }
+            ];
+
+            const tabla = document.getElementById("tablaRegistrosAprobados");
+            registrosAprobados.forEach((registro, index) => {
+                const fila = document.createElement("tr");
+                fila.innerHTML = `
+                    <td>${registro.fecha}</td>
+                    <td>${registro.operador}</td>
+                    <td>${registro.cantidad}</td>
+                    <td>${registro.estado}</td>
+                    <td><button onclick="validarRegistro(${index})">✅ Validar</button></td>
+                `;
+                tabla.appendChild(fila);
+            });
+        });
+
+        function validarRegistro(index) {
+            alert(`El registro ${index + 1} ha sido validado y enviado a la base de datos.`);
+            // Aquí se integrará la lógica para actualizar el estado en la base de datos.
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selección de Tuppers</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>📦 Selección de Tuppers</h1>
+        <button onclick="window.location.href='dashboard_gerente.html'">🔙 Volver al Dashboard</button>
+    </header>
+    
+    <main>
+        <section>
+            <h2>📋 Selección de Tuppers</h2>
+            <p>Selecciona el área de procedencia de los tuppers y la cantidad a enviar a lavado.</p>
+            <form id="formSeleccionTuppers">
+                <label for="origen">Área de Procedencia:</label>
+                <select id="origen" required>
+                    <option value="">Seleccionar área</option>
+                    <option value="Incubadora">Incubadora</option>
+                    <option value="Multiplicación">Multiplicación</option>
+                    <option value="Enraizamiento">Enraizamiento</option>
+                    <option value="Producción de Medios">Producción de Medios</option>
+                </select>
+                
+                <label for="cantidad">Cantidad de Tuppers:</label>
+                <input type="number" id="cantidad" required>
+                
+                <label for="fechaSeleccion">Fecha de Selección:</label>
+                <input type="date" id="fechaSeleccion" required>
+                
+                <label for="lavadosPrevios">Número de Lavados Previos:</label>
+                <input type="number" id="lavadosPrevios" min="0" readonly>
+                
+                <button type="submit">Enviar a Lavado</button>
+            </form>
+        </section>
+    </main>
+    
+    <script>
+        document.getElementById("origen").addEventListener("change", function() {
+            const origenSeleccionado = this.value;
+            if (!origenSeleccionado) return;
+
+            fetch('obtener_lavados_previos.php?origen=' + origenSeleccionado)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("lavadosPrevios").value = data.lavados || 0;
+            })
+            .catch(error => alert("Error al obtener el número de lavados previos."));
+        });
+
+        document.getElementById("formSeleccionTuppers").addEventListener("submit", function(event) {
+            event.preventDefault();
+            const origen = document.getElementById("origen").value;
+            const cantidad = document.getElementById("cantidad").value;
+            const fechaSeleccion = document.getElementById("fechaSeleccion").value;
+            const lavadosPrevios = document.getElementById("lavadosPrevios").value;
+            
+            if (!origen || cantidad <= 0 || !fechaSeleccion) {
+                alert("Por favor, completa todos los campos correctamente.");
+                return;
+            }
+            
+            fetch('registrar_lavado_tuppers.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ origen, cantidad, fechaSeleccion, lavadosPrevios })
+            })
+            .then(response => response.json())
+            .then(data => alert(data.mensaje))
+            .catch(error => alert("Error al registrar el envío a lavado."));
+        });
+    </script>
+</body>
+</html>

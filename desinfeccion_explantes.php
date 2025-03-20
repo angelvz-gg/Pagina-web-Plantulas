@@ -1,3 +1,7 @@
+<?php
+require 'permisos.php';
+verificar_acceso_pagina();
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>

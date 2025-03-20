@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trabajo de Operadoras</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .oculto { display: none; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>👩‍🔬 Panel de Trabajo - Operadoras</h1>
+        <button onclick="window.location.href='index.html'">🔙 Volver al Inicio</button>
+    </header>
+    
+    <main>
+        <section>
+            <h2>🌱 Trabajo en Disección</h2>
+            <p>Esta es tu actividad principal. Se te ha asignado a:</p>
+            <p><strong>Etapa:</strong> <span id="etapaTrabajo">Cargando...</span></p>
+            <button onclick="window.location.href='diseccion_operadoras.html'">Ir a Disección</button>
+        </section>
+        
+        <section id="lavado" class="oculto">
+            <h2>🧼 Trabajo en Lavado de Plantas</h2>
+            <p>Has sido asignada al lavado de plantas esta semana.</p>
+            <button onclick="window.location.href='lavado_operadoras.html'">Ir a Lavado</button>
+        </section>
+        
+        <section id="limpieza" class="oculto">
+            <h2>🧹 Asignación de Limpieza</h2>
+            <p>Tu área de limpieza asignada esta semana:</p>
+            <p><strong>Área:</strong> <span id="areaLimpieza">Cargando...</span></p>
+            <button id="confirmarLimpieza">✅ Marcar como Completado</button>
+        </section>
+    </main>
+    
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Simulación de datos en lugar de BD
+            const asignaciones = {
+                etapa: Math.random() > 0.5 ? "Etapa 2 (Multiplicación)" : "Etapa 3 (Enraizamiento)",
+                lavado: Math.random() > 0.5,
+                limpieza: Math.random() > 0.5 ? "Incubadora" : "Multiplicación"
+            };
+            
+            document.getElementById("etapaTrabajo").textContent = asignaciones.etapa;
+            
+            if (asignaciones.lavado) {
+                document.getElementById("lavado").classList.remove("oculto");
+            }
+            
+            if (asignaciones.limpieza) {
+                document.getElementById("areaLimpieza").textContent = asignaciones.limpieza;
+                document.getElementById("limpieza").classList.remove("oculto");
+            }
+        });
+
+        document.getElementById("confirmarLimpieza").addEventListener("click", function() {
+            alert("Limpieza marcada como completada.");
+        });
+    </script>
+</body>
+</html>
