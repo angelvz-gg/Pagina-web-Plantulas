@@ -39,6 +39,7 @@ if ($ID_Operador) {
     $correccionesPendientes = $countMultiplicacion + $countEnraizamiento;
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -54,79 +55,77 @@ if ($ID_Operador) {
   />
 </head>
 <body>
-  <header>
-    <!-- Encabezado con logo y título -->
-    <div class="encabezado">
-      <a class="navbar-brand" href="#">
-        <img
-          src="../logoplantulas.png"
-          alt="Logo"
-          width="130"
-          height="124"
-          class="d-inline-block align-text-center"
-        />
-      </a>
-      <div>
-        <h2>Panel de Operador</h2>
-        <p>Mantén el registro de actividades</p>
+  <div class="contenedor-pagina">
+    <header>
+      <div class="encabezado">
+        <a class="navbar-brand" href="#">
+          <img
+            src="../logoplantulas.png"
+            alt="Logo"
+            width="130"
+            height="124"
+            class="d-inline-block align-text-center"
+          />
+        </a>
+        <div>
+          <h2>Panel de Operador</h2>
+          <p>Mantén el registro de actividades</p>
+        </div>
       </div>
-    </div>
 
-    <!-- Barra de navegación -->
-    <div class="barra-navegacion">
-      <nav class="navbar bg-body-tertiary">
-        <div class="container-fluid">
-          <div class="Opciones-barra">
-            <button onclick="window.location.href='../Login/logout.php'">
-              Cerrar Sesión
-            </button>
+      <div class="barra-navegacion">
+        <nav class="navbar bg-body-tertiary">
+          <div class="container-fluid">
+            <div class="Opciones-barra">
+              <button onclick="window.location.href='../Login/logout.php'">
+                Cerrar Sesión
+              </button>
+            </div>
           </div>
-        </div>
-      </nav>
-    </div>
-  </header>
+        </nav>
+      </div>
+    </header>
 
-  <!-- Contenido principal -->
-  <main>
-    <section class="dashboard-grid">
-      <div class="card">
-        <h2>🌿 Trabajo en Disección</h2>
-        <p>Revisa tus etapas asignadas.</p>
-        <a href="reporte_diseccion.php">Trabajo en Disección</a>
-      </div>
-      <div class="card">
-        <h2>📝 Asignación de Limpieza</h2>
-        <p>Revisa qué área tienes asignada para limpieza.</p>
-        <a href="area_limpieza.php">Ver detalles</a>
-      </div>
-      <div class="card">
-        <h2>🗂 Asignación de Lavado</h2>
-        <p>Revisa tu rol para el lavado de plantas.</p>
-        <a href="relacion_lavado.php">Ver detalles</a>
-      </div>
-
-      <?php if (isset($correccionesPendientes) && $correccionesPendientes > 0): ?>
+    <main>
+      <section class="dashboard-grid">
         <div class="card">
-          <h2>⚠️ Correcciones Pendientes</h2>
-          <p>Tienes <?= $correccionesPendientes ?> reporte(s) rechazado(s) que requieren corrección.</p>
-          <a href="notificaciones_operador.php">Corregir Reporte</a>
+          <h2>🌿 Trabajo en Disección</h2>
+          <p>Revisa tus etapas asignadas.</p>
+          <a href="reporte_diseccion.php">Trabajo en Disección</a>
         </div>
-      <?php endif; ?>
-
-      <?php if ($isSupervisor): ?>
         <div class="card">
-          <h2>📊 Historial de Lavado Parcial</h2>
-          <p>Supervisa los avances registrados por el equipo.</p>
-          <a href="historial_lavado_parcial.php">Ver Historial</a>
+          <h2>📝 Asignación de Limpieza</h2>
+          <p>Revisa qué área tienes asignada para limpieza.</p>
+          <a href="area_limpieza.php">Ver detalles</a>
         </div>
-      <?php endif; ?>
-    </section>
-  </main>
+        <div class="card">
+          <h2>🗂 Asignación de Lavado</h2>
+          <p>Revisa tu rol para el lavado de plantas.</p>
+          <a href="relacion_lavado.php">Ver detalles</a>
+        </div>
 
-  <!-- Footer -->
-  <footer>
-    <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
-  </footer>
+        <?php if (isset($correccionesPendientes) && $correccionesPendientes > 0): ?>
+          <div class="card">
+            <h2>⚠️ Correcciones Pendientes</h2>
+            <p>Tienes <?= $correccionesPendientes ?> reporte(s) rechazado(s) que requieren corrección.</p>
+            <a href="notificaciones_operador.php">Corregir Reporte</a>
+          </div>
+        <?php endif; ?>
+
+        <?php if ($isSupervisor): ?>
+          <div class="card">
+            <h2>📊 Historial de Lavado Parcial</h2>
+            <p>Supervisa los avances registrados por el equipo.</p>
+            <a href="historial_lavado_parcial.php">Ver Historial</a>
+          </div>
+        <?php endif; ?>
+      </section>
+    </main>
+
+    <footer>
+      <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
+    </footer>
+  </div>
 
   <script
     src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"

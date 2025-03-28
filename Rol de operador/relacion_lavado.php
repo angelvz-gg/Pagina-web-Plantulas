@@ -89,7 +89,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["tuppers_lavados"])) {
                         <input type="hidden" name="id_variedad" value="<?= $asignacion['ID_Variedad'] ?>">
 
                         <label for="tuppers_lavados">Tuppers lavados hasta ahora:</label>
-                        <input type="number" name="tuppers_lavados" required placeholder="Ej. 15">
+                        <input type="number" name="tuppers_lavados" required placeholder="Ej. 15" min="0">
 
                         <label for="observaciones">Observaciones (opcional):</label>
                         <textarea name="observaciones" rows="3" placeholder="Escribe algo si es necesario..."></textarea>

@@ -2,12 +2,12 @@
 include '../db.php';
 session_start();
 
-// AJAX para autocompletar código de medio nutritivo
+// AJAX para autocompletar código de medio nutritivo desde el catálogo
 if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
     $term = $_GET['term'] ?? '';
 
-    $sql = "SELECT ID_MedioNM, Codigo_Medio 
-            FROM mediosnutritivosmadre 
+    $sql = "SELECT DISTINCT Codigo_Medio 
+            FROM medios_nutritivos 
             WHERE Codigo_Medio LIKE ? 
             LIMIT 10";
     $stmt = $conn->prepare($sql);
@@ -19,7 +19,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
     $res = [];
     while ($row = $result->fetch_assoc()) {
         $res[] = [
-            'id' => $row['ID_MedioNM'],
             'label' => $row['Codigo_Medio'],
             'value' => $row['Codigo_Medio']
         ];
@@ -30,16 +29,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
 
 // Procesamiento del formulario
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $codigo = $_POST['codigo_medio'];
+    $codigo_medio = $_POST['codigo_medio'];
     $fecha = $_POST['fecha_preparacion'];
     $cantidad = $_POST['cantidad_preparada'];
     $operador = $_SESSION['ID_Operador'] ?? null;
 
-    $sql = "INSERT INTO mediosnutritivosmadre 
+    $sql = "INSERT INTO medios_nutritivos_madre 
             (Codigo_Medio, Fecha_Preparacion, Cantidad_Preparada, Estado, Operador_Responsable) 
             VALUES (?, ?, ?, 'Disponible', ?)";
+
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssdi", $codigo, $fecha, $cantidad, $operador);
+    $stmt->bind_param("ssdi", $codigo_medio, $fecha, $cantidad, $operador);
 
     if ($stmt->execute()) {
         echo "<script>alert('Medio nutritivo registrado correctamente.'); window.location.href='preparacion_soluciones.php';</script>";

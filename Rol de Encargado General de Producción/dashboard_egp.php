@@ -63,7 +63,7 @@
             <p>Consulta todas las desinfecciones registradas por los operadores.</p>
             <a href="historial_desinfeccion_explantes.php">Ver Historial</a>
           </div>
-          
+
           <div class="card">
             <h2>🔬 Reportes de Producción</h2>
             <p>Consulta y revisa los reportes diarios de producción.
@@ -96,7 +96,7 @@
           <div class="card">
             <h2>🌿 Relación del Material Vegetativo</h2>
             <p>Gestiona la relación del material vegetativo que se lavará.</p>
-            <a href="relacion_material_lavado.php">Ver Relación</a>
+            <a href="lavado_plantas.php">Ver Relación</a>
           </div>
 
           <div class="card">

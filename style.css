@@ -1,4 +1,4 @@
-/* Reset básico */
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -170,7 +170,7 @@ main {
   }
 }
 
-form:not(.form-doble-columna):not(.form-boton) {
+form:not(.form-doble-columna):not(.form-boton):not(.form-inline){
   max-width: 600px;
   margin: 40px auto;
   background: white;
@@ -301,6 +301,36 @@ footer {
 /* ========================= */
 /*    BOTONES FORMULARIOS    */
 /* ========================= */
+.form-anular {
+  display: inline;
+  margin: 0;
+  padding: 0;
+}
+
+.btn-anular {
+  background-color: #dc3545;
+  color: white;
+  font-weight: bold;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-block;
+  transition: background-color 0.3s ease;
+  box-shadow: none;
+}
+
+.btn-anular:hover {
+  background-color: #c82333;
+}
+
+td span.text-muted-small {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+
 .botones-contenedor {
   display: flex;
   gap: 6px;
