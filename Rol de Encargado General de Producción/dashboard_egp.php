@@ -15,7 +15,6 @@
   <body>
     <div class="contenedor-pagina">
       <header>
-        <!-- Encabezado con logo y título -->
         <div class="encabezado">
           <a class="navbar-brand" href="#">
             <img
@@ -32,7 +31,6 @@
           </div>
         </div>
 
-        <!-- Barra de navegación -->
         <div class="barra-navegacion">
           <nav class="navbar bg-body-tertiary">
             <div class="container-fluid">
@@ -48,36 +46,74 @@
 
       <!-- Contenido principal -->
       <main>
+
+        <!-- Sección específica de ECAS -->
+        <h3 class="mt-5 mb-3">🌱 Producción - Etapa 1 (ECAS)</h3>
         <section class="dashboard-grid">
-          <div class="card">
+
+          <div class="card card-ecas">
             <h2>🧼 Desinfección de Explantes</h2>
-            <p>
-              Realiza la desinfección de explantes para su preparación en el
-              laboratorio.
-            </p>
+            <p>Preparación inicial de explantes para el cultivo.</p>
             <a href="desinfeccion_explantes.php">Ir a Desinfección</a>
           </div>
-
+          
           <div class="card">
             <h2>📄 Historial de Desinfección</h2>
             <p>Consulta todas las desinfecciones registradas por los operadores.</p>
             <a href="historial_desinfeccion_explantes.php">Ver Historial</a>
           </div>
 
+          <div class="card card-ecas">
+            <h2>📋 Registro de Siembra Inicial</h2>
+            <p>Captura la siembra inicial de explantes tras la desinfección.</p>
+            <a href="registro_siembra_ecas.php">Registrar Siembra</a>
+          </div>
+
+          <div class="card card-ecas">
+            <h2>✂️ Divisiones de Explantes</h2>
+            <p>Registra las divisiones hechas en ECAS y su generación correspondiente.</p>
+            <a href="divisiones_ecas.php">Registrar División</a>
+          </div>
+
+          <div class="card card-ecas">
+            <h2>🧪 Evaluación de Desarrollo</h2>
+            <p>Clasifica los explantes: vivos, hinchados, con brote, infectados o muertos.</p>
+            <a href="evaluacion_ecas.php">Evaluar Desarrollo</a>
+          </div>
+
+          <div class="card card-ecas">
+            <h2>🌿 Disección de Brotes</h2>
+            <p>Registra el número de hojas separadas por brote y su siguiente medio nutritivo.</p>
+            <a href="diseccion_hojas_ecas.php">Registrar Disección</a>
+          </div>
+
+          <div class="card card-ecas">
+            <h2>📈 Estadísticas de ECAS</h2>
+            <p>Consulta métricas clave de desarrollo por variedad, generación y éxito.</p>
+            <a href="estadisticas_ecas.php">Ver Estadísticas</a>
+          </div>
+
+          <div class="card card-ecas">
+            <h2>📤 Envío a Multiplicación</h2>
+            <p>Finaliza el proceso ECAS enviando brotes listos a multiplicación.</p>
+            <a href="envio_multiplicacion.php">Registrar Envío</a>
+          </div>
+          
+        </section>
+
+        <!-- Sección general -->
+        <h3 class="mt-5 mb-3">🔧 Funciones Generales</h3>
+        <section class="dashboard-grid">
+
           <div class="card">
             <h2>🔬 Reportes de Producción</h2>
-            <p>Consulta y revisa los reportes diarios de producción.
-
-            </p>
+            <p>Consulta y revisa los reportes diarios de producción.</p>
             <a href="reportes_produccion.php">Ver Reportes</a>
           </div>
 
           <div class="card">
             <h2>🧪 Preparación de Soluciones Madre</h2>
-            <p>
-              Supervisa y controla la preparación de soluciones madre en el
-              laboratorio.
-            </p>
+            <p>Supervisa y controla la preparación de soluciones madre en el laboratorio.</p>
             <a href="preparacion_soluciones.php">Ir a Preparación</a>
           </div>
 
@@ -104,11 +140,9 @@
             <p>Visualiza los reportes de avance de todos los operadores.</p>
             <a href="historial_lavado_parcial.php">Ver Historial</a>
           </div>
-
         </section>
       </main>
 
-      <!-- Footer -->
       <footer>
         <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
       </footer>

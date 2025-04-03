@@ -36,7 +36,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $estado = 'Pendiente';
 
   // Validar que el operador existe, está activo y tiene el rol correcto
-  $validar = $conn->prepare("SELECT COUNT(*) FROM operadores WHERE ID_Operador = ? AND Activo = 1 AND ID_Rol = 3");
+  $validar = $conn->prepare("SELECT COUNT(*) FROM operadores WHERE ID_Operador = ? AND Activo = 1 AND ID_Rol = 2");
   $validar->bind_param("i", $id_operador);
   $validar->execute();
   $validar->bind_result($existe);

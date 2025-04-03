@@ -141,6 +141,12 @@ main {
 /* ========================= */
 /*   FORMULARIOS Y COLUMNAS  */
 /* ========================= */
+.card-ecas {
+  background-color: #e8f5e9; /* Verde claro */
+  border-left: 5px solid #2e7d32;
+  box-shadow: 0 0 10px rgba(0, 128, 0, 0.1);
+}
+
 .content {
   display: flex;
   flex-wrap: wrap;
@@ -286,6 +292,47 @@ form button {
 
 .card a:hover {
   background-color: #356d3c;
+}
+/* ========================= */
+/*    CARRUSEL DESINFECCIÓN  */
+/* ========================= */
+.carrusel-desinfecciones {
+  display: flex;
+  overflow-x: auto;
+  gap: 15px;
+  padding: 15px 0;
+  margin-bottom: 30px;
+}
+
+.tarjeta-desinf {
+  min-width: 280px;
+  padding: 15px;
+  border: 2px solid #45814d;
+  border-radius: 10px;
+  background-color: #e6f4e9;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tarjeta-desinf:hover {
+  background-color: #d2ecd9;
+  transform: scale(1.03);
+}
+
+.tarjeta-desinf.selected {
+  background-color: #c8e6c9;
+  box-shadow: 0 0 8px #4caf50;
+}
+
+.tarjeta-desinf.blur {
+  filter: blur(1px);
+  opacity: 0.6;
+  transition: all 0.3s ease;
+}
+
+.formulario-siembra {
+  display: none;
+  margin-top: 20px;
 }
 
 /* ========================= */

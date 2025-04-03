@@ -2,12 +2,13 @@
 include '../db.php';
 session_start();
 
-// Filtros
-$fechaDesde = $_GET['fecha_desde'] ?? date('Y-m-d');
-$fechaHasta = $_GET['fecha_hasta'] ?? date('Y-m-d');
+// Fecha actual para filtros
+$fechaHoy = date('Y-m-d');
+$fechaDesde = $_GET['fecha_desde'] ?? $fechaHoy;
+$fechaHasta = $_GET['fecha_hasta'] ?? $fechaHoy;
 $estadoFiltro = $_GET['estado'] ?? '';
 
-// Consulta con filtros
+// Consulta SQL
 $sql = "SELECT rl.ID_Limpieza, rl.Fecha, rl.Area, rl.Estado_Limpieza, 
                CONCAT(o.Nombre, ' ', o.Apellido_P, ' ', o.Apellido_M) AS NombreCompleto
         FROM registro_limpieza rl
@@ -26,7 +27,8 @@ $sql .= " ORDER BY rl.Fecha DESC";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param($types, ...$params);
 $stmt->execute();
-$result = $stmt->get_result();
+$stmt->store_result();
+$stmt->bind_result($id, $fecha, $area, $estado, $nombreCompleto);
 
 // Anular asignación
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["anular_id"])) {
@@ -46,24 +48,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["anular_id"])) {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    .anular-btn {
-      background-color: transparent !important;
-      color: #dc3545 !important;
-      border: 1px solid #dc3545 !important;
-      padding: 4px 8px;
-      font-size: 13px;
-      border-radius: 4px;
-    }
-    .anular-btn:hover {
-      background-color: #dc3545 !important;
-      color: white !important;
-    }
-    .text-muted-small {
-      font-size: 13px;
-      color: #888;
-    }
-  </style>
 </head>
 <body>
   <div class="contenedor-pagina">
@@ -91,7 +75,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["anular_id"])) {
 
     <main>
       <div class="section">
-        <h2>🧾 Historial de Asignaciones</h2>
+        <h2>🧾 Historial de Asignaciones (<?= $fechaHoy ?>)</h2>
 
         <div class="text-center mb-3">
           <button class="btn btn-secondary btn-sm" onclick="toggleFiltros()" id="btnFiltros">🔍 Mostrar filtros</button>
@@ -138,34 +122,32 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["anular_id"])) {
             </tr>
           </thead>
           <tbody>
-            <?php if ($result->num_rows > 0): ?>
-              <?php while ($row = $result->fetch_assoc()): ?>
-                <?php $esHoy = ($row['Fecha'] === date('Y-m-d')); ?>
+            <?php if ($stmt->num_rows > 0): ?>
+              <?php while ($stmt->fetch()): ?>
+                <?php $esHoy = ($fecha === $fechaHoy); ?>
                 <tr>
-                  <td><?= $row['ID_Limpieza'] ?></td>
-                  <td><?= htmlspecialchars($row['NombreCompleto']) ?></td>
-                  <td><?= $row['Fecha'] ?></td>
-                  <td><?= htmlspecialchars($row['Area']) ?></td>
-                  <td><?= $row['Estado_Limpieza'] ?></td>
-                <td>
-                    <?php if ($row['Estado_Limpieza'] !== 'Anulado' && $esHoy): ?>
-                        <form method="POST" class="form-inline" onsubmit="return confirm('¿Estás seguro de anular esta asignación?');">
-                        <input type="hidden" name="anular_id" value="<?= $row['ID_Limpieza'] ?>">
+                  <td><?= $id ?></td>
+                  <td><?= htmlspecialchars($nombreCompleto) ?></td>
+                  <td><?= $fecha ?></td>
+                  <td><?= htmlspecialchars($area) ?></td>
+                  <td><?= $estado ?></td>
+                  <td>
+                    <?php if ($estado !== 'Anulado' && $esHoy): ?>
+                      <form method="POST" onsubmit="return confirm('¿Estás seguro de anular esta asignación?');">
+                        <input type="hidden" name="anular_id" value="<?= $id ?>">
                         <button type="submit" class="btn-anular">🗑 Anular</button>
-                        </form>
-                    <?php elseif ($row['Estado_Limpieza'] !== 'Anulado' && !$esHoy): ?>
-                        <span class="text-muted-small">Solo hoy</span>
+                      </form>
+                    <?php elseif ($estado !== 'Anulado'): ?>
+                      <span class="text-muted-small">Solo hoy</span>
                     <?php else: ?>
-                        <span class="text-muted">N/A</span>
+                      <span class="text-muted">N/A</span>
                     <?php endif; ?>
-                </td>
-
-
+                  </td>
                 </tr>
               <?php endwhile; ?>
             <?php else: ?>
               <tr>
-                <td colspan="6" class="text-center">No hay asignaciones en el rango seleccionado.</td>
+                <td colspan="6" class="text-center">No hay asignaciones para hoy.</td>
               </tr>
             <?php endif; ?>
           </tbody>
