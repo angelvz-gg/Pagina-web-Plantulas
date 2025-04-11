@@ -81,7 +81,7 @@ $result = mysqli_query($conn, $query);
         <nav class="navbar bg-body-tertiary">
           <div class="container-fluid">
             <div class="Opciones-barra">
-              <button onclick="window.location.href='dashboard_gpl.php'" class="btn btn-secondary">🔙 REGRESAR</button>
+              <button onclick="window.location.href='dashboard_gpl.php'">🔙 REGRESAR</button>
             </div>
           </div>
         </nav>

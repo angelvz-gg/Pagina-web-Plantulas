@@ -9,7 +9,7 @@ if (!isset($_SESSION["ID_Operador"])) {
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $tipo = $_POST["tipo"];
-    $id = $_POST["id"];
+    $id = intval($_POST["id"]);
     $accion = $_POST["accion"];
     $observacion = $_POST["observacion"] ?? null;
     $campos = isset($_POST["campos_rechazados"]) ? json_encode($_POST["campos_rechazados"]) : null;
@@ -18,28 +18,95 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if ($accion === "verificar") {
             $stmt = $conn->prepare("UPDATE Multiplicacion SET Estado_Revision = 'Verificado' WHERE ID_Multiplicacion = ?");
             $stmt->bind_param("i", $id);
+            $stmt->execute();
+
+            // Obtener datos del reporte
+            $sql_datos = "SELECT ID_Variedad, Operador_Responsable, Fecha_Siembra, Tuppers_Llenos FROM Multiplicacion WHERE ID_Multiplicacion = ?";
+            $stmt_datos = $conn->prepare($sql_datos);
+            $stmt_datos->bind_param("i", $id);
+            $stmt_datos->execute();
+            $datos = $stmt_datos->get_result()->fetch_assoc();
+
+            if ($datos) {
+                $hoy = date('Y-m-d'); // Fecha actual de validación
+                $etapa = 2; // Multiplicación
+
+                // Comprobar si ya existe lote
+                $sql_check = "SELECT COUNT(*) AS existe FROM lotes WHERE Fecha = ? AND ID_Variedad = ? AND ID_Operador = ? AND ID_Etapa = ?";
+                $check = $conn->prepare($sql_check);
+                $check->bind_param("siii", $hoy, $datos['ID_Variedad'], $datos['Operador_Responsable'], $etapa);
+                $check->execute();
+                $existe = $check->get_result()->fetch_assoc();
+
+                if ($existe['existe'] == 0 && $datos['Tuppers_Llenos'] > 0) {
+                    $insert = $conn->prepare("INSERT INTO lotes (Fecha, ID_Variedad, ID_Operador, ID_Etapa) VALUES (?, ?, ?, ?)");
+                    $insert->bind_param("siii", $hoy, $datos['ID_Variedad'], $datos['Operador_Responsable'], $etapa);
+                    $insert->execute();
+
+                    $id_lote_creado = $conn->insert_id;
+
+                    // Relacionar reporte con ID_Lote
+                    $update_lote = $conn->prepare("UPDATE Multiplicacion SET ID_Lote = ? WHERE ID_Multiplicacion = ?");
+                    $update_lote->bind_param("ii", $id_lote_creado, $id);
+                    $update_lote->execute();
+                }
+            }
         } else {
             $stmt = $conn->prepare("UPDATE Multiplicacion SET Estado_Revision = 'Rechazado', Observaciones_Revision = ?, Campos_Rechazados = ? WHERE ID_Multiplicacion = ?");
             $stmt->bind_param("ssi", $observacion, $campos, $id);
+            $stmt->execute();
         }
-        $stmt->execute();
     }
 
     if ($tipo === "enraizamiento") {
         if ($accion === "verificar") {
             $stmt = $conn->prepare("UPDATE Enraizamiento SET Estado_Revision = 'Verificado' WHERE ID_Enraizamiento = ?");
             $stmt->bind_param("i", $id);
+            $stmt->execute();
+
+            // Obtener datos del reporte
+            $sql_datos = "SELECT ID_Variedad, Operador_Responsable, Fecha_Siembra, Tuppers_Llenos FROM Enraizamiento WHERE ID_Enraizamiento = ?";
+            $stmt_datos = $conn->prepare($sql_datos);
+            $stmt_datos->bind_param("i", $id);
+            $stmt_datos->execute();
+            $datos = $stmt_datos->get_result()->fetch_assoc();
+
+            if ($datos) {
+                $hoy = date('Y-m-d'); // Fecha actual de validación
+                $etapa = 3; // Enraizamiento
+
+                // Comprobar si ya existe lote
+                $sql_check = "SELECT COUNT(*) AS existe FROM lotes WHERE Fecha = ? AND ID_Variedad = ? AND ID_Operador = ? AND ID_Etapa = ?";
+                $check = $conn->prepare($sql_check);
+                $check->bind_param("siii", $hoy, $datos['ID_Variedad'], $datos['Operador_Responsable'], $etapa);
+                $check->execute();
+                $existe = $check->get_result()->fetch_assoc();
+
+                if ($existe['existe'] == 0 && $datos['Tuppers_Llenos'] > 0) {
+                    $insert = $conn->prepare("INSERT INTO lotes (Fecha, ID_Variedad, ID_Operador, ID_Etapa) VALUES (?, ?, ?, ?)");
+                    $insert->bind_param("siii", $hoy, $datos['ID_Variedad'], $datos['Operador_Responsable'], $etapa);
+                    $insert->execute();
+
+                    $id_lote_creado = $conn->insert_id;
+
+                    // Relacionar reporte con ID_Lote
+                    $update_lote = $conn->prepare("UPDATE Enraizamiento SET ID_Lote = ? WHERE ID_Enraizamiento = ?");
+                    $update_lote->bind_param("ii", $id_lote_creado, $id);
+                    $update_lote->execute();
+                }
+            }
         } else {
             $stmt = $conn->prepare("UPDATE Enraizamiento SET Estado_Revision = 'Rechazado', Observaciones_Revision = ?, Campos_Rechazados = ? WHERE ID_Enraizamiento = ?");
             $stmt->bind_param("ssi", $observacion, $campos, $id);
+            $stmt->execute();
         }
-        $stmt->execute();
     }
 
     echo "<script>window.location.href='reportes_produccion.php';</script>";
     exit();
 }
 
+// CONSULTAS para mostrar reportes pendientes
 $sql_multiplicacion = "SELECT M.ID_Multiplicacion, V.Codigo_Variedad, V.Nombre_Variedad, M.Fecha_Siembra, M.Tasa_Multiplicacion,
            M.Cantidad_Dividida, M.Tuppers_Llenos, M.Tuppers_Desocupados, M.Estado_Revision,
            O.Nombre AS Nombre_Operador
@@ -59,6 +126,10 @@ $sql_enraizamiento = "SELECT E.ID_Enraizamiento, V.Codigo_Variedad, V.Nombre_Var
 $result_multiplicacion = $conn->query($sql_multiplicacion);
 $result_enraizamiento = $conn->query($sql_enraizamiento);
 ?>
+
+
+
+
 <!DOCTYPE html>
 <html lang="es">
 <head>

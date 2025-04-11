@@ -5,6 +5,14 @@ session_start();
 $ID_Operador = $_SESSION['ID_Operador'] ?? null;
 $fecha_actual = date('Y-m-d');
 
+// --- NUEVO BLOQUE: cargar etapas Multiplicación y Enraizamiento ---
+$etapas = [];
+$query = "SELECT ID_Etapa, Descripcion FROM Catalogo_Etapas WHERE ID_Etapa IN (2, 3)";
+$result = $conn->query($query);
+while ($row = $result->fetch_assoc()) {
+    $etapas[] = $row;
+}
+
 // Autocompletado AJAX para variedad
 if (isset($_GET['action']) && $_GET['action'] === 'buscar_variedad') {
     $term = $_GET['term'] ?? '';
@@ -171,10 +179,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && $editable) {
           <?php if (!$asignacion): ?>
             <label for="etapa">Etapa:</label>
             <select id="etapa" name="etapa" required>
-              <option value="">-- Selecciona --</option>
-              <option value="1">Multiplicación</option>
-              <option value="2">Enraizamiento</option>
-            </select>
+              <option value="">-- Selecciona una etapa --</option>
+              <?php foreach ($etapas as $etapa): ?>
+              <option value="<?= $etapa['ID_Etapa'] ?>"><?= htmlspecialchars($etapa['Descripcion']) ?></option>
+          <?php endforeach; ?>
+          </select>
 
             <label for="nombre_variedad">Buscar Variedad:</label>
             <input type="text" id="nombre_variedad" required>

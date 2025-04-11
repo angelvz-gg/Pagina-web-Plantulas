@@ -42,7 +42,7 @@ $result = mysqli_query($conn, $query);
     <h2 class="text-center mb-4">🕵️ Auditoría de Cambios en Planificaciones</h2>
 
     <div class="text-end mb-3">
-      <button onclick="window.location.href='dashboard_gpl.php'" class="btn btn-secondary">🔙 Volver al Dashboard</button>
+      <button onclick="window.location.href='dashboard_gpl.php'">🔙 Volver al Dashboard</button>
     </div>
 
     <table class="table table-bordered table-striped table-hover">

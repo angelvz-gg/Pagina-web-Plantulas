@@ -4,6 +4,8 @@ session_start();
 
 $ID_Operador = $_SESSION["ID_Operador"] ?? null;
 $isSupervisor = false;
+$isResponsableCajas = false;
+$tieneAsignacionesMultiplicacion = false;
 
 if ($ID_Operador) {
     // Verificar si el operador es Supervisor en la asignación de lavado
@@ -37,6 +39,24 @@ if ($ID_Operador) {
 
     // Total de reportes rechazados pendientes de corrección
     $correccionesPendientes = $countMultiplicacion + $countEnraizamiento;
+
+    // Verificar si es Responsable de Cajas Negras
+    $stmt_cajas = $conn->prepare("SELECT COUNT(*) as total FROM responsables_cajas WHERE ID_Operador = ?");
+    $stmt_cajas->bind_param("i", $ID_Operador);
+    $stmt_cajas->execute();
+    $result_cajas = $stmt_cajas->get_result();
+    if ($row = $result_cajas->fetch_assoc()) {
+        $isResponsableCajas = $row['total'] > 0;
+    }
+
+    // Verificar si el operador tiene asignaciones de multiplicación pendientes
+    $stmt_multiplicacion = $conn->prepare("SELECT COUNT(*) as total FROM asignaciones_multiplicacion WHERE Operador_Asignado = ? AND Estado = 'Asignado'");
+    $stmt_multiplicacion->bind_param("i", $ID_Operador);
+    $stmt_multiplicacion->execute();
+    $result_multiplicacion = $stmt_multiplicacion->get_result();
+    if ($row = $result_multiplicacion->fetch_assoc()) {
+        $tieneAsignacionesMultiplicacion = $row['total'] > 0;
+    }
 }
 ?>
 
@@ -47,25 +67,14 @@ if ($ID_Operador) {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Panel Operador</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-    rel="stylesheet"
-    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
-    crossorigin="anonymous"
-  />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
   <div class="contenedor-pagina">
     <header>
       <div class="encabezado">
         <a class="navbar-brand" href="#">
-          <img
-            src="../logoplantulas.png"
-            alt="Logo"
-            width="130"
-            height="124"
-            class="d-inline-block align-text-center"
-          />
+          <img src="../logoplantulas.png" alt="Logo" width="130" height="124" class="d-inline-block align-text-center" />
         </a>
         <div>
           <h2>Panel de Operador</h2>
@@ -119,6 +128,23 @@ if ($ID_Operador) {
             <a href="historial_lavado_parcial.php">Ver Historial</a>
           </div>
         <?php endif; ?>
+
+        <?php if ($isResponsableCajas): ?>
+          <div class="card">
+            <h2>📦 Preparación de Cajas Negras</h2>
+            <p>Accede a las órdenes asignadas y organiza tuppers.</p>
+            <a href="preparacion_cajas.php">Preparar Cajas</a>
+          </div>
+        <?php endif; ?>
+
+        <?php if ($tieneAsignacionesMultiplicacion): ?>
+          <div class="card">
+            <h2>🧬 Trabajo en Multiplicación</h2>
+            <p>Tienes asignaciones pendientes de multiplicación para trabajar.</p>
+            <a href="trabajo_multiplicacion.php">Ver mis Asignaciones</a>
+          </div>
+        <?php endif; ?>
+
       </section>
     </main>
 
@@ -127,10 +153,6 @@ if ($ID_Operador) {
     </footer>
   </div>
 
-  <script
-    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
-    crossorigin="anonymous"
-  ></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -34,14 +34,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
 }
 
 // Obtener todas las desinfecciones completadas
-$sql_des = "SELECT D.*, V.Codigo_Variedad, V.Nombre_Variedad 
+$sql_des = "SELECT D.*, V.Codigo_Variedad, V.Nombre_Variedad,
+                COALESCE(SUM(S.Cantidad_Sembrada), 0) as Cantidad_Sembrada_Total
             FROM desinfeccion_explantes D
             JOIN Variedades V ON D.ID_Variedad = V.ID_Variedad
-            WHERE D.Operador_Responsable = ? 
+            LEFT JOIN siembra_ecas S ON D.ID_Desinfeccion = S.ID_Desinfeccion
+            WHERE D.Operador_Responsable = ?
               AND D.Estado_Desinfeccion = 'Completado'
-              AND D.ID_Desinfeccion NOT IN (
-                  SELECT ID_Desinfeccion FROM siembra_ecas
-              )
+            GROUP BY D.ID_Desinfeccion
+            HAVING D.Explantes_Desinfectados > COALESCE(SUM(S.Cantidad_Sembrada), 0)
             ORDER BY D.FechaHr_Desinfeccion DESC";
 
 $stmt_des = $conn->prepare($sql_des);
@@ -49,7 +50,7 @@ $stmt_des->bind_param("i", $ID_Operador);
 $stmt_des->execute();
 $desinfecciones = $stmt_des->get_result()->fetch_all(MYSQLI_ASSOC);
 
-// Guardar siembra
+// Guardar siembra y lote
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_siembra"])) {
     $id_desinfeccion = $_POST["id_desinfeccion"];
     $id_variedad = $_POST["id_variedad"];
@@ -66,16 +67,46 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_siembra"])) {
     if ($res['total'] == 0) {
         $mensaje = "❌ El código del medio nutritivo no está registrado para ECAS.";
     } else {
-        $sql = "INSERT INTO siembra_ecas 
-                (ID_Desinfeccion, ID_Variedad, Fecha_Siembra, Medio_Nutritivo, Cantidad_Sembrada, Observaciones, Operador_Responsable)
-                VALUES (?, ?, ?, ?, ?, ?, ?)";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("iissisi", $id_desinfeccion, $id_variedad, $fecha_siembra, $medio, $cantidad, $observaciones, $ID_Operador);
-        $mensaje = $stmt->execute() ? "✅ Siembra registrada correctamente." : "❌ Error al registrar la siembra.";
+        // Verificar si ya existe un lote
+        $sql_buscar_lote = "SELECT ID_Lote FROM lotes WHERE Fecha = ? AND ID_Variedad = ? AND ID_Operador = ? AND ID_Etapa = ?";
+        $stmt_buscar_lote = $conn->prepare($sql_buscar_lote);
+        $id_etapa = 1;
+        $stmt_buscar_lote->bind_param("siii", $fecha_siembra, $id_variedad, $ID_Operador, $id_etapa);
+        $stmt_buscar_lote->execute();
+        $result_buscar_lote = $stmt_buscar_lote->get_result();
+
+        if ($row = $result_buscar_lote->fetch_assoc()) {
+            $id_lote = $row['ID_Lote'];
+        } else {
+            $sql_lote = "INSERT INTO lotes (Fecha, ID_Variedad, ID_Operador, ID_Etapa) VALUES (?, ?, ?, ?)";
+            $stmt_lote = $conn->prepare($sql_lote);
+            $stmt_lote->bind_param("siii", $fecha_siembra, $id_variedad, $ID_Operador, $id_etapa);
+            if ($stmt_lote->execute()) {
+                $id_lote = $conn->insert_id;
+            } else {
+                $mensaje = "❌ Error al crear el lote.";
+            }
+        }
+
+        // Registrar siembra ECAS
+        $sql_siembra = "INSERT INTO siembra_ecas 
+                        (ID_Desinfeccion, ID_Variedad, Fecha_Siembra, Medio_Nutritivo, Cantidad_Sembrada, Observaciones, Operador_Responsable, ID_Lote)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        $stmt_siembra = $conn->prepare($sql_siembra);
+        $stmt_siembra->bind_param("iissisii", $id_desinfeccion, $id_variedad, $fecha_siembra, $medio, $cantidad, $observaciones, $ID_Operador, $id_lote);
+
+        if ($stmt_siembra->execute()) {
+          header("Location: registro_siembra_ecas.php?success=1");
+          exit();
+        } else {
+          $mensaje = "❌ Error al registrar la siembra.";
+        }
+      
     }
 }
-
 ?>
+
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -147,12 +178,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_siembra"])) {
           <textarea name="observaciones" rows="3"></textarea>
 
           <button type="submit" name="guardar_siembra" class="save-button mt-3">Guardar Registro</button>
+          <?php if (isset($_GET['success']) && $_GET['success'] == 1): ?>
+            <div class="alert alert-success mt-3">✅ Siembra registrada correctamente.</div>
+          <?php endif; ?>
+
         </div>
       </div>
     </form>
   </main>
 
-  <footer class="mt-5">
+  <footer>
     <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
   </footer>
 </div>

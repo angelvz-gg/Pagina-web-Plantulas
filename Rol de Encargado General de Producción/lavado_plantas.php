@@ -2,30 +2,62 @@
 include '../db.php';
 session_start();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $id_operador = $_POST['id_operador'] ?? null;
-    $id_variedad = $_POST['id_variedad'] ?? null;
-    $fecha = $_POST['fecha'] ?? date('Y-m-d');
-    $rol = $_POST['rol'] ?? null;
-    $cantidad = $_POST['cantidad'] ?? null;
+// 1. Asignar una orden de lavado
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id_orden'], $_POST['id_operador'], $_POST['rol'])) {
+    $id_orden = intval($_POST['id_orden']);
+    $id_operador = intval($_POST['id_operador']);
+    $rol = $_POST['rol'];
 
-    if ($id_operador && $id_variedad && $rol && $cantidad) {
-        $sql = "INSERT INTO asignacion_lavado (ID_Operador, ID_Variedad, Fecha, Rol, Cantidad_Tuppers)
-                VALUES (?, ?, ?, ?, ?)";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("iissi", $id_operador, $id_variedad, $fecha, $rol, $cantidad);
+    // Obtener datos de la orden
+    $stmt = $conn->prepare("
+        SELECT ol.ID_Lote, l.ID_Variedad, ol.Fecha_Lavado, ol.Cantidad_Lavada
+        FROM orden_tuppers_lavado ol
+        INNER JOIN lotes l ON ol.ID_Lote = l.ID_Lote
+        WHERE ol.ID_Orden = ?
+    ");
+    $stmt->bind_param("i", $id_orden);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $orden = $res->fetch_assoc();
 
-        if ($stmt->execute()) {
-            echo "<script>alert('Asignación registrada correctamente.'); window.location.href='lavado_plantas.php';</script>";
+    if ($orden) {
+        $id_lote = $orden['ID_Lote'];
+        $id_variedad = $orden['ID_Variedad'];
+        $fecha = $orden['Fecha_Lavado'];
+        $cantidad = $orden['Cantidad_Lavada'];
+
+        // Insertar en asignacion_lavado
+        $insert = $conn->prepare("
+            INSERT INTO asignacion_lavado (ID_Operador, ID_Variedad, Fecha, Rol, Cantidad_Tuppers)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $insert->bind_param("iissi", $id_operador, $id_variedad, $fecha, $rol, $cantidad);
+
+        if ($insert->execute()) {
+            // Actualizar estado de la orden a "Asignado"
+            $update = $conn->prepare("UPDATE orden_tuppers_lavado SET Estado = 'Asignado' WHERE ID_Orden = ?");
+            $update->bind_param("i", $id_orden);
+            $update->execute();
+
+            // Registrar en movimientos_lote como "Asignación de Lavado"
+            $movimiento = $conn->prepare("
+                INSERT INTO movimientos_lote (ID_Lote, Fecha_Movimiento, Tipo_Movimiento, Cantidad_Tuppers, ID_Operador, Observaciones)
+                VALUES (?, NOW(), 'Asignación de Lavado', ?, ?, 'Operador asignado para realizar lavado')
+            ");
+            $movimiento->bind_param("iii", $id_lote, $cantidad, $id_operador);
+            $movimiento->execute();
+
+            echo "<script>alert('✅ Asignación de lavado registrada correctamente.'); window.location.href='lavado_plantas.php';</script>";
+            exit();
         } else {
-            echo "<script>alert('Error al registrar la asignación.');</script>";
+            echo "<script>alert('❌ Error al registrar la asignación.');</script>";
         }
     } else {
-        echo "<script>alert('Todos los campos son obligatorios.');</script>";
+        echo "<script>alert('❌ Error: Orden no encontrada.');</script>";
     }
 }
 
-// Obtener operadores activos que NO sean administradores
+// 2. Obtener operadores activos que NO sean administradores
 $operadores = $conn->query("
     SELECT ID_Operador, CONCAT(Nombre, ' ', Apellido_P, ' ', Apellido_M) AS NombreCompleto 
     FROM operadores 
@@ -33,10 +65,18 @@ $operadores = $conn->query("
     ORDER BY Nombre ASC
 ");
 
-
-// Obtener variedades
-$variedades = $conn->query("SELECT ID_Variedad, Nombre_Variedad FROM variedades ORDER BY Nombre_Variedad ASC");
+// 3. Obtener órdenes pendientes
+$ordenes = $conn->query("
+    SELECT ol.ID_Orden, v.Nombre_Variedad, v.Especie, ol.Fecha_Lavado, ol.Cantidad_Lavada
+    FROM orden_tuppers_lavado ol
+    INNER JOIN lotes l ON ol.ID_Lote = l.ID_Lote
+    INNER JOIN variedades v ON l.ID_Variedad = v.ID_Variedad
+    WHERE ol.Estado = 'Pendiente'
+    ORDER BY ol.Fecha_Creacion ASC
+");
 ?>
+
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -86,32 +126,24 @@ $variedades = $conn->query("SELECT ID_Variedad, Nombre_Variedad FROM variedades 
             </div>
 
             <div class="col-md-6">
-              <label for="id_variedad">Variedad:</label>
-              <select name="id_variedad" id="id_variedad" class="form-select" required>
-                <option value="">-- Seleccionar Variedad --</option>
-                <?php while ($var = $variedades->fetch_assoc()): ?>
-                  <option value="<?= $var['ID_Variedad'] ?>"><?= $var['Nombre_Variedad'] ?></option>
+              <label for="id_orden">Orden de Lavado (Pendiente):</label>
+              <select name="id_orden" id="id_orden" class="form-select" required>
+                <option value="">-- Seleccionar Orden --</option>
+                <?php while ($orden = $ordenes->fetch_assoc()): ?>
+                  <option value="<?= $orden['ID_Orden'] ?>">
+                    <?= $orden['Nombre_Variedad'] ?> (<?= $orden['Especie'] ?>) - <?= $orden['Fecha_Lavado'] ?> - <?= $orden['Cantidad_Lavada'] ?> tuppers
+                  </option>
                 <?php endwhile; ?>
               </select>
             </div>
 
-            <div class="col-md-4">
-              <label for="fecha">Fecha:</label>
-              <input type="date" name="fecha" class="form-control" value="<?= date('Y-m-d') ?>" required>
-            </div>
-
-            <div class="col-md-4">
+            <div class="col-md-6">
               <label for="rol">Rol:</label>
               <select name="rol" id="rol" class="form-select" required>
                 <option value="">-- Seleccionar Rol --</option>
                 <option value="Supervisor">Supervisor</option>
                 <option value="Lavador">Lavador</option>
               </select>
-            </div>
-
-            <div class="col-md-4">
-              <label for="cantidad">Cantidad de Tuppers:</label>
-              <input type="number" name="cantidad" class="form-control" min="1" required>
             </div>
 
             <div class="col-md-12 d-flex justify-content-center">

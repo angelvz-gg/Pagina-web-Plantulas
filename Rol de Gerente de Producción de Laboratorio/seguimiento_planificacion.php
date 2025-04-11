@@ -63,7 +63,7 @@ $result = mysqli_query($conn, "
     <h2 class="mb-4 text-center">📊 Seguimiento de Planificación</h2>
 
     <div class="text-end mb-3">
-      <button class="btn btn-secondary" onclick="window.location.href='dashboard_gpl.php'">🔙 Volver al Dashboard</button>
+      <button onclick="window.location.href='dashboard_gpl.php'">🔙 Volver al Dashboard</button>
     </div>
 
     <table class="table table-bordered table-hover table-striped">

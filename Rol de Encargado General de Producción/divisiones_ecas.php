@@ -33,10 +33,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
 $sql = "SELECT S.*, V.Codigo_Variedad, V.Nombre_Variedad,
                (SELECT COUNT(*) FROM division_ecas D WHERE D.ID_Siembra = S.ID_Siembra) AS Total_Divisiones,
                (SELECT COALESCE(MAX(Generacion), 0) FROM division_ecas D WHERE D.ID_Siembra = S.ID_Siembra) AS Ultima_Generacion,
-               (S.Cantidad_Sembrada - IFNULL((SELECT SUM(Cantidad_Dividida) FROM division_ecas D WHERE D.ID_Siembra = S.ID_Siembra),0)) AS Disponibles
+               (S.Cantidad_Sembrada - IFNULL((SELECT SUM(Cantidad_Dividida + Brotes_Contaminados) FROM division_ecas D WHERE D.ID_Siembra = S.ID_Siembra),0)) AS Disponibles
         FROM siembra_ecas S
         JOIN Variedades V ON V.ID_Variedad = S.ID_Variedad
         WHERE S.ID_Desinfeccion IS NOT NULL
+          AND (S.Cantidad_Sembrada - IFNULL((SELECT SUM(Cantidad_Dividida + Brotes_Contaminados) FROM division_ecas D WHERE D.ID_Siembra = S.ID_Siembra),0)) > 0
         ORDER BY S.Fecha_Siembra DESC";
 $res = $conn->query($sql);
 $siembras = $res->fetch_all(MYSQLI_ASSOC);
@@ -46,6 +47,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
     $id_siembra = $_POST["id_siembra"];
     $fecha = $_POST["fecha_div"];
     $cantidad = $_POST["cantidad"];
+    $brotes_contaminados = $_POST["brotes_contaminados"];
     $brotes_totales = $_POST["brotes_totales"];
     $tasa_multiplicacion = $_POST["tasa_multiplicacion"];
     $medio = $_POST["medio"];
@@ -60,13 +62,54 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
     if ($result['total'] == 0) {
         $mensaje = "❌ El medio nutritivo no está registrado para ECAS.";
     } else {
-        $stmt = $conn->prepare("INSERT INTO division_ecas (ID_Siembra, Fecha_Division, Cantidad_Dividida, Medio_Nuevo, Generacion, Observaciones, Operador_Responsable, Brotes_Totales, Tasa_Multiplicacion) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("isisssidd", $id_siembra, $fecha, $cantidad, $medio, $generacion, $observaciones, $ID_Operador, $brotes_totales, $tasa_multiplicacion);
-        $mensaje = $stmt->execute() ? "✅ División registrada correctamente." : "❌ Error al registrar la división.";
+        $stmt = $conn->prepare("INSERT INTO division_ecas 
+            (ID_Siembra, Fecha_Division, Cantidad_Dividida, Medio_Nuevo, Generacion, Observaciones, Operador_Responsable, Brotes_Totales, Tasa_Multiplicacion, Brotes_Contaminados) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("isisssiddi", 
+            $id_siembra, 
+            $fecha, 
+            $cantidad, 
+            $medio, 
+            $generacion, 
+            $observaciones, 
+            $ID_Operador, 
+            $brotes_totales, 
+            $tasa_multiplicacion, 
+            $brotes_contaminados
+        );
+
+        if ($stmt->execute()) {
+            $id_division = $conn->insert_id;
+
+            if ($brotes_contaminados > 0) {
+                $motivo = "Contaminación en división";
+                $sql_perdida = "INSERT INTO perdidas_laboratorio 
+                    (ID_Entidad, Tipo_Entidad, Fecha_Perdida, Cantidad_Perdida, Motivo, Operador_Entidad, Operador_Chequeo)
+                    VALUES (?, 'division_ecas', ?, ?, ?, ?, ?)";
+                $stmt_perdida = $conn->prepare($sql_perdida);
+                if ($stmt_perdida) {
+                    $stmt_perdida->bind_param("isissi", 
+                        $id_division, 
+                        $fecha, 
+                        $brotes_contaminados, 
+                        $motivo, 
+                        $ID_Operador, 
+                        $ID_Operador
+                    );
+                    $stmt_perdida->execute();
+                }
+            }
+
+            header("Location: divisiones_ecas.php?success=1");
+            exit();
+        } else {
+            $mensaje = "❌ Error al registrar la división.";
+        }
     }
 }
 ?>
+
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
