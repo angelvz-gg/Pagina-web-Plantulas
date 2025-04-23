@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Responsable de Producción de Medios de Cultivo</title>
   <link rel="stylesheet" href="../style.css?v=<?=time();?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous" />
@@ -26,7 +26,7 @@
         <div class="container-fluid">
           <div class="Opciones-barra">
             <button onclick="window.location.href='../Login/logout.php'">
-              🔄 Regresar
+              Cerrar Sesion
             </button>
           </div>
         </div>
@@ -51,14 +51,15 @@
       <div class="card">
         <h2>🧪 Homogeneización del Medio</h2>
         <p>Supervisa y controla la homogeneización del medio nutritivo madre.</p>
-        <a href="homogeneizacion_medio_nutritivo.php">Ver detalles</a>
+        <a href="h_medio_nutritivo.php">Ver detalles</a>
       </div>
 
       <div class="card">
-        <h2>📦 Llenado y Etiquetado</h2>
-        <p>Gestiona el llenado y etiquetado de tuppers con el medio nutritivo.</p>
-        <a href="llenado_tupper.php">Ver detalles</a>
+        <h2>📋 Historial de Homogenizaciones</h2>
+        <p>Consulta registros anteriores de diluciones realizadas y tuppers llenados.</p>
+        <a href="historial_homogenizaciones.php">Ver historial</a>
       </div>
+
     </section>
   </main>
 

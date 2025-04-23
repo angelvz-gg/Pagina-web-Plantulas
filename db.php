@@ -1,8 +1,8 @@
 <?php
-$servername = "localhost"; // Servidor de MySQL
-$username = "root"; // Usuario (por defecto en XAMPP)
-$password = ""; // Sin contraseña en XAMPP
-$database = "produccion_laboratorio"; // Nombre de tu base de datos
+$servername = "sql308.infinityfree.com"; // Host real que te dio el panel
+$username = "if0_38801101";              // Usuario de tu cuenta
+$password = "QWERTY58a";                 // Tu contraseña
+$database = "if0_38801101_produccion_laboratorio"; // Nombre de la base
 
 // Crear conexión
 $conn = new mysqli($servername, $username, $password, $database);
@@ -11,4 +11,7 @@ $conn = new mysqli($servername, $username, $password, $database);
 if ($conn->connect_error) {
     die("Conexión fallida: " . $conn->connect_error);
 }
+
+// ✅ Esta línea evita errores con acentos y ñ
+$conn->set_charset("utf8mb4");
 ?>

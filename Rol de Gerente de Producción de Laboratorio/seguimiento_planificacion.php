@@ -14,11 +14,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id_plan']) && isset($
   $estado = $_POST['nuevo_estado'];
 
   // Obtener estado actual antes de actualizar
-  $consulta_estado = mysqli_query($conn, "SELECT Estado FROM Planificacion_Produccion WHERE ID_Planificacion = $id");
+  $consulta_estado = mysqli_query($conn, "SELECT Estado FROM planificacion_produccion WHERE ID_Planificacion = $id");
   $estado_actual = mysqli_fetch_assoc($consulta_estado)['Estado'];
 
   // Actualizar el estado
-  $stmt = $conn->prepare("UPDATE Planificacion_Produccion SET Estado = ? WHERE ID_Planificacion = ?");
+  $stmt = $conn->prepare("UPDATE planificacion_produccion SET Estado = ? WHERE ID_Planificacion = ?");
   $stmt->bind_param("si", $estado, $id);
   $stmt->execute();
 
@@ -40,12 +40,12 @@ $result = mysqli_query($conn, "
     os.Nombre AS Responsable_Supervision_Nombre,
     om.Nombre AS Responsable_Medio_Nombre,
     oa.Nombre AS Responsable_Acomodo_Nombre
-  FROM Planificacion_Produccion p
-  JOIN Variedades v ON p.ID_Variedad = v.ID_Variedad
-  LEFT JOIN Operadores oe ON p.Responsable_Ejecucion = oe.ID_Operador
-  LEFT JOIN Operadores os ON p.Responsable_Supervision = os.ID_Operador
-  LEFT JOIN Operadores om ON p.Responsable_MedioNutritivo = om.ID_Operador
-  LEFT JOIN Operadores oa ON p.Responsable_Acomodo = oa.ID_Operador
+  FROM planificacion_produccion p
+  JOIN variedades v ON p.ID_Variedad = v.ID_Variedad
+  LEFT JOIN operadores oe ON p.Responsable_Ejecucion = oe.ID_Operador
+  LEFT JOIN operadores os ON p.Responsable_Supervision = os.ID_Operador
+  LEFT JOIN operadores om ON p.Responsable_MedioNutritivo = om.ID_Operador
+  LEFT JOIN operadores oa ON p.Responsable_Acomodo = oa.ID_Operador
   ORDER BY p.Fecha_Planificacion DESC
 ");
 ?>
@@ -54,6 +54,7 @@ $result = mysqli_query($conn, "
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Seguimiento de Planificación</title>
   <link rel="stylesheet" href="../style.css">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">

@@ -2,13 +2,15 @@
 include '../db.php';
 session_start();
 
-// AJAX para autocompletar código de medio nutritivo desde el catálogo
+// AJAX para autocompletar medios activos destinados a ECAS
 if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
     $term = $_GET['term'] ?? '';
 
     $sql = "SELECT DISTINCT Codigo_Medio 
             FROM medios_nutritivos 
             WHERE Codigo_Medio LIKE ? 
+              AND Estado = 'Activo'
+              AND Etapa_Destinada = 'ECAS'
             LIMIT 10";
     $stmt = $conn->prepare($sql);
     $like = "%$term%";
@@ -29,25 +31,26 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
 
 // Procesamiento del formulario
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $codigo_medio = $_POST['codigo_medio'];
-    $fecha = $_POST['fecha_preparacion'];
-    $cantidad = $_POST['cantidad_preparada'];
-    $operador = $_SESSION['ID_Operador'] ?? null;
+  $codigo_medio = $_POST['codigo_medio'];
+  $fecha = $_POST['fecha_preparacion'];
+  $cantidad = $_POST['cantidad_preparada'];
+  $operador = $_SESSION['ID_Operador'] ?? null;
 
-    $sql = "INSERT INTO medios_nutritivos_madre 
-            (Codigo_Medio, Fecha_Preparacion, Cantidad_Preparada, Estado, Operador_Responsable) 
-            VALUES (?, ?, ?, 'Disponible', ?)";
+  $sql = "INSERT INTO medios_nutritivos_madre 
+          (Codigo_Medio, Fecha_Preparacion, Cantidad_Preparada, Cantidad_Disponible, Estado, Operador_Responsable) 
+          VALUES (?, ?, ?, ?, 'Disponible', ?)";
 
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssdi", $codigo_medio, $fecha, $cantidad, $operador);
+  $stmt = $conn->prepare($sql);
+  $stmt->bind_param("ssdii", $codigo_medio, $fecha, $cantidad, $cantidad, $operador);
 
-    if ($stmt->execute()) {
-        echo "<script>alert('Medio nutritivo registrado correctamente.'); window.location.href='preparacion_soluciones.php';</script>";
-    } else {
-        echo "<script>alert('Error al registrar el medio.');</script>";
-    }
+  if ($stmt->execute()) {
+      echo "<script>alert('Medio nutritivo registrado correctamente.'); window.location.href='preparacion_soluciones.php';</script>";
+  } else {
+      echo "<script>alert('Error al registrar el medio.');</script>";
+  }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -116,11 +119,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   <script>
   $(function () {
     $("#codigo_medio").autocomplete({
-      source: "preparacion_soluciones.php?action=buscar_medio",
-      minLength: 1,
+      source: function (request, response) {
+        $.getJSON("preparacion_soluciones.php?action=buscar_medio", { term: request.term }, response);
+      },
+      minLength: 0,
       select: function (event, ui) {
         $("#codigo_medio").val(ui.item.value);
       }
+    }).focus(function () {
+      $(this).autocomplete("search", "");
     });
   });
   </script>

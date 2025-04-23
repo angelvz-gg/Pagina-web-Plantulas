@@ -11,8 +11,8 @@ $operatorId = $_SESSION["ID_Operador"];
 
 // Consulta para reportes rechazados de Multiplicación
 $sql_multiplicacion = "SELECT M.ID_Multiplicacion, V.Codigo_Variedad, V.Nombre_Variedad, M.Fecha_Siembra, M.Observaciones_Revision
-    FROM Multiplicacion M
-    LEFT JOIN Variedades V ON M.ID_Variedad = V.ID_Variedad
+    FROM multiplicacion M
+    LEFT JOIN variedades V ON M.ID_Variedad = V.ID_Variedad
     WHERE M.Operador_Responsable = ? AND M.Estado_Revision = 'Rechazado'";
 $stmt_m = $conn->prepare($sql_multiplicacion);
 $stmt_m->bind_param("i", $operatorId);
@@ -21,8 +21,8 @@ $result_m = $stmt_m->get_result();
 
 // Consulta para reportes rechazados de Enraizamiento
 $sql_enraizamiento = "SELECT E.ID_Enraizamiento, V.Codigo_Variedad, V.Nombre_Variedad, E.Fecha_Siembra, E.Observaciones_Revision
-    FROM Enraizamiento E
-    LEFT JOIN Variedades V ON E.ID_Variedad = V.ID_Variedad
+    FROM enraizamiento E
+    LEFT JOIN variedades V ON E.ID_Variedad = V.ID_Variedad
     WHERE E.Operador_Responsable = ? AND E.Estado_Revision = 'Rechazado'";
 $stmt_e = $conn->prepare($sql_enraizamiento);
 $stmt_e->bind_param("i", $operatorId);
@@ -33,6 +33,7 @@ $result_e = $stmt_e->get_result();
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Notificaciones de Rechazo - Operador</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">

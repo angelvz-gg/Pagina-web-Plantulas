@@ -5,7 +5,7 @@ session_start();
 // Autocompletado AJAX para buscar variedades por Código o Nombre
 if (isset($_GET['action']) && $_GET['action'] === 'buscar_variedad') {
     $term = $_GET['term'] ?? '';
-    $sql = "SELECT ID_Variedad, Codigo_Variedad, Nombre_Variedad FROM Variedades 
+    $sql = "SELECT ID_Variedad, Codigo_Variedad, Nombre_Variedad FROM variedades 
             WHERE Codigo_Variedad LIKE ? OR Nombre_Variedad LIKE ? LIMIT 10";
     $stmt = $conn->prepare($sql);
     $like = "%$term%";
@@ -46,7 +46,7 @@ $desinfeccion_activa = $stmt_activa->get_result()->fetch_assoc();
 $info_variedad = null;
 if ($desinfeccion_activa) {
     $id_variedad_activa = $desinfeccion_activa['ID_Variedad'];
-    $sql_var = "SELECT Codigo_Variedad, Nombre_Variedad FROM Variedades WHERE ID_Variedad = ?";
+    $sql_var = "SELECT Codigo_Variedad, Nombre_Variedad FROM variedades WHERE ID_Variedad = ?";
     $stmt_var = $conn->prepare($sql_var);
     $stmt_var->bind_param("i", $id_variedad_activa);
     $stmt_var->execute();
@@ -59,7 +59,7 @@ if (isset($_POST["iniciar"])) {
     $explantes_iniciales = $_POST["explantes_iniciales"];
     $fecha_inicio = $_POST["fecha_inicio"];
 
-    $sql_check = "SELECT COUNT(*) AS existe FROM Variedades WHERE ID_Variedad = ?";
+    $sql_check = "SELECT COUNT(*) AS existe FROM variedades WHERE ID_Variedad = ?";
     $stmt_check = $conn->prepare($sql_check);
     $stmt_check->bind_param("i", $id_variedad);
     $stmt_check->execute();

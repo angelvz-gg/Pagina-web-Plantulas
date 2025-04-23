@@ -17,8 +17,8 @@ $query = "
         a.Fecha,
         SUM(a.Cantidad_Tuppers) AS Total_Tuppers
     FROM asignacion_lavado a
-    JOIN Operadores o ON a.ID_Operador = o.ID_Operador
-    JOIN Variedades v ON a.ID_Variedad = v.ID_Variedad
+    JOIN operadores o ON a.ID_Operador = o.ID_Operador
+    JOIN variedades v ON a.ID_Variedad = v.ID_Variedad
     WHERE a.Fecha = ?
     GROUP BY a.ID_Operador, a.ID_Variedad, a.Rol, a.Fecha
     ORDER BY o.Nombre ASC, a.Fecha DESC
@@ -34,6 +34,7 @@ $resultado = $stmt->get_result();
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Rendimiento del Personal</title>
     <link rel="stylesheet" href="../style.css?v=<?=time();?>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">

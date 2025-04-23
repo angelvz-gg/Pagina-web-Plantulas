@@ -25,9 +25,9 @@ SELECT
     COALESCE(d.Total_Division, 0)
   ) / p.Cantidad_Proyectada * 100, 2) AS Porcentaje_Cumplido
 
-FROM Planificacion_Produccion p
+FROM planificacion_Produccion p
 
-JOIN Variedades v ON p.ID_Variedad = v.ID_Variedad
+JOIN variedades v ON p.ID_Variedad = v.ID_Variedad
 
 -- Multiplicación
 LEFT JOIN (

@@ -16,12 +16,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if ($tipo === "multiplicacion") {
         if ($accion === "verificar") {
-            $stmt = $conn->prepare("UPDATE Multiplicacion SET Estado_Revision = 'Verificado' WHERE ID_Multiplicacion = ?");
+            $stmt = $conn->prepare("UPDATE multiplicacion SET Estado_Revision = 'Verificado' WHERE ID_Multiplicacion = ?");
             $stmt->bind_param("i", $id);
             $stmt->execute();
 
             // Obtener datos del reporte
-            $sql_datos = "SELECT ID_Variedad, Operador_Responsable, Fecha_Siembra, Tuppers_Llenos FROM Multiplicacion WHERE ID_Multiplicacion = ?";
+            $sql_datos = "SELECT ID_Variedad, Operador_Responsable, Fecha_Siembra, Tuppers_Llenos FROM multiplicacion WHERE ID_Multiplicacion = ?";
             $stmt_datos = $conn->prepare($sql_datos);
             $stmt_datos->bind_param("i", $id);
             $stmt_datos->execute();
@@ -46,13 +46,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $id_lote_creado = $conn->insert_id;
 
                     // Relacionar reporte con ID_Lote
-                    $update_lote = $conn->prepare("UPDATE Multiplicacion SET ID_Lote = ? WHERE ID_Multiplicacion = ?");
+                    $update_lote = $conn->prepare("UPDATE multiplicacion SET ID_Lote = ? WHERE ID_Multiplicacion = ?");
                     $update_lote->bind_param("ii", $id_lote_creado, $id);
                     $update_lote->execute();
                 }
             }
         } else {
-            $stmt = $conn->prepare("UPDATE Multiplicacion SET Estado_Revision = 'Rechazado', Observaciones_Revision = ?, Campos_Rechazados = ? WHERE ID_Multiplicacion = ?");
+            $stmt = $conn->prepare("UPDATE multiplicacion SET Estado_Revision = 'Rechazado', Observaciones_Revision = ?, Campos_Rechazados = ? WHERE ID_Multiplicacion = ?");
             $stmt->bind_param("ssi", $observacion, $campos, $id);
             $stmt->execute();
         }
@@ -60,12 +60,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if ($tipo === "enraizamiento") {
         if ($accion === "verificar") {
-            $stmt = $conn->prepare("UPDATE Enraizamiento SET Estado_Revision = 'Verificado' WHERE ID_Enraizamiento = ?");
+            $stmt = $conn->prepare("UPDATE enraizamiento SET Estado_Revision = 'Verificado' WHERE ID_Enraizamiento = ?");
             $stmt->bind_param("i", $id);
             $stmt->execute();
 
             // Obtener datos del reporte
-            $sql_datos = "SELECT ID_Variedad, Operador_Responsable, Fecha_Siembra, Tuppers_Llenos FROM Enraizamiento WHERE ID_Enraizamiento = ?";
+            $sql_datos = "SELECT ID_Variedad, Operador_Responsable, Fecha_Siembra, Tuppers_Llenos FROM enraizamiento WHERE ID_Enraizamiento = ?";
             $stmt_datos = $conn->prepare($sql_datos);
             $stmt_datos->bind_param("i", $id);
             $stmt_datos->execute();
@@ -90,13 +90,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $id_lote_creado = $conn->insert_id;
 
                     // Relacionar reporte con ID_Lote
-                    $update_lote = $conn->prepare("UPDATE Enraizamiento SET ID_Lote = ? WHERE ID_Enraizamiento = ?");
+                    $update_lote = $conn->prepare("UPDATE enraizamiento SET ID_Lote = ? WHERE ID_Enraizamiento = ?");
                     $update_lote->bind_param("ii", $id_lote_creado, $id);
                     $update_lote->execute();
                 }
             }
         } else {
-            $stmt = $conn->prepare("UPDATE Enraizamiento SET Estado_Revision = 'Rechazado', Observaciones_Revision = ?, Campos_Rechazados = ? WHERE ID_Enraizamiento = ?");
+            $stmt = $conn->prepare("UPDATE enraizamiento SET Estado_Revision = 'Rechazado', Observaciones_Revision = ?, Campos_Rechazados = ? WHERE ID_Enraizamiento = ?");
             $stmt->bind_param("ssi", $observacion, $campos, $id);
             $stmt->execute();
         }
@@ -110,17 +110,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 $sql_multiplicacion = "SELECT M.ID_Multiplicacion, V.Codigo_Variedad, V.Nombre_Variedad, M.Fecha_Siembra, M.Tasa_Multiplicacion,
            M.Cantidad_Dividida, M.Tuppers_Llenos, M.Tuppers_Desocupados, M.Estado_Revision,
            O.Nombre AS Nombre_Operador
-    FROM Multiplicacion M
-    LEFT JOIN Variedades V ON M.ID_Variedad = V.ID_Variedad
-    LEFT JOIN Operadores O ON M.Operador_Responsable = O.ID_Operador
+    FROM multiplicacion M
+    LEFT JOIN variedades V ON M.ID_Variedad = V.ID_Variedad
+    LEFT JOIN operadores O ON M.Operador_Responsable = O.ID_Operador
     WHERE M.Estado_Revision = 'Pendiente'";
 
 $sql_enraizamiento = "SELECT E.ID_Enraizamiento, V.Codigo_Variedad, V.Nombre_Variedad, E.Fecha_Siembra, E.Tasa_Multiplicacion,
            E.Cantidad_Dividida, E.Tuppers_Llenos, E.Tuppers_Desocupados, E.Estado_Revision,
            O.Nombre AS Nombre_Operador
-    FROM Enraizamiento E
-    LEFT JOIN Variedades V ON E.ID_Variedad = V.ID_Variedad
-    LEFT JOIN Operadores O ON E.Operador_Responsable = O.ID_Operador
+    FROM enraizamiento E
+    LEFT JOIN variedades V ON E.ID_Variedad = V.ID_Variedad
+    LEFT JOIN operadores O ON E.Operador_Responsable = O.ID_Operador
     WHERE E.Estado_Revision = 'Pendiente'";
 
 $result_multiplicacion = $conn->query($sql_multiplicacion);

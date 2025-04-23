@@ -10,6 +10,25 @@ if (!isset($_SESSION["ID_Operador"])) {
 $ID_Operador = $_SESSION["ID_Operador"];
 $mensaje = "";
 
+// Autocompletado para medios ECAS
+if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
+    $term = $_GET['term'] ?? '';
+    $sql = "SELECT DISTINCT Codigo_Medio FROM medios_nutritivos 
+            WHERE Codigo_Medio LIKE ? AND Etapa_Destinada = 'ECAS' AND Estado = 'Activo' LIMIT 10";
+    $stmt = $conn->prepare($sql);
+    $like = "%$term%";
+    $stmt->bind_param("s", $like);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $res = [];
+    while ($row = $result->fetch_assoc()) {
+        $res[] = ['id' => $row['Codigo_Medio'], 'label' => $row['Codigo_Medio'], 'value' => $row['Codigo_Medio']];
+    }
+    echo json_encode($res);
+    exit;
+}
+
 // Obtener siembras y divisiones disponibles
 $sql = "
 (
@@ -115,6 +134,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_diseccion"]))
   <title>Disección de Hojas - ECAS</title>
   <link rel="stylesheet" href="../style.css?v=<?=time();?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
 </head>
 <body>
 <div class="contenedor-pagina">
@@ -206,7 +226,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_diseccion"]))
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
 <script>
 document.getElementById('id_siembra')?.addEventListener('change', function () {
   const opt = this.options[this.selectedIndex];
@@ -219,6 +239,20 @@ document.getElementById('id_siembra')?.addEventListener('change', function () {
   document.getElementById('brotes_disponibles').value = opt.getAttribute('data-brotes') || '0';
   document.getElementById('generacion').value = opt.getAttribute('data-generacion') || '1';
   document.getElementById('generacion_siembra').innerText = opt.getAttribute('data-generacion') || '1';
+});
+
+$(function () {
+  $("#medio_usado").autocomplete({
+    source: function (request, response) {
+      $.getJSON("diseccion_hojas_ecas.php?action=buscar_medio", { term: request.term }, response);
+    },
+    minLength: 0,
+    select: function (event, ui) {
+      $("#medio_usado").val(ui.item.value);
+    }
+  }).focus(function () {
+    $(this).autocomplete("search", "");
+  });
 });
 </script>
 </body>

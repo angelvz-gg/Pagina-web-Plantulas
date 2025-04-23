@@ -68,7 +68,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && $ID_Diseccion) {
     $tupper_lleno = $_POST["tupper_lleno"];
     $tupper_vacio = $_POST["tupper_vacios"];
 
-    $sql_insert = "INSERT INTO Multiplicacion 
+    $sql_insert = "INSERT INTO multiplicacion 
         (ID_Variedad, ID_MedioNutritivo, Cantidad_Dividida, Fecha_Siembra, Tasa_Multiplicacion, 
          Tuppers_Llenos, Tuppers_Desocupados, Operador_Responsable, Estado_Revision)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente')";
@@ -99,7 +99,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && $ID_Diseccion) {
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Trabajo en Multiplicación</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">

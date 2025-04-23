@@ -34,8 +34,8 @@ $query = "
         a.Cantidad_Tuppers,
         a.Estado_Final
     FROM asignacion_lavado a
-    JOIN Operadores o ON a.ID_Operador = o.ID_Operador
-    JOIN Variedades v ON a.ID_Variedad = v.ID_Variedad
+    JOIN operadores o ON a.ID_Operador = o.ID_Operador
+    JOIN variedades v ON a.ID_Variedad = v.ID_Variedad
     WHERE 1=1
 ";
 
@@ -84,6 +84,7 @@ $resultado = $stmt->get_result();
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Verificación de Asignaciones</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">

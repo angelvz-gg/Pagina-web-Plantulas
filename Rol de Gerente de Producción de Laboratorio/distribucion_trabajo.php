@@ -112,7 +112,7 @@ $cajas = $conn->query("
         <nav class="navbar bg-body-tertiary">
             <div class="container-fluid">
                 <div class="Opciones-barra">
-                    <button onclick="window.location.href='dashboard_gpl.php'">🔙 Regresar al Dashboard</button>
+                    <button onclick="window.location.href='dashboard_gpl.php'">🔙 Regresar</button>
                 </div>
             </div>
         </nav>

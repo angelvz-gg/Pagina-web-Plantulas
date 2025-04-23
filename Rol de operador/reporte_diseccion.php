@@ -7,7 +7,7 @@ $fecha_actual = date('Y-m-d');
 
 // --- NUEVO BLOQUE: cargar etapas Multiplicación y Enraizamiento ---
 $etapas = [];
-$query = "SELECT ID_Etapa, Descripcion FROM Catalogo_Etapas WHERE ID_Etapa IN (2, 3)";
+$query = "SELECT ID_Etapa, Descripcion FROM catalogo_etapas WHERE ID_Etapa IN (2, 3)";
 $result = $conn->query($query);
 while ($row = $result->fetch_assoc()) {
     $etapas[] = $row;
@@ -17,7 +17,7 @@ while ($row = $result->fetch_assoc()) {
 if (isset($_GET['action']) && $_GET['action'] === 'buscar_variedad') {
     $term = $_GET['term'] ?? '';
     $sql = "SELECT ID_Variedad, Codigo_Variedad, Nombre_Variedad, Especie 
-            FROM Variedades 
+            FROM variedades 
             WHERE Codigo_Variedad LIKE ? OR Nombre_Variedad LIKE ? LIMIT 10";
     $stmt = $conn->prepare($sql);
     $like = "%$term%";
@@ -69,7 +69,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
 }
 
 // Validar asignación
-$sql = "SELECT * FROM Asignaciones WHERE ID_Operador = ? AND Fecha = ? LIMIT 1";
+$sql = "SELECT * FROM asignaciones WHERE ID_Operador = ? AND Fecha = ? LIMIT 1";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("is", $ID_Operador, $fecha_actual);
 $stmt->execute();
@@ -140,7 +140,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && $editable) {
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reporte de Siembra</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">

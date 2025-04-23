@@ -35,7 +35,7 @@ $sql = "SELECT S.*, V.Codigo_Variedad, V.Nombre_Variedad,
                (SELECT COALESCE(MAX(Generacion), 0) FROM division_ecas D WHERE D.ID_Siembra = S.ID_Siembra) AS Ultima_Generacion,
                (S.Cantidad_Sembrada - IFNULL((SELECT SUM(Cantidad_Dividida + Brotes_Contaminados) FROM division_ecas D WHERE D.ID_Siembra = S.ID_Siembra),0)) AS Disponibles
         FROM siembra_ecas S
-        JOIN Variedades V ON V.ID_Variedad = S.ID_Variedad
+        JOIN variedades V ON V.ID_Variedad = S.ID_Variedad
         WHERE S.ID_Desinfeccion IS NOT NULL
           AND (S.Cantidad_Sembrada - IFNULL((SELECT SUM(Cantidad_Dividida + Brotes_Contaminados) FROM division_ecas D WHERE D.ID_Siembra = S.ID_Siembra),0)) > 0
         ORDER BY S.Fecha_Siembra DESC";

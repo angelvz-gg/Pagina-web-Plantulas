@@ -18,8 +18,8 @@ $sql = "SELECT D.ID_Desinfeccion, D.ID_Variedad, D.Explantes_Iniciales, D.Explan
                O.Nombre, O.Apellido_P, O.Apellido_M,
                V.Codigo_Variedad, V.Nombre_Variedad
         FROM desinfeccion_explantes D
-        LEFT JOIN Operadores O ON D.Operador_Responsable = O.ID_Operador
-        LEFT JOIN Variedades V ON D.ID_Variedad = V.ID_Variedad
+        LEFT JOIN operadores O ON D.Operador_Responsable = O.ID_Operador
+        LEFT JOIN variedades V ON D.ID_Variedad = V.ID_Variedad
         WHERE 1";
 
 // Filtros dinámicos

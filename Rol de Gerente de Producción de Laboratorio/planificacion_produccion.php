@@ -11,7 +11,7 @@ if (!isset($_SESSION['ID_Operador']) || $_SESSION['Rol'] != 6) {
 $mensaje = "";
 
 // Obtener lista de operadores para los select
-$operadores = mysqli_query($conn, "SELECT ID_Operador, Nombre FROM Operadores WHERE Activo = 1");
+$operadores = mysqli_query($conn, "SELECT ID_Operador, Nombre FROM operadores WHERE Activo = 1");
 
 // Procesar formulario
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $responsable_acomodo = $_POST['responsable_acomodo'];
   $observaciones = $_POST['observaciones'];
 
-  $stmt = $conn->prepare("INSERT INTO Planificacion_Produccion 
+  $stmt = $conn->prepare("INSERT INTO planificacion_produccion 
     (Fecha_Planificacion, Especie, Variedad, Cantidad_Proyectada, Fecha_Estimada_Siembra, Etapa_Destino,
     Tasa_Multiplicacion_Promedio, Dias_Entre_Siembra, Responsable_Ejecucion, Responsable_Supervision,
     Responsable_MedioNutritivo, Responsable_Acomodo, Observaciones, ID_Operador)
@@ -51,7 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Planificación de Producción</title>
   <link rel="stylesheet" href="../style.css" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />

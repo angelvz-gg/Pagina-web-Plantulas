@@ -18,9 +18,9 @@ SELECT
   v.Especie,
   p.Fecha_Planificacion
 FROM auditoria_laboratorio a
-JOIN Operadores o ON a.Operador_Responsable = o.ID_Operador
+JOIN operadores o ON a.Operador_Responsable = o.ID_Operador
 JOIN Planificacion_Produccion p ON a.Valor_Nuevo IN ('Planificada','En proceso','Finalizada','Cancelada') 
-JOIN Variedades v ON p.ID_Variedad = v.ID_Variedad
+JOIN variedades v ON p.ID_Variedad = v.ID_Variedad
 WHERE a.Tabla_Afectada = 'Planificacion_Produccion'
   AND a.Campo_Afectado = 'Estado'
 ORDER BY a.Fecha_Cambio DESC

@@ -36,13 +36,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Se asume que luego de la corrección se vuelve a poner el estado a "Pendiente"
     // y se limpian los campos de observaciones y los campos rechazados.
     if ($tipo === "multiplicacion") {
-        $stmt = $conn->prepare("UPDATE Multiplicacion 
+        $stmt = $conn->prepare("UPDATE multiplicacion 
             SET Tasa_Multiplicacion = ?, Cantidad_Dividida = ?, Tuppers_Llenos = ?, Tuppers_Desocupados = ?, 
                 Estado_Revision = 'Pendiente', Observaciones_Revision = NULL, Campos_Rechazados = NULL 
             WHERE ID_Multiplicacion = ?");
         $stmt->bind_param("iiiii", $tasa, $cantidad, $tuppersLlenos, $tuppersVacios, $id);
     } else { // enraizamiento
-        $stmt = $conn->prepare("UPDATE Enraizamiento 
+        $stmt = $conn->prepare("UPDATE enraizamiento 
             SET Tasa_Multiplicacion = ?, Cantidad_Dividida = ?, Tuppers_Llenos = ?, Tuppers_Desocupados = ?, 
                 Estado_Revision = 'Pendiente', Observaciones_Revision = NULL, Campos_Rechazados = NULL 
             WHERE ID_Enraizamiento = ?");
@@ -56,14 +56,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 // Si es GET, se obtiene el reporte desde la base de datos
 if ($tipo === "multiplicacion") {
     $stmt = $conn->prepare("SELECT M.*, V.Codigo_Variedad, V.Nombre_Variedad 
-        FROM Multiplicacion M 
-        LEFT JOIN Variedades V ON M.ID_Variedad = V.ID_Variedad 
+        FROM multiplicacion M 
+        LEFT JOIN variedades V ON M.ID_Variedad = V.ID_Variedad 
         WHERE ID_Multiplicacion = ?");
     $stmt->bind_param("i", $id);
 } else {
     $stmt = $conn->prepare("SELECT E.*, V.Codigo_Variedad, V.Nombre_Variedad 
-        FROM Enraizamiento E 
-        LEFT JOIN Variedades V ON E.ID_Variedad = V.ID_Variedad 
+        FROM enraizamiento E 
+        LEFT JOIN variedades V ON E.ID_Variedad = V.ID_Variedad 
         WHERE ID_Enraizamiento = ?");
     $stmt->bind_param("i", $id);
 }
@@ -85,6 +85,7 @@ if (!empty($reporte['Campos_Rechazados'])) {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Corregir Reporte</title>
     <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">

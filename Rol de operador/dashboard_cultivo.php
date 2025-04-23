@@ -18,7 +18,7 @@ if ($ID_Operador) {
     $isSupervisor = $result_rol->num_rows > 0;
 
     // Consultar reportes rechazados en Multiplicación
-    $stmt_m = $conn->prepare("SELECT COUNT(*) as total FROM Multiplicacion WHERE Operador_Responsable = ? AND Estado_Revision = 'Rechazado'");
+    $stmt_m = $conn->prepare("SELECT COUNT(*) as total FROM multiplicacion WHERE Operador_Responsable = ? AND Estado_Revision = 'Rechazado'");
     $stmt_m->bind_param("i", $ID_Operador);
     $stmt_m->execute();
     $result_m = $stmt_m->get_result();
@@ -28,7 +28,7 @@ if ($ID_Operador) {
     }
 
     // Consultar reportes rechazados en Enraizamiento
-    $stmt_e = $conn->prepare("SELECT COUNT(*) as total FROM Enraizamiento WHERE Operador_Responsable = ? AND Estado_Revision = 'Rechazado'");
+    $stmt_e = $conn->prepare("SELECT COUNT(*) as total FROM enraizamiento WHERE Operador_Responsable = ? AND Estado_Revision = 'Rechazado'");
     $stmt_e->bind_param("i", $ID_Operador);
     $stmt_e->execute();
     $result_e = $stmt_e->get_result();
@@ -63,8 +63,8 @@ if ($ID_Operador) {
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Panel Operador</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">

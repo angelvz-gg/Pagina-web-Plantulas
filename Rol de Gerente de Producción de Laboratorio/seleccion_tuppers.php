@@ -58,8 +58,8 @@ if (isset($_GET['id_lote'])) {
     $id_lote = intval($_GET['id_lote']);
 
     $query = "SELECT l.Fecha, CONCAT(o.Nombre, ' ', o.Apellido_P, ' ', o.Apellido_M) AS Operador, l.ID_Etapa
-              FROM Lotes l
-              INNER JOIN Operadores o ON l.ID_Operador = o.ID_Operador
+              FROM lotes l
+              INNER JOIN operadores o ON l.ID_Operador = o.ID_Operador
               WHERE l.ID_Lote = ?";
     $stmt = $conn->prepare($query);
     $stmt->bind_param("i", $id_lote);
@@ -71,8 +71,8 @@ if (isset($_GET['id_lote'])) {
         $etapa = $info['ID_Etapa'];
 
         $sqlCantidad = ($etapa == 2) ? 
-            "SELECT SUM(Tuppers_Llenos) AS CantidadTuppers FROM Multiplicacion WHERE ID_Lote = ?" :
-            "SELECT SUM(Tuppers_Llenos) AS CantidadTuppers FROM Enraizamiento WHERE ID_Lote = ?";
+            "SELECT SUM(Tuppers_Llenos) AS CantidadTuppers FROM multiplicacion WHERE ID_Lote = ?" :
+            "SELECT SUM(Tuppers_Llenos) AS CantidadTuppers FROM enraizamiento WHERE ID_Lote = ?";
         $stmt2 = $conn->prepare($sqlCantidad);
         $stmt2->bind_param("i", $id_lote);
         $stmt2->execute();
@@ -112,8 +112,8 @@ if (isset($_GET['buscar_variedad']) && isset($_GET['etapa'])) {
     $etapa = intval($_GET['etapa']);
 
     $query = "SELECT l.ID_Lote, v.Nombre_Variedad, v.Especie, l.Fecha
-              FROM Lotes l
-              INNER JOIN Variedades v ON l.ID_Variedad = v.ID_Variedad
+              FROM lotes l
+              INNER JOIN variedades v ON l.ID_Variedad = v.ID_Variedad
               WHERE (v.Nombre_Variedad LIKE ? OR v.Especie LIKE ?) AND l.ID_Etapa = ?
               ORDER BY l.Fecha DESC";
     $stmt = $conn->prepare($query);
@@ -134,7 +134,8 @@ if (isset($_GET['buscar_variedad']) && isset($_GET['etapa'])) {
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Selección de Tuppers</title>
   <link rel="stylesheet" href="../style.css" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />

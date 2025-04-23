@@ -12,8 +12,8 @@ $ID_Operador = $_SESSION["ID_Operador"];
 // Consultar asignaciones
 $sql_asignacion = "SELECT AL.ID, AL.ID_Variedad, AL.Fecha, V.Nombre_Variedad, AL.Rol, AL.Cantidad_Tuppers, L.ID_Lote, AL.Estado_Final
                    FROM asignacion_lavado AL
-                   JOIN Variedades V ON AL.ID_Variedad = V.ID_Variedad
-                   JOIN Lotes L ON V.ID_Variedad = L.ID_Variedad
+                   JOIN variedades V ON AL.ID_Variedad = V.ID_Variedad
+                   JOIN lotes L ON V.ID_Variedad = L.ID_Variedad
                    WHERE AL.ID_Operador = ? AND AL.Fecha = CURDATE()";
 $stmt_asignacion = $conn->prepare($sql_asignacion);
 $stmt_asignacion->bind_param("i", $ID_Operador);
@@ -72,7 +72,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["accion"])) {
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Relación de Lavado</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">

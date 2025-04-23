@@ -37,7 +37,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
 $sql_des = "SELECT D.*, V.Codigo_Variedad, V.Nombre_Variedad,
                 COALESCE(SUM(S.Cantidad_Sembrada), 0) as Cantidad_Sembrada_Total
             FROM desinfeccion_explantes D
-            JOIN Variedades V ON D.ID_Variedad = V.ID_Variedad
+            JOIN variedades V ON D.ID_Variedad = V.ID_Variedad
             LEFT JOIN siembra_ecas S ON D.ID_Desinfeccion = S.ID_Desinfeccion
             WHERE D.Operador_Responsable = ?
               AND D.Estado_Desinfeccion = 'Completado'

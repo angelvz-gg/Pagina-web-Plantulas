@@ -76,6 +76,7 @@ $operadores = $conn->query("SELECT ID_Operador, CONCAT(Nombre, ' ', Apellido_P, 
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Vista General de Tuppers</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -100,7 +101,7 @@ $operadores = $conn->query("SELECT ID_Operador, CONCAT(Nombre, ' ', Apellido_P, 
       <nav class="navbar bg-body-tertiary">
         <div class="container-fluid">
           <div class="Opciones-barra">
-            <button onclick="window.location.href='dashboard_gpl.php'" class="btn btn-secondary">🔙 Regresar</button>
+            <button onclick="window.location.href='dashboard_gpl.php'">🔙 Regresar</button>
           </div>
         </div>
       </nav>
