@@ -32,16 +32,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $upd->bind_param('i', $operador['ID_Operador']);
             $upd->execute();
 
-            // Rutas por rol
+            // Rutas por rol 
             $rutas = [
-                1 => '/plantulas/rol_administrador/panel_admin.php',
-                2 => '/plantulas/rol_operador/dashboard_cultivo.php',
-                3 => '/plantulas/rol_supervisor/panel_supervisor.php',
-                4 => '/plantulas/rol_consulta/panel_consulta.php',
-                5 => '/plantulas/rol_encargado_general_produccion/dashboard_egp.php',
-                6 => '/plantulas/rol_gerente_produccion_laboratorio/dashboard_gpl.php',
-                7 => '/plantulas/rol_responsable_produccion_medios_cultivo/dashboard_rpmc.php',
+                1  => '/plantulas/rol_administrador/panel_admin.php',
+                2  => '/plantulas/rol_operador/dashboard_cultivo.php',
+                3  => '/plantulas/rol_supervisor/panel_supervisor.php',
+                4  => '/plantulas/rol_consulta/panel_consulta.php',
+                5  => '/plantulas/rol_encargado_general_produccion/dashboard_egp.php',
+                6  => '/plantulas/rol_gerente_produccion_laboratorio/dashboard_gpl.php',
+                7  => '/plantulas/rol_responsable_produccion_medios_cultivo/dashboard_rpmc.php',
+                8  => '/plantulas/rol_responsable_rrs/dashboard_rrs.php',
+                9  => '/plantulas/rol_encargado_incubadora/dashboard_eism.php',
+                10 => '/plantulas/rol_encargado_oli/dashboard_eol.php',
             ];
+
             $destino = $rutas[$operador['ID_Rol']] ?? '/plantulas/panel.php';
 
             echo "<script>window.location.href = '{$destino}';</script>";
@@ -60,42 +64,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Inicio de Sesión</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=<?= filemtime(__DIR__ . '/style.css') ?>">
 </head>
-<body>
-  <div class="contenedor-pagina">
-    <!-- HEADER -->
-    <div class="encabezado">
-      <div class="navbar-brand">🌱 Sistema Plantulas</div>
-      <h2>Inicio de Sesión</h2>
-    </div>
+<body class="login-page">
+  <main class="login-container">
+    <form class="login-card" method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>">
+      <h1 class="login-title">Bienvenid@ a Plantulas Agrodex</h1>
 
-    <!-- LOGIN FORM -->
-    <main class="login-container">
       <?php if (isset($error)): ?>
-        <p class="error-message"><?php echo htmlspecialchars($error); ?></p>
+        <div class="error-message"><?= htmlspecialchars($error) ?></div>
       <?php endif; ?>
 
-      <form method="POST" action="<?php echo htmlspecialchars($_SERVER['PHP_SELF']); ?>">
-        <label>
-          Usuario:
-          <input type="text" name="usuario" required>
-        </label>
+      <div class="input-group">
+        <label for="usuario">Usuario</label>
+        <input type="text" id="usuario" name="usuario" required>
+      </div>
 
-        <label>
-          Contraseña:
-          <input type="password" name="contrasena" required>
-        </label>
+      <div class="input-group">
+        <label for="contrasena">Contraseña</label>
+        <input type="password" id="contrasena" name="contrasena" required>
+      </div>
 
-        <button type="submit" class="btn-inicio">Ingresar</button>
-      </form>
-    </main>
-
-    <!-- FOOTER -->
-    <footer>
-      Sistema de Producción de Plantas &copy; <?php echo date("Y"); ?>
-    </footer>
-  </div>
+      <button type="submit" class="btn-login">Ingresar</button>
+    </form>
+  </main>
 </body>
 </html>
 <?php ob_end_flush(); ?>

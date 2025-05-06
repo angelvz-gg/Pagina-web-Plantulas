@@ -6,7 +6,11 @@
     margin: 0;
     padding: 0;
   }
-  
+
+  html {
+    background-color: #45814d !important;
+  }
+
   html, body {
     height: 100%;
     font-family: Arial, sans-serif;
@@ -18,14 +22,290 @@
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    overflow-y: auto; /* scroll en toda la página */
+    overflow-y: auto !important; /* scroll en toda la página */
+
+    -ms-overflow-style: none;   /* IE y Edge */
+    scrollbar-width: none;      /* Firefox */
+
+    margin: 20px;                     /* espacio exterior */
+    border: 7px solid #45814d;        /* el marco */
+    box-sizing: border-box;           /* incluye border en el tamaño */
   }
-  
+
+  body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+body.scrollable {
+  overflow-x: auto !important;         /* reactivar scroll horizontal */
+  -ms-overflow-style: auto !important; /* IE / Edge */
+  scrollbar-width: auto !important;    /* Firefox */
+}
+
+body.scrollable::-webkit-scrollbar {
+  width: auto !important;    /* mostrar scrollbar */
+  height: auto !important;
+}
+
+/* Asegurar que el wrapper de tablas pueda hacer scroll */
+body.scrollable .table-responsive {
+  overflow-x: auto !important;
+}
+
   img, video {
     max-width: 100%;
     height: auto;
   }
   
+/* =========================
+   LOGIN MODERNO (solo en .login-page)
+   ========================= */
+   .login-page {
+  background: #f4f7f2 !important;
+  /* mantiene el contenedor centrado */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  }
+  
+  /* layout general transparente aquí */
+  .login-page .contenedor-pagina {
+    background: transparent;
+    box-shadow: none;
+    border: none;
+  }
+  
+  /* Card de login */
+  .login-page .login-container {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 1rem;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 90vh;         /* usa toda la altura de la ventana */
+  }
+
+  .login-page .login-card {
+    /* fondo claro, tirando a verde muy suave */
+    background-color: #f4f7f2 !important;
+    /* logo centrado en la parte superior */
+    background-image: url('logoplantulas.png') !important;
+    background-repeat: no-repeat !important;
+    background-position: center top !important;
+    background-size: 80px !important;
+  
+    /* borde muy tenue, casi blanco-verde */
+    border: 1px solid #c5d6c3 !important;
+  
+    border-radius: 1rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+    padding: 3.5rem 2rem 2rem; /* espacio extra para el logo */
+    text-align: center;
+    animation: fadeIn 0.5s ease-out;
+  
+    width: clamp(320px, 40vw, 600px);
+    max-width: 90vw;
+    max-height: 85vh;
+    overflow: visible;
+    box-sizing: border-box;
+  }
+
+  .login-page .login-card > form {
+    /* fondo blanco puro */
+    background-color: #ffffff !important;
+    /* borde tenue */
+    border: 1px solid #c5d6c3 !important;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-top: 1rem;                /* separación del título/logo */
+    box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+  }
+
+/* Título de bienvenida */
+.login-page .login-title {
+  margin-top: 60px;       /* deja hueco para el logo */
+  margin-bottom: 1.5rem;
+  font-size: 1.6rem;
+  color: #556b2f;
+  font-weight: bold;
+}
+
+  /* Logo centrado */
+  .login-page .login-logo {
+    width: 80px;
+    margin-bottom: 1rem;
+    animation: popIn 0.4s ease-out;
+  }
+  
+  /* Mensaje de error */
+  .login-page .error-message {
+    background: #fdecea;
+    color: #a71d2a;
+    padding: 0.5rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+  
+  /* Inputs estilizados */
+  .login-page .input-group {
+    text-align: left;
+    margin-bottom: 1rem;
+  }
+  .login-page .input-group label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+  }
+  .login-page .input-group input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.2s ease;
+  }
+  .login-page .input-group input:focus {
+    border-color: #45814d;
+  }
+  .login-page main {
+    overflow: visible !important;
+  }
+  .login-page main.login-container {
+    /* Máximo 90% de la altura de viewport, para no overflow */
+    max-height: 90vh;
+    overflow: visible;             /* quita cualquier scroll interno */
+    
+    /* Ancho responsive: 90% de la ventana, pero sin pasarse de 420px */
+    width: 90vw;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+  
+  /* Botón principal */
+  .login-page .btn-login {
+    width: 100%;
+    padding: 0.75rem;
+    background: #45814d;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  .login-page .btn-login:hover {
+    background: #40502a;
+    transform: translateY(-2px);
+  }
+  
+  /* Animaciones */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.8); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  
+  /* =========================
+   BOTÓN ORGANIZAR EN TABLAS
+   ========================= */
+.btn-organizar {
+  display: block;          /* ocupa todo el ancho disponible */
+  width: 100%;             
+  padding: .25rem .5rem;          /* compacto verticalmente */
+  margin: 0;               /* sin márgenes extra */
+  box-sizing: border-box;  
+  text-align: center;      
+  background-color: #28a745;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+.btn-organizar:hover {
+  background-color: #218838;
+  transform: translateY(-1px);
+}
+
+/* Asegurarnos de que en móvil siga ocupando todo el ancho */
+@media (max-width: 576px) {
+  .btn-organizar {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* =========================
+   CELDA “# ORGANIZADOS”
+   ========================= */
+   .td-organizados {
+    padding: 4px 8px;           /* reduce el padding vertical y horizontal */
+    font-size: 0.85rem;         /* tipografía más compacta */
+    text-align: center;         /* centrado del número */
+    background-color: #eef9f1;  /* fondo suave opcional */
+    border-radius: 4px;         /* esquinas suaves */
+    display: inline-block;      /* ajustar al contenido */
+    min-width: 40px;            /* anchura mínima para uniformidad */
+    box-sizing: border-box;
+  }
+  
+  /* Móvil: que siga compacto */
+  @media (max-width: 576px) {
+    .td-organizados {
+      padding: 3px 6px;
+      font-size: 0.8rem;
+    }
+  }
+    /* en tu style.css */
+.form-boton-organizar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;              /* espacio entre input y botón */
+}
+
+.form-boton-organizar input {
+  display: inline-block; /* que respete su width */
+  width: 60px !important;/* ancho fijo */
+  margin-bottom: 0;      /* anula posibles márgenes */
+  padding: .25rem .5rem;
+}
+
+
+  /* =========================
+   BOTÓN CONSOLIDAR
+   ========================= */
+   .btn-consolidar {
+    display: inline-block;
+    text-decoration: none;
+    margin-bottom: 0.25rem;    /* pequeño espacio abajo */
+    background-color: #28a745;
+    color: #fff;
+    padding: 4px 8px;          /* más compacto */
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+  }
+  .btn-consolidar:hover {
+    background-color: #218838;
+    transform: translateY(-1px);
+  }
+
+.btn-consolidar {
+  margin: 6px 0; /* 6px arriba y abajo */
+}
+
+
   /* =========================
      ESTRUCTURA GENERAL
      ========================= */
@@ -34,13 +314,19 @@
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    background-color: white;
   }
   
   /* Para dashboards: scroll en body, no en main */
   .contenedor-pagina.panel-admin {
     display: block !important;
   }
-  
+  .contenedor-pagina,
+.contenedor-pagina.panel-admin,
+main {
+  overflow: visible !important;
+}
+
   /* Main ocupa el espacio restante y empuja el footer */
   main {
     flex: 1;
@@ -153,6 +439,51 @@
     display: inline;
   }
   
+/* =========================
+   BOTONES EN REPORTES PRODUCCIÓN
+   ========================= */
+   .botones-contenedor {
+    display: flex;
+    gap: 8px;            /* espacio entre botones */
+    align-items: center;
+  }
+  
+  /* Cada formulario actúa como flex-item */
+  .botones-contenedor .form-boton {
+    flex: 1;             /* ocupa el mismo espacio que el botón “Incorrecto” */
+    margin: 0;           /* elimina márgenes extra */
+  }
+  
+  /* El botón dentro del form-boton ocupa todo su ancho */
+  .botones-contenedor .form-boton .save-button {
+    width: 100%;
+    padding: 8px 0;
+  }
+  
+  /* El botón “Incorrecto” también ocupa el mismo espacio */
+  .botones-contenedor > .save-button.incorrecto {
+    flex: 1;
+    padding: 8px 0;
+  }
+  
+  /* Colores distintos */
+  .save-button.verificar {
+    background-color: #28a745; /* verde */
+    color: white;
+  }
+  .save-button.verificar:hover {
+    background-color: #218838;
+  }
+  
+  .save-button.incorrecto {
+    background-color: #dc3545; /* rojo */
+    color: white;
+  }
+  .save-button.incorrecto:hover {
+    background-color: #c82333;
+  }
+  
+
   /* =========================
      BARRA DE NAVEGACIÓN
      ========================= */
@@ -178,6 +509,63 @@
     text-decoration: none;
   }
   
+/* =========================
+   CARRUSEL DE DESINFECCIONES
+   ========================= */
+   .carrusel-desinfecciones {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 10px 0;
+    scroll-snap-type: x mandatory;
+  }
+  .carrusel-desinfecciones::-webkit-scrollbar {
+    height: 6px;
+  }
+  .carrusel-desinfecciones::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .carrusel-desinfecciones::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.2);
+    border-radius: 3px;
+  }
+  
+  /* =========================
+     TARJETA DESINFECCIÓN
+     ========================= */
+  .tarjeta-desinf {
+    flex: 0 0 auto;                 /* no se estira, sólo a su ancho */
+    width: 160px;                    /* ancho fijo para “mini tarjeta” */
+    padding: 12px;
+    background: rgba(21, 149, 14, 0.543);
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    text-align: center;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: transform 0.2s ease, filter 0.2s ease;
+    scroll-snap-align: start;       /* “snap” al hacer scroll */
+  }
+  
+  /* Hover para destacar la carta bajo el puntero */
+  .tarjeta-desinf:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  
+  /* Cuando se selecciona una tarjeta */
+  .tarjeta-desinf.selected {
+    border: 2px solid #d9b310;      /* resaltado amarillo */
+    transform: scale(1.1);
+    z-index: 1;                      /* encima del resto */
+  }
+  
+  /* Desenfoque / atenuación de las no seleccionadas */
+  .tarjeta-desinf.blur {
+    filter: blur(1.3px) brightness(0.7);
+  }
+  
+
   /* =========================
      FORMULARIOS Y COLUMNAS
      ========================= */
@@ -262,6 +650,50 @@
     margin-top: 20px;
     overflow: visible; /* elimina scroll interno */
   }
+  
+  /* ============================
+   FILTROS EXPORTACIÓN
+   ============================ */
+.filter-row {
+  background-color: #f1f5f9;  /* un gris muy suave */
+  border-bottom: 1px solid #dee2e6;
+}
+.filter-row .form-select,
+.filter-row .form-control {
+  height: calc(1.5em + 0.5rem); /* un poco más compacto */
+  padding: 0.25rem 0.5rem;
+}
+
+/* ============================
+   BARRA DE FILTROS COMPACTA
+   ============================ */
+   .filter-toolbar {
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    border-bottom: 1px solid #dee2e6;
+    padding: 0.25rem 1rem;
+    font-size: 0.875rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .filter-toolbar .form-select,
+  .filter-toolbar .form-control {
+    height: 1.8rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .filter-toolbar .btn-inicio {
+    margin-left: auto;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+    flex: none;           /* mantiene tamaño natural */
+    white-space: nowrap;  /* evita que el texto salte de línea */
+}
+
   
   /* =========================
      ESTILO DE TARJETAS / CARD
@@ -382,6 +814,14 @@
       width: 100%;
       box-sizing: border-box;
     }
+    .btn-inicio,
+    .btn-anular,
+    .btn-consolidar,
+    .save-button {
+      width: 100%;
+      margin-bottom: 0.5rem;
+      box-sizing: border-box;
+    }
   }
   
   @media (min-width: 576px) {
@@ -428,6 +868,9 @@
       flex-direction: column;
       gap: 8px;
     }
+    .table-responsive .table {
+      min-width: unset;   /* quita la mínima anchura forzada */
+    }
   }
   
   @media (min-width: 992px) {
@@ -437,6 +880,66 @@
     }
     .encabezado h2 {
       font-size: 1.4rem;
+    }
+  }
+
+  /* =========================
+   MEDIA QUERIES PARA FILTROS
+   ========================= */
+@media (max-width: 1200px) {
+  .filter-toolbar .form-select,
+  .filter-toolbar .form-control {
+    max-width: 100px;
+  }
+}
+
+@media (max-width: 992px) {
+  .filter-toolbar .form-select,
+  .filter-toolbar .form-control {
+    max-width: 80px;
+  }
+  .filter-toolbar {
+    gap: 0.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  /* permitir dos filtros por fila */
+  .filter-toolbar {
+    flex-wrap: wrap;
+  }
+  .filter-toolbar .form-select,
+  .filter-toolbar .form-control {
+    flex: 1 1 calc(50% - 0.5rem);
+    max-width: none;
+  }
+}
+
+@media (max-width: 576px) {
+  /* un filtro por fila */
+  .filter-toolbar {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .filter-toolbar .form-select,
+  .filter-toolbar .form-control,
+  .filter-toolbar .btn-inicio {
+    width: 100% !important;
+    max-width: none;
+  }
+}
+/* =========================
+   FILTROS EN PANTALLAS GRANDES
+   ========================= */
+   @media (min-width: 1200px) {
+    .filter-toolbar .form-select,
+    .filter-toolbar .form-control {
+      max-width: none;      /* quita la restricción de ancho */
+      width: auto;          /* que el contenido marque el ancho */
+      min-width: 140px;     /* un ancho mínimo legible */
+    }
+    .filter-toolbar {
+      gap: 1rem;            /* un poco más de espacio entre filtros */
     }
   }
   
