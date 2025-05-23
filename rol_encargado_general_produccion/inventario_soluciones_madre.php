@@ -1,6 +1,31 @@
 <?php
-include '../db.php';
-session_start();
+// 0) Mostrar errores (solo en desarrollo)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+date_default_timezone_set('America/Mexico_City');
+
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
+
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
+}
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+
+if ((int) $_SESSION['Rol'] !== 5) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
+    exit;
+}
+
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
+
 
 // Obtener valores de filtro desde GET
 $codigoFiltro = $_GET['codigo_medio'] ?? '';
@@ -63,7 +88,12 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-</head>
+        <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
+      </head>
 <body>
   <div class="contenedor-pagina">
     <header>
@@ -76,73 +106,75 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
           <p>Consulta la cantidad restante de cada medio nutritivo madre.</p>
         </div>
       </div>
+
       <div class="barra-navegacion">
         <nav class="navbar bg-body-tertiary">
           <div class="container-fluid">
             <div class="Opciones-barra">
               <button onclick="window.location.href='dashboard_egp.php'">
-                🔄 Regresar
+              🏠 Volver al Inicio
               </button>
             </div>
           </div>
         </nav>
       </div>
+
+      <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
+  <div class="d-flex flex-column" style="min-width:140px;">
+    <label for="filtro-codigo" class="small mb-1">Código Medio</label>
+    <select id="filtro-codigo" name="codigo_medio" form="filtrosForm"
+            class="form-select form-select-sm">
+      <option value="">— Todos —</option>
+      <?php foreach ($codigos as $codigo): ?>
+        <option value="<?= htmlspecialchars($codigo['Codigo_Medio'])?>"
+          <?= $codigoFiltro === $codigo['Codigo_Medio'] ? 'selected':''?>>
+          <?= htmlspecialchars($codigo['Codigo_Medio'])?>
+        </option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+
+  <div class="d-flex flex-column" style="min-width:120px;">
+    <label for="filtro-desde" class="small mb-1">Desde</label>
+    <input id="filtro-desde" type="date" name="fecha_desde" form="filtrosForm"
+           class="form-control form-control-sm"
+           value="<?= htmlspecialchars($fechaDesde) ?>">
+  </div>
+
+  <div class="d-flex flex-column" style="min-width:120px;">
+    <label for="filtro-hasta" class="small mb-1">Hasta</label>
+    <input id="filtro-hasta" type="date" name="fecha_hasta" form="filtrosForm"
+           class="form-control form-control-sm"
+           value="<?= htmlspecialchars($fechaHasta) ?>">
+  </div>
+
+  <div class="d-flex flex-column" style="min-width:140px;">
+    <label for="filtro-cantidad" class="small mb-1">Cantidad Mínima</label>
+    <input id="filtro-cantidad" type="number" step="0.1" name="cantidad_minima" form="filtrosForm"
+           class="form-control form-control-sm"
+           value="<?= htmlspecialchars($cantidadMinima) ?>">
+  </div>
+
+  <div class="d-flex flex-column" style="min-width:120px;">
+    <label for="filtro-estado" class="small mb-1">Estado</label>
+    <select id="filtro-estado" name="estado" form="filtrosForm"
+            class="form-select form-select-sm">
+      <option value="">— Todos —</option>
+      <option value="Disponible" <?= $estadoFiltro==='Disponible' ? 'selected':''?>>Disponible</option>
+      <option value="Consumido"   <?= $estadoFiltro==='Consumido'   ? 'selected':''?>>Consumido</option>
+    </select>
+  </div>
+
+  <button form="filtrosForm" type="submit"
+          class="btn-inicio btn btn-success btn-sm ms-auto">
+    Filtrar
+  </button>
+</nav>
     </header>
 
-    <main>
+    <main class="flex-fill" style="flex:1; padding: 20px;">
       <div class="section">
         <h2>📊 Cantidad Disponible de Soluciones Madre</h2>
-
-        <!-- Botón para mostrar/ocultar filtros -->
-        <div class="text-center mb-3">
-          <button type="button" id="toggleBtn" onclick="toggleFiltros()">🔍 Mostrar filtros</button>
-        </div>
-
-        <!-- Filtros colapsables -->
-        <div id="filtros-contenedor" style="display: none;">
-          <form method="GET" class="form-doble-columna">
-            <div class="row g-3">
-              <div class="col-md-3">
-                <label for="codigo_medio">Código del Medio</label>
-                <select name="codigo_medio" id="codigo_medio" class="form-select">
-                  <option value="">-- Todos --</option>
-                  <?php foreach ($codigos as $codigo): ?>
-                    <option value="<?= $codigo['Codigo_Medio'] ?>" <?= ($codigoFiltro == $codigo['Codigo_Medio']) ? 'selected' : '' ?>>
-                      <?= $codigo['Codigo_Medio'] ?>
-                    </option>
-                  <?php endforeach; ?>
-                </select>
-              </div>
-
-              <div class="col-md-3">
-                <label for="fecha_desde">Desde</label>
-                <input type="date" name="fecha_desde" id="fecha_desde" class="form-control" value="<?= $fechaDesde ?>">
-              </div>
-
-              <div class="col-md-3">
-                <label for="fecha_hasta">Hasta</label>
-                <input type="date" name="fecha_hasta" id="fecha_hasta" class="form-control" value="<?= $fechaHasta ?>">
-              </div>
-
-              <div class="col-md-3">
-                <label for="cantidad_minima">Cantidad Mínima Disponible (L)</label>
-                <input type="number" step="0.1" name="cantidad_minima" id="cantidad_minima" class="form-control" value="<?= $cantidadMinima ?>">
-              </div>
-
-              <div class="col-md-3">
-                <label for="estado">Estado</label>
-                <select name="estado" id="estado" class="form-select">
-                  <option value="">-- Todos --</option>
-                  <option value="Disponible" <?= ($estadoFiltro == 'Disponible') ? 'selected' : '' ?>>Disponible</option>
-                  <option value="Consumido" <?= ($estadoFiltro == 'Consumido') ? 'selected' : '' ?>>Consumido</option>
-                </select>
-              </div>
-
-              <div class="col-md-12 d-flex justify-content-center mt-3">
-                <button type="submit">🔍 Filtrar</button>
-              </div>
-            </div>
-          </form>
           <hr />
         </div>
 
@@ -183,10 +215,9 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
         </tbody>
 
         </table>
-      </div>
     </main>
 
-    <footer>
+    <footer class="text-center mt-5">
       <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
     </footer>
   </div>
@@ -201,7 +232,78 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
     }
   </script>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-          integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+ <!-- Modal de advertencia de sesión -->
+ <script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
 </body>
 </html>

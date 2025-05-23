@@ -1,11 +1,27 @@
 <?php
-session_start();
-require '../db.php';
+// 0) Mostrar errores (solo en desarrollo)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-if (!isset($_SESSION['ID_Operador']) || $_SESSION['Rol'] != 9) {
-    header("Location: ../login.php");
-    exit();
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
+
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
 }
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+
+if ((int) $_SESSION['Rol'] !== 9) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado de Incubadora.</p>";
+    exit;
+}
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
 
 // Obtener todos los operadores disponibles (para preparar cajas)
 $operadores = [];
@@ -142,6 +158,11 @@ if (isset($_GET['buscar_variedad']) && isset($_GET['etapa'])) {
   <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
 <div class="contenedor-pagina">
@@ -152,15 +173,18 @@ if (isset($_GET['buscar_variedad']) && isset($_GET['etapa'])) {
       </a>
       <h2>📦 Selección de Tuppers</h2>
     </div>
+
     <div class="barra-navegacion">
-      <nav class="navbar bg-body-tertiary">
-        <div class="container-fluid">
-          <div class="Opciones-barra">
-            <button onclick="window.location.href='dashboard_eism.php'">🔙 REGRESAR</button>
+        <nav class="navbar bg-body-tertiary">
+          <div class="container-fluid">
+            <div class="Opciones-barra">
+              <button onclick="window.location.href='dashboard_eism.php'">
+              🏠 Volver al Inicio
+              </button>
+            </div>
           </div>
-        </div>
-      </nav>
-    </div>
+        </nav>
+      </div>
   </header>
 
   <main class="container mt-4">
@@ -329,5 +353,78 @@ $(document).ready(function() {
   });
 });
 </script>
+
+ <!-- Modal de advertencia de sesión -->
+ <script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
+  
 </body>
 </html>

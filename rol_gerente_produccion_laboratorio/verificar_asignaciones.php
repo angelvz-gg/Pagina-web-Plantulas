@@ -1,17 +1,27 @@
 <?php
-// Mostrar errores en pantalla (solo en desarrollo)
+// 0) Mostrar errores (solo en desarrollo)
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
 
-session_start();
-require '../db.php';
-
-if (!isset($_SESSION['ID_Operador']) || $_SESSION['Rol'] != 6) {
-    header("Location: ../login.php");
-    exit();
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
 }
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+
+if ((int) $_SESSION['Rol'] !== 6) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Gerente de Producción de Laboratorio.</p>";
+    exit;
+}
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
 
 // Eliminar asignación
 if (isset($_GET['eliminar']) && is_numeric($_GET['eliminar'])) {
@@ -104,59 +114,76 @@ $resultado = $stmt->get_result();
       background-color: #f8f9fa;
     }
   </style>
+    <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
 <div class="contenedor-pagina">
-    <header>
-        <div class="encabezado">
-            <a class="navbar-brand" href="#">
-                <img src="../logoplantulas.png" alt="Logo" width="130" height="124">
-            </a>
-            <h2>📋 Verificación de Asignaciones de Lavado</h2>
-        </div>
 
-        <div class="barra-navegacion">
-            <nav class="navbar bg-body-tertiary">
-                <div class="container-fluid">
-                    <div class="Opciones-barra">
-                        <button onclick="window.location.href='dashboard_gpl.php'">🔙 Volver al Dashboard</button>
-                    </div>
-                </div>
-            </nav>
+    <header>
+  <div class="encabezado d-flex align-items-center">
+    <a class="navbar-brand me-3" href="dashboard_gpl.php">
+      <img src="../logoplantulas.png" width="130" height="124" alt="Logo">
+    </a>
+    <h2 class="mb-0">📋 Verificación de Asignaciones de Lavado</h2>
+  </div>
+
+  <div class="barra-navegacion">
+    <nav class="navbar bg-body-tertiary">
+      <div class="container-fluid">
+        <div class="Opciones-barra">
+          <button onclick="window.location.href='dashboard_gpl.php'">
+            🏠 Volver al Inicio
+          </button>
         </div>
-    </header>
+      </div>
+    </nav>
+  </div>
+
+  <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
+    <div class="d-flex flex-column" style="min-width:140px;">
+      <label for="filtro-operador" class="small mb-1">Operador</label>
+      <input id="filtro-operador" type="text" name="operador" form="filtrosForm"
+             class="form-control form-control-sm"
+             placeholder="Operador…" value="<?= htmlspecialchars($operador) ?>">
+    </div>
+
+    <div class="d-flex flex-column" style="min-width:140px;">
+      <label for="filtro-variedad" class="small mb-1">Variedad</label>
+      <input id="filtro-variedad" type="text" name="variedad" form="filtrosForm"
+             class="form-control form-control-sm"
+             placeholder="Variedad…" value="<?= htmlspecialchars($variedad) ?>">
+    </div>
+
+    <div class="d-flex flex-column" style="min-width:120px;">
+      <label for="filtro-estado" class="small mb-1">Estado</label>
+      <select id="filtro-estado" name="estado" form="filtrosForm"
+              class="form-select form-select-sm">
+        <option value="">— Todos —</option>
+        <option value="Completada" <?= $estado==='Completada' ? 'selected':''?>>✅ Completada</option>
+        <option value="Incompleta" <?= $estado==='Incompleta' ? 'selected':''?>>⚠️ Incompleta</option>
+        <option value="Sin Cierre" <?= $estado==='Sin Cierre' ? 'selected':''?>>⏳ Sin Cierre</option>
+      </select>
+    </div>
+
+    <div class="d-flex flex-column" style="min-width:120px;">
+      <label for="filtro-fecha" class="small mb-1">Fecha</label>
+      <input id="filtro-fecha" type="date" name="fecha" form="filtrosForm"
+             class="form-control form-control-sm"
+             value="<?= htmlspecialchars($fecha) ?>">
+    </div>
+
+    <button form="filtrosForm" type="submit"
+            class="btn-inicio btn btn-success btn-sm ms-auto">
+      Filtrar
+    </button>
+  </nav>
+</header>
 
     <main class="container mt-4">
-        <div class="text-center mb-3">
-            <button class="btn btn-primary" onclick="mostrarFiltros()">🔍 Mostrar/Ocultar Filtros</button>
-        </div>
-
-        <div id="filtros">
-            <form method="GET" class="row g-3">
-                <div class="col-md-3">
-                    <input type="text" name="operador" class="form-control" placeholder="Buscar Operador..." value="<?= htmlspecialchars($operador) ?>">
-                </div>
-                <div class="col-md-3">
-                    <input type="text" name="variedad" class="form-control" placeholder="Buscar Variedad..." value="<?= htmlspecialchars($variedad) ?>">
-                </div>
-                <div class="col-md-3">
-                    <select name="estado" class="form-select">
-                        <option value="">-- Estado Final --</option>
-                        <option value="Completada" <?= ($estado == 'Completada') ? 'selected' : '' ?>>✅ Completada</option>
-                        <option value="Incompleta" <?= ($estado == 'Incompleta') ? 'selected' : '' ?>>⚠️ Incompleta</option>
-                        <option value="Sin Cierre" <?= ($estado == 'Sin Cierre') ? 'selected' : '' ?>>⏳ Sin Cierre</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <input type="date" name="fecha" class="form-control" value="<?= htmlspecialchars($fecha) ?>">
-                </div>
-                <div class="col-md-12 text-center">
-                    <button type="submit" class="btn btn-success">Aplicar Filtros</button>
-                    <a href="verificar_asignaciones.php" class="btn btn-secondary">Limpiar Filtros</a>
-                </div>
-            </form>
-        </div>
-
         <table class="table table-bordered table-hover table-striped mt-4">
             <thead class="table-dark">
                 <tr>
@@ -210,5 +237,77 @@ function mostrarFiltros() {
     filtros.style.display = (filtros.style.display === 'none') ? 'block' : 'none';
 }
 </script>
+
+ <!-- Modal de advertencia de sesión -->
+ <script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
 </body>
 </html>

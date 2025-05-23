@@ -1,18 +1,27 @@
 <?php
-// 1) Mostrar errores en pantalla (solo en desarrollo)
+// 0) Mostrar errores (solo en desarrollo)
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// 2) Conexión y sesión
-include '../db.php';
-session_start();
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
 
-// Verificar sesión y rol (10 = Encargado de Organización y Limpieza de Incubador)
-if (!isset($_SESSION['ID_Operador']) || $_SESSION['Rol'] != 10) {
-    header('Location: ../login.php');
-    exit();
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
 }
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+
+if ((int) $_SESSION['Rol'] !== 10) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado de Organización y Limpieza de Incubadora.</p>";
+    exit;
+}
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
 
 // 3) Capturar filtros
 $filter_fecha  = $_GET['fecha']  ?? '';
@@ -50,6 +59,7 @@ if (!$result) {
 $areasResult   = $conn->query("SELECT DISTINCT Area FROM registro_limpieza ORDER BY Area");
 $estadosResult = $conn->query("SELECT DISTINCT Estado_Limpieza FROM registro_limpieza ORDER BY Estado_Limpieza");
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -58,81 +68,80 @@ $estadosResult = $conn->query("SELECT DISTINCT Estado_Limpieza FROM registro_lim
   <title>Limpieza de Repisas</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>"/>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
   <div class="contenedor-pagina">
-    <header>
-      <div class="encabezado d-flex align-items-center">
-        <a class="navbar-brand me-3" href="#">
-          <img src="../logoplantulas.png" width="130" height="124" alt="Logo">
-        </a>
-        <div>
-          <h2>Historial de Limpieza de Repisas</h2>
-          <p class="mb-0">Revisa qué repisas y áreas se han limpiado.</p>
+  <header>
+  <div class="encabezado d-flex align-items-center">
+    <a class="navbar-brand me-3" href="dashboard_eol.php">
+      <img src="../logoplantulas.png" width="130" height="124" alt="Logo">
+    </a>
+    <div>
+      <h2>Historial de Limpieza de Repisas</h2>
+      <p class="mb-0">Revisa qué repisas y áreas se han limpiado.</p>
+    </div>
+  </div>
+
+  <div class="barra-navegacion">
+    <nav class="navbar bg-body-tertiary">
+      <div class="container-fluid">
+        <div class="Opciones-barra">
+          <button onclick="window.location.href='dashboard_eol.php'">
+            🏠 Volver al Inicio
+          </button>
         </div>
       </div>
+    </nav>
+  </div>
 
-      <div class="barra-navegacion">
-        <!-- Nav de Volver -->
-        <nav class="navbar bg-body-tertiary mb-2">
-          <div class="container-fluid">
-            <div class="Opciones-barra">
-              <button onclick="location.href='dashboard_eol.php'">🔙 Volver al Dashboard</button>
-            </div>
-          </div>
-        </nav>
+  <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
+    <div class="d-flex flex-column" style="min-width:120px;">
+      <label for="filtro-fecha" class="small mb-1">Fecha</label>
+      <input id="filtro-fecha" type="date" name="fecha" form="filtrosForm"
+             class="form-control form-control-sm"
+             value="<?= htmlspecialchars($filter_fecha) ?>">
+    </div>
 
-        <!-- Nav de Filtros -->
-        <nav class="filter-toolbar d-flex align-items-center gap-2 px-3 py-2" style="flex-wrap: nowrap; overflow-x: auto;">
-          <!-- 1) Fecha -->
-          <input type="date"
-                 name="fecha"
-                 form="filtrosForm"
-                 class="form-control form-control-sm"
-                 style="width:120px;"
-                 value="<?= htmlspecialchars($filter_fecha) ?>"
-          />
+    <div class="d-flex flex-column" style="min-width:140px;">
+      <label for="filtro-area" class="small mb-1">Área</label>
+      <select id="filtro-area" name="area" form="filtrosForm"
+              class="form-select form-select-sm">
+        <option value="">— Todas Áreas —</option>
+        <?php while($a = $areasResult->fetch_assoc()): ?>
+          <option value="<?= htmlspecialchars($a['Area'])?>"
+            <?= $filter_area === $a['Area'] ? 'selected':''?>>
+            <?= htmlspecialchars($a['Area']) ?>
+          </option>
+        <?php endwhile; ?>
+      </select>
+    </div>
 
-          <!-- 2) Área -->
-          <select name="area"
-                  form="filtrosForm"
-                  class="form-select form-select-sm"
-                  style="width:140px;"
-          >
-            <option value="">— Todas Áreas —</option>
-            <?php while($a = $areasResult->fetch_assoc()): ?>
-              <option value="<?= htmlspecialchars($a['Area'])?>"
-                <?= $filter_area === $a['Area'] ? 'selected':''?>>
-                <?= htmlspecialchars($a['Area']) ?>
-              </option>
-            <?php endwhile; ?>
-          </select>
+    <div class="d-flex flex-column" style="min-width:140px;">
+      <label for="filtro-estado" class="small mb-1">Estado</label>
+      <select id="filtro-estado" name="estado" form="filtrosForm"
+              class="form-select form-select-sm">
+        <option value="">— Todos Estados —</option>
+        <?php while($e = $estadosResult->fetch_assoc()): ?>
+          <option value="<?= htmlspecialchars($e['Estado_Limpieza'])?>"
+            <?= $filter_estado === $e['Estado_Limpieza'] ? 'selected':''?>>
+            <?= htmlspecialchars($e['Estado_Limpieza']) ?>
+          </option>
+        <?php endwhile; ?>
+      </select>
+    </div>
 
-          <!-- 3) Estado -->
-          <select name="estado"
-                  form="filtrosForm"
-                  class="form-select form-select-sm"
-                  style="width:140px;"
-          >
-            <option value="">— Todos Estados —</option>
-            <?php while($e = $estadosResult->fetch_assoc()): ?>
-              <option value="<?= htmlspecialchars($e['Estado_Limpieza'])?>"
-                <?= $filter_estado === $e['Estado_Limpieza'] ? 'selected':''?>>
-                <?= htmlspecialchars($e['Estado_Limpieza']) ?>
-              </option>
-            <?php endwhile; ?>
-          </select>
+    <button form="filtrosForm" type="submit"
+            class="btn-inicio btn btn-success btn-sm ms-auto">
+      Filtrar
+    </button>
+  </nav>
+</header>
 
-          <!-- 4) Botón Filtrar -->
-          <button type="submit"
-                  form="filtrosForm"
-                  class="btn btn-success btn-sm"
-          >
-            Filtrar
-          </button>
-        </nav>
-      </div>
-    </header>
 
     <!-- Formulario oculto para filtros -->
     <form id="filtrosForm" method="GET" class="d-none"></form>
@@ -170,5 +179,77 @@ $estadosResult = $conn->query("SELECT DISTINCT Estado_Limpieza FROM registro_lim
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+   <!-- Modal de advertencia de sesión -->
+<script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
 </body>
 </html>

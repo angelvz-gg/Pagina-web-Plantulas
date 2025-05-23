@@ -1,6 +1,29 @@
 <?php
-include '../db.php';
-session_start();
+// 0) Mostrar errores (solo en desarrollo)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
+
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
+}
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+
+if ((int) $_SESSION['Rol'] !== 5) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
+    exit;
+}
+
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
+
 
 $fechaFiltro = $_GET['fecha'] ?? date('Y-m-d');
 $operadorFiltro = $_GET['operador'] ?? '';
@@ -38,9 +61,15 @@ $operadores = $conn->query("SELECT ID_Operador, CONCAT(Nombre, ' ', Apellido_P, 
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
   <div class="contenedor-pagina">
+    
     <header>
       <div class="encabezado">
         <a class="navbar-brand" href="#">
@@ -51,45 +80,52 @@ $operadores = $conn->query("SELECT ID_Operador, CONCAT(Nombre, ' ', Apellido_P, 
           <p>Consulta los avances registrados durante media jornada.</p>
         </div>
       </div>
+
       <div class="barra-navegacion">
         <nav class="navbar bg-body-tertiary">
           <div class="container-fluid">
             <div class="Opciones-barra">
-              <button onclick="window.location.href='dashboard_egp.php'">🔄 Regresar</button>
+              <button onclick="window.location.href='dashboard_egp.php'">
+              🏠 Volver al Inicio
+              </button>
             </div>
           </div>
         </nav>
       </div>
+      <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2 mb-4" style="overflow-x:auto;">
+  <div class="d-flex flex-column" style="min-width:140px;">
+    <label for="filtro-fecha" class="small mb-1">Fecha</label>
+    <input id="filtro-fecha" type="date" name="fecha" form="filtrosForm"
+           class="form-control form-control-sm"
+           value="<?= htmlspecialchars($fechaFiltro) ?>">
+  </div>
+
+  <div class="d-flex flex-column" style="min-width:160px;">
+    <label for="filtro-operador" class="small mb-1">Operador</label>
+    <select id="filtro-operador" name="operador" form="filtrosForm"
+            class="form-select form-select-sm">
+      <option value="">— Todos —</option>
+      <?php while ($op = $operadores->fetch_assoc()): ?>
+        <option value="<?= $op['ID_Operador'] ?>"
+          <?= ($op['ID_Operador'] == $operadorFiltro) ? 'selected':''?>>
+          <?= htmlspecialchars($op['NombreCompleto'])?>
+        </option>
+      <?php endwhile; ?>
+    </select>
+  </div>
+
+  <button form="filtrosForm" type="submit"
+          class="btn-inicio btn btn-success btn-sm ms-auto">
+    Filtrar
+  </button>
+</nav>
+<!-- Formulario oculto para filtros -->
+<form id="filtrosForm" method="GET" class="d-none"></form>
     </header>
 
     <main>
       <div class="section">
         <h2>📋 Reportes Registrados</h2>
-
-        <!-- Filtros -->
-        <form method="GET" class="form-doble-columna mb-4">
-          <div class="row g-3 align-items-end">
-            <div class="col-md-3">
-              <label for="fecha">Fecha:</label>
-              <input type="date" id="fecha" name="fecha" class="form-control" value="<?= $fechaFiltro ?>">
-            </div>
-            <div class="col-md-4">
-              <label for="operador">Operador:</label>
-              <select id="operador" name="operador" class="form-select">
-                <option value="">-- Todos --</option>
-                <?php while ($op = $operadores->fetch_assoc()): ?>
-                  <option value="<?= $op['ID_Operador'] ?>" <?= ($op['ID_Operador'] == $operadorFiltro) ? 'selected' : '' ?>>
-                    <?= $op['NombreCompleto'] ?>
-                  </option>
-                <?php endwhile; ?>
-              </select>
-            </div>
-            <div class="col-md-5 d-flex gap-2">
-              <button type="submit">🔍 Filtrar</button>
-              <a href="historial_lavado_parcial.php" class="btn btn-secondary">🧹 Limpiar Filtros</a>
-            </div>
-          </div>
-        </form>
 
         <!-- Tabla de resultados -->
         <table class="table">
@@ -126,5 +162,77 @@ $operadores = $conn->query("SELECT ID_Operador, CONCAT(Nombre, ' ', Apellido_P, 
     </footer>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  
+ <!-- Modal de advertencia de sesión -->
+ <script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
 </body>
 </html>

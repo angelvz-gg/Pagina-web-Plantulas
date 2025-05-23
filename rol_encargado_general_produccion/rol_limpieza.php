@@ -1,8 +1,33 @@
 <?php
-include '../db.php';
-session_start();
+// 0) Mostrar errores (solo en desarrollo)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-// Autocompletado AJAX de operadores (solo operadores reales con ID_Rol = 3)
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
+
+date_default_timezone_set('America/Mexico_City');
+$conn->query("SET time_zone = '-06:00'");
+
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
+}
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+
+if ((int) $_SESSION['Rol'] !== 5) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
+    exit;
+}
+
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
+
+// Autocompletado AJAX de operadores (solo operadores reales con ID_Rol = 2)
 if (isset($_GET['action']) && $_GET['action'] === 'buscar_operador') {
   $term = $_GET['term'] ?? '';
   $sql = "SELECT ID_Operador, CONCAT(Nombre, ' ', Apellido_P, ' ', Apellido_M) AS NombreCompleto 
@@ -31,7 +56,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_operador') {
 // Procesar asignación
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $id_operador = $_POST['id_operador'];
-  $fecha = $_POST['fecha_de_asignacion'];
+  $fecha = date('Y-m-d H:i:s');
+  $hora_registro = date('Y-m-d H:i:s');
   $area = $_POST['area'];
   $estado = 'Pendiente';
 
@@ -46,8 +72,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   if ($existe == 0) {
       echo "<script>alert('El operador seleccionado no existe, no está activo o no es operador.');</script>";
   } else {
-      $stmt = $conn->prepare("INSERT INTO registro_limpieza (ID_Operador, Fecha, Area, Estado_Limpieza) VALUES (?, ?, ?, ?)");
-      $stmt->bind_param("isss", $id_operador, $fecha, $area, $estado);
+     $stmt = $conn->prepare("INSERT INTO registro_limpieza (ID_Operador, ID_Asignador, Fecha, Area, Estado_Limpieza) VALUES (?, ?, ?, ?, ?)");
+$stmt->bind_param("iisss", $id_operador, $ID_Operador, $fecha, $area, $estado);
+
 
       if ($stmt->execute()) {
           echo "<script>alert('Limpieza asignada exitosamente.'); window.location.href='rol_limpieza.php';</script>";
@@ -66,8 +93,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <title>Asignación de Limpieza</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
-        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
   <div class="contenedor-pagina">
@@ -87,7 +118,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           <div class="container-fluid">
             <div class="Opciones-barra">
               <button onclick="window.location.href='dashboard_egp.php'">
-                🔄 Regresar
+              🏠 Volver al Inicio
               </button>
             </div>
           </div>
@@ -100,11 +131,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <h2>🧼 Asignar limpieza de áreas</h2>
         <form method="POST">
           <label for="operador_asignado">👤 Operador Asignado:</label>
-          <input type="text" id="operador_asignado" name="operador_asignado" required placeholder="Buscar operador...">
+          <input type="text" id="operador_asignado" name="operador_asignado" required readonly placeholder="Buscar operador...">
           <input type="hidden" id="id_operador" name="id_operador" required>
 
           <label for="fecha_de_asignacion">📅 Fecha de Asignación:</label>
-          <input type="date" id="fecha_de_asignacion" name="fecha_de_asignacion" required />
+          <input type="date" id="fecha_de_asignacion" name="fecha_de_asignacion" class="form-control" required readonly value="<?= date('Y-m-d') ?>">
 
           <label for="menuarea">🧽 Área a limpiar:</label>
           <select id="menuarea" name="area" required>
@@ -129,17 +160,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
   <script>
-    // Autocompletado de operador
-    $(function () {
-      $("#operador_asignado").autocomplete({
-        source: "rol_limpieza.php?action=buscar_operador",
-        minLength: 1,
-        select: function (event, ui) {
-          $("#operador_asignado").val(ui.item.value);
-          $("#id_operador").val(ui.item.id);
-        }
-      });
-    });
+    // Seleccion de operador
+$(function () {
+  $("#operador_asignado").autocomplete({
+    source: "rol_limpieza.php?action=buscar_operador",
+    minLength: 0, // Mostrar desde el primer caracter
+    select: function (event, ui) {
+      $("#operador_asignado").val(ui.item.value);
+      $("#id_operador").val(ui.item.id);
+    }
+  }).focus(function () {
+    // Fuerza a mostrar la lista cuando el campo recibe foco
+    $(this).autocomplete("search", "");
+  });
+});
+
 
     // Cargar lista de áreas
     const datosarea = {
@@ -168,6 +203,78 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         menuarea.appendChild(option);
       });
     });
+  </script>
+
+ <!-- Modal de advertencia de sesión -->
+ <script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
   </script>
 </body>
 </html>

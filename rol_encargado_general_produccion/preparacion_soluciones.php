@@ -1,11 +1,37 @@
 <?php
-include '../db.php';
-session_start();
+// 0) Mostrar errores (solo en desarrollo)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
+
+date_default_timezone_set('America/Mexico_City');
+$conn->query("SET time_zone = '-06:00'");
+
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: /plantulas/login.php?mensaje=Debe iniciar sesión');
+    exit;
+}
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+
+if ((int) $_SESSION['Rol'] !== 5) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
+    exit;
+}
+
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
+
+$mensaje = '';
 
 // AJAX para autocompletar medios activos destinados a ECAS
 if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
     $term = $_GET['term'] ?? '';
-
     $sql = "SELECT DISTINCT Codigo_Medio 
             FROM medios_nutritivos 
             WHERE Codigo_Medio LIKE ? 
@@ -13,44 +39,65 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
               AND Etapa_Destinada = 'ECAS'
             LIMIT 10";
     $stmt = $conn->prepare($sql);
-    $like = "%$term%";
+    $like = "%{$term}%";
     $stmt->bind_param("s", $like);
     $stmt->execute();
     $result = $stmt->get_result();
-
     $res = [];
     while ($row = $result->fetch_assoc()) {
-        $res[] = [
-            'label' => $row['Codigo_Medio'],
-            'value' => $row['Codigo_Medio']
-        ];
+        $res[] = ['label' => $row['Codigo_Medio'], 'value' => $row['Codigo_Medio']];
     }
     echo json_encode($res);
     exit;
 }
 
 // Procesamiento del formulario
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-  $codigo_medio = $_POST['codigo_medio'];
-  $fecha = $_POST['fecha_preparacion'];
-  $cantidad = $_POST['cantidad_preparada'];
-  $operador = $_SESSION['ID_Operador'] ?? null;
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    $codigo_medio = trim($_POST['codigo_medio']);
+    $fecha        = date('Y-m-d'); // Fecha automática
+    $cantidad     = (float) $_POST['cantidad_preparada'];
+    $operador     = $ID_Operador;
 
-  $sql = "INSERT INTO medios_nutritivos_madre 
-          (Codigo_Medio, Fecha_Preparacion, Cantidad_Preparada, Cantidad_Disponible, Estado, Operador_Responsable) 
-          VALUES (?, ?, ?, ?, 'Disponible', ?)";
+    // Validar cantidad
+    if ($cantidad < 1 || $cantidad > 100) {
+        $mensaje = "❌ La cantidad debe estar entre 1 y 100 litros.";
+    } else {
+        // Validar que el medio nutritivo exista y esté activo para ECAS
+        $chk = $conn->prepare("
+            SELECT COUNT(*) AS total 
+            FROM medios_nutritivos 
+            WHERE Codigo_Medio = ? AND Estado = 'Activo' AND Etapa_Destinada = 'ECAS'
+        ");
+        $chk->bind_param('s', $codigo_medio);
+        $chk->execute();
+        $res_chk = $chk->get_result()->fetch_assoc();
+        $chk->close();
 
-  $stmt = $conn->prepare($sql);
-  $stmt->bind_param("ssdii", $codigo_medio, $fecha, $cantidad, $cantidad, $operador);
+        if ($res_chk['total'] == 0) {
+            $mensaje = "❌ El código «" . htmlspecialchars($codigo_medio) . "» no está registrado como medio nutritivo activo para ECAS.";
+        } else {
+            // Insertar registro
+            $sql = "INSERT INTO medios_nutritivos_madre 
+                        (Codigo_Medio, Fecha_Preparacion, Cantidad_Preparada, Cantidad_Disponible, Estado, Operador_Responsable)
+                    VALUES (?, ?, ?, ?, 'Disponible', ?)";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("ssddi", $codigo_medio, $fecha, $cantidad, $cantidad, $operador);
 
-  if ($stmt->execute()) {
-      echo "<script>alert('Medio nutritivo registrado correctamente.'); window.location.href='preparacion_soluciones.php';</script>";
-  } else {
-      echo "<script>alert('Error al registrar el medio.');</script>";
-  }
+            if ($stmt->execute()) {
+                echo "<script>
+                        alert('✅ Medio nutritivo registrado correctamente.');
+                        window.location.href = 'preparacion_soluciones.php';
+                      </script>";
+                exit;
+            } else {
+                $mensaje = "❌ Error al registrar el medio: " . htmlspecialchars($stmt->error);
+            }
+            $stmt->close();
+        }
+    }
 }
-?>
 
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -58,28 +105,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Preparación de Soluciones Madre</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
-        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css"
+  />
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
   <div class="contenedor-borde">
     <header>
-      <div class="encabezado">
-        <a class="navbar-brand" href="#">
-          <img src="../logoplantulas.png" alt="Logo" width="130" height="124" class="d-inline-block align-text-center">
+      <div class="encabezado d-flex align-items-center">
+        <a class="navbar-brand" href="dashboard_egp.php">
+          <img src="../logoplantulas.png" alt="Logo" width="130" height="124">
         </a>
-        <div>
+        <div class="ms-3">
           <h2>Preparación de Soluciones Madre</h2>
           <p>Registro de la preparación de medios nutritivos madre.</p>
         </div>
       </div>
-      <div class="barra-navegacion">
+
+    <div class="barra-navegacion">
         <nav class="navbar bg-body-tertiary">
           <div class="container-fluid">
             <div class="Opciones-barra">
               <button onclick="window.location.href='dashboard_egp.php'">
-                🔄 Volver a la página principal
+              🏠 Volver al Inicio
               </button>
             </div>
           </div>
@@ -87,29 +145,62 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       </div>
     </header>
 
-    <main>
+    <main class="container mt-4">
+      <?php if ($mensaje): ?>
+        <div class="alert alert-warning"><?= htmlspecialchars($mensaje) ?></div>
+      <?php endif; ?>
+
       <div class="form-container">
         <h2>Soluciones Madre</h2>
-        <div class="form-center">
-          <div class="form-left">
-            <form method="POST" action="preparacion_soluciones.php">
-              <label for="codigo_medio">Código del Medio Nutritivo Madre:</label>
-              <input type="text" id="codigo_medio" name="codigo_medio" required>
+        <form method="POST" action="preparacion_soluciones.php" class="row g-3">
+<div class="row align-items-end g-3">
+  <div class="col-md-4">
+    <label for="codigo_medio" class="form-label">Código del Medio Nutritivo Madre</label>
+    <input
+      type="text"
+      id="codigo_medio"
+      name="codigo_medio"
+      class="form-control"
+      required
+    >
+  </div>
 
-              <label for="fecha_preparacion">Fecha de Preparación:</label>
-              <input type="date" id="fecha_preparacion" name="fecha_preparacion" required>
+  <div class="col-md-4">
+    <label for="fecha_preparacion" class="form-label">Fecha de Preparación</label>
+    <input
+      type="text"
+      id="fecha_preparacion"
+      name="fecha_preparacion"
+      class="form-control"
+      value="<?= date('Y-m-d') ?>"
+      readonly
+      style="background-color:#f8f9fa; cursor:not-allowed;"
+    >
+  </div>
 
-              <label for="cantidad_preparada">Cantidad Preparada (L):</label>
-              <input type="number" id="cantidad_preparada" name="cantidad_preparada" required min="0.1" step="0.1">
+  <div class="col-md-4">
+    <label for="cantidad_preparada" class="form-label">Cantidad Preparada (L)</label>
+    <input
+      type="number"
+      id="cantidad_preparada"
+      name="cantidad_preparada"
+      class="form-control"
+      min="1"
+      max="100"
+      step="0.1"
+      required
+    >
+  </div>
+</div>
 
-              <button type="submit">Registrar Preparación</button>
-            </form>
+
+            <button type="submit" class="btn btn-primary">Registrar Preparación</button>
           </div>
-        </div>
+        </form>
       </div>
     </main>
 
-    <footer>
+    <footer class="text-center mt-5">
       <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
     </footer>
   </div>
@@ -117,21 +208,92 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
   <script>
-  $(function () {
-    $("#codigo_medio").autocomplete({
-      source: function (request, response) {
-        $.getJSON("preparacion_soluciones.php?action=buscar_medio", { term: request.term }, response);
-      },
-      minLength: 0,
-      select: function (event, ui) {
-        $("#codigo_medio").val(ui.item.value);
-      }
-    }).focus(function () {
-      $(this).autocomplete("search", "");
+    $(function () {
+      $("#codigo_medio").autocomplete({
+        source(request, response) {
+          $.getJSON("preparacion_soluciones.php?action=buscar_medio", { term: request.term }, response);
+        },
+        minLength: 0,
+        select(event, ui) {
+          $("#codigo_medio").val(ui.item.value);
+        }
+      }).focus(function() {
+        $(this).autocomplete("search", "");
+      });
     });
-  });
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-          integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+ <!-- Modal de advertencia de sesión -->
+ <script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
 </body>
 </html>

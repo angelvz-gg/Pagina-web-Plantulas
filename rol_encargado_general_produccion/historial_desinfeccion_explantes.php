@@ -1,11 +1,28 @@
 <?php
-include '../db.php';
-session_start();
+// 0) Mostrar errores (solo en desarrollo)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-if (!isset($_SESSION["ID_Operador"])) {
-    echo "<script>alert('Debes iniciar sesión primero.'); window.location.href='../login.php';</script>";
-    exit();
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
+
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
 }
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+
+if ((int) $_SESSION['Rol'] !== 5) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
+    exit;
+}
+
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
 
 // Parámetros de búsqueda
 $fecha_desde = $_GET['fecha_desde'] ?? '';
@@ -63,57 +80,66 @@ $result = $stmt->get_result();
   <title>Historial de Desinfección</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
-<div class="contenedor-pagina">
+<div class="contenedorpagina">
+
   <header>
     <div class="encabezado">
       <a class="navbar-brand"><img src="../logoplantulas.png" alt="Logo" width="130" height="124" /></a>
       <h2>Historial de Desinfección de Explantes</h2>
       <div></div>
     </div>
+
     <div class="barra-navegacion">
-      <nav class="navbar bg-body-tertiary">
-        <div class="container-fluid">
-          <div class="Opciones-barra">
-            <button onclick="window.location.href='dashboard_egp.php'">🏠 Volver al inicio</button>
+        <nav class="navbar bg-body-tertiary">
+          <div class="container-fluid">
+            <div class="Opciones-barra">
+              <button onclick="window.location.href='dashboard_egp.php'">
+              🏠 Volver al Inicio
+              </button>
+            </div>
           </div>
-        </div>
-      </nav>
-    </div>
+        </nav>
+      </div>
+
+      <!-- Filtros -->
+<nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
+  <div class="d-flex flex-column" style="min-width:120px;">
+    <label for="filtro-fecha-desde" class="small mb-1">Desde</label>
+    <input id="filtro-fecha-desde" type="date" name="fecha_desde" form="filtrosForm"
+           class="form-control form-control-sm"
+           value="<?= htmlspecialchars($fecha_desde) ?>">
+  </div>
+
+  <div class="d-flex flex-column" style="min-width:120px;">
+    <label for="filtro-fecha-hasta" class="small mb-1">Hasta</label>
+    <input id="filtro-fecha-hasta" type="date" name="fecha_hasta" form="filtrosForm"
+           class="form-control form-control-sm"
+           value="<?= htmlspecialchars($fecha_hasta) ?>">
+  </div>
+
+  <div class="d-flex flex-column" style="min-width:140px;">
+    <label for="filtro-variedad" class="small mb-1">Variedad</label>
+    <input id="filtro-variedad" type="text" name="busqueda_variedad" form="filtrosForm"
+           class="form-control form-control-sm"
+           placeholder="Nombre o Código"
+           value="<?= htmlspecialchars($busqueda_variedad) ?>">
+  </div>
+
+  <button form="filtrosForm" type="submit"
+          class="btn-inicio btn btn-success btn-sm ms-auto">
+    Filtrar
+  </button>
+</nav>
   </header>
 
   <main>
-
-    <!-- Botón para mostrar/ocultar filtros -->
-    <div style="text-align: right; margin: 20px;">
-      <button type="button" class="save-button" onclick="toggleFiltros()">🔍 Mostrar filtros</button>
-    </div>
-
-    <!-- Formulario de filtros -->
-    <div id="filtros" style="display: none;">
-      <form method="GET" class="form-doble-columna">
-        <div class="content">
-          <div class="section">
-            <label for="fecha_desde">Desde:</label>
-            <input type="date" name="fecha_desde" value="<?= htmlspecialchars($fecha_desde) ?>">
-
-            <label for="fecha_hasta">Hasta:</label>
-            <input type="date" name="fecha_hasta" value="<?= htmlspecialchars($fecha_hasta) ?>">
-          </div>
-          <div class="section">
-            <label for="busqueda_variedad">Buscar Variedad:</label>
-            <input type="text" name="busqueda_variedad" placeholder="Nombre o Código" value="<?= htmlspecialchars($busqueda_variedad) ?>">
-
-            <div style="display: flex; gap: 10px; margin-top: 15px;">
-              <button type="submit" class="save-button">🔍 Aplicar</button>
-              <a href="historial_desinfeccion_explantes.php" class="save-button" style="background-color: #999;">🔄 Limpiar filtros</a>
-            </div>
-          </div>
-        </div>
-      </form>
-    </div>
-
     <!-- Tabla -->
     <div class="table-responsive">
       <table class="table table-bordered">
@@ -160,5 +186,77 @@ $result = $stmt->get_result();
     filtros.style.display = filtros.style.display === "none" ? "block" : "none";
   }
 </script>
+
+ <!-- Modal de advertencia de sesión -->
+ <script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
 </body>
 </html>

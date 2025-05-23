@@ -1,53 +1,54 @@
 <?php
-// suministro_material.php
-
-ini_set('display_errors',1);
-ini_set('display_startup_errors',1);
+// 0) Mostrar errores (solo en desarrollo)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-include '../db.php';
-session_start();
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
 
-// 1) Verificar sesión y rol = Encargado (Rol = 9)
-if (!isset($_SESSION['ID_Operador']) || $_SESSION['Rol'] != 9) {
-    header('Location: ../login.php');
-    exit();
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
 }
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+
+if ((int) $_SESSION['Rol'] !== 9) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado de Incubadora.</p>";
+    exit;
+}
+
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
 
 // 2) Procesar POST de asignación
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['asignar_materiales'])) {
     $conn->begin_transaction();
-
     try {
-        $id_enc   = $_SESSION['ID_Operador']; // Encargado que asigna
-        $id_op    = intval($_POST['id_operador']); // Operadora que recibe
+        $id_enc   = $_SESSION['ID_Operador'];
+        $id_op    = intval($_POST['id_operador']);
         $mats     = $_POST['material']  ?? [];
         $cants    = $_POST['cantidad']  ?? [];
 
-        // Construir detalles
         $detalles = [];
         foreach ($mats as $i => $id_mat) {
             $cantidad = intval($cants[$i] ?? 0);
             if ($cantidad > 0) {
-                // Obtener nombre
                 $res = $conn->prepare("SELECT nombre FROM materiales WHERE id_material = ?");
                 $res->bind_param('i', $id_mat);
                 $res->execute();
                 $nombre = $res->get_result()->fetch_assoc()['nombre'];
                 $res->close();
-
-                $detalles[$id_mat] = [
-                    'nombre'   => $nombre,
-                    'cantidad' => $cantidad
-                ];
+                $detalles[$id_mat] = ['nombre' => $nombre, 'cantidad' => $cantidad];
             }
         }
-
         if (empty($detalles)) {
             throw new Exception('⚠️ Debes asignar al menos un material.');
         }
 
-        // Insertar en resumen (suministro_material)
         $stmt = $conn->prepare("
             INSERT INTO suministro_material
               (id_operador, id_encargado, detalles)
@@ -58,17 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['asignar_materiales'])
         $stmt->execute();
         $stmt->close();
 
-        // Registrar en movimientos y actualizar inventario
         $mov = $conn->prepare("
             INSERT INTO movimientos_materiales 
               (id_material, tipo_movimiento, cantidad, id_operador_asignado, id_encargado, observaciones)
             VALUES (?, ?, ?, ?, ?, ?)
         ");
-
         foreach ($detalles as $id_mat => $info) {
             $cant = $info['cantidad'];
-
-            // Obtener si es reutilizable
             $q = $conn->prepare("SELECT reutilizable FROM materiales WHERE id_material = ?");
             $q->bind_param("i", $id_mat);
             $q->execute();
@@ -77,35 +74,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['asignar_materiales'])
             $q->close();
 
             if ($reutilizable) {
-                // Aumentar en_uso
                 $u = $conn->prepare("
                     INSERT INTO inventario_materiales (id_material, cantidad, en_uso)
                     VALUES (?, 0, ?)
                     ON DUPLICATE KEY UPDATE en_uso = en_uso + VALUES(en_uso)
                 ");
                 $u->bind_param("ii", $id_mat, $cant);
-                $u->execute();
-                $u->close();
             } else {
-                // Disminuir cantidad
                 $u = $conn->prepare("
                     INSERT INTO inventario_materiales (id_material, cantidad)
                     VALUES (?, ?)
                     ON DUPLICATE KEY UPDATE cantidad = cantidad - VALUES(cantidad)
                 ");
                 $u->bind_param("ii", $id_mat, $cant);
-                $u->execute();
-                $u->close();
             }
+            $u->execute();
+            $u->close();
 
-            // Registrar el movimiento
             $tipo = 'asignacion';
             $obs  = "Asignado desde suministro_material.php";
             $mov->bind_param("isiiss", $id_mat, $tipo, $cant, $id_op, $id_enc, $obs);
             $mov->execute();
         }
         $mov->close();
-
         $conn->commit();
         $msg = '✅ Asignación registrada y stock actualizado exitosamente.';
 
@@ -121,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['asignar_materiales'])
 // 3) Leer mensaje GET
 $msg = $_GET['msg'] ?? '';
 
-// 4) Cargar inventario disponible (mostrando solo lo útil)
+// 4) Cargar inventario disponible
 $inventario = $conn->query("
     SELECT 
       m.id_material, 
@@ -143,11 +134,7 @@ $ops  = $conn->query("
      WHERE ID_Rol = 2
      ORDER BY nombre
 ");
-$mats = $conn->query("
-    SELECT id_material, nombre
-      FROM materiales
-     ORDER BY nombre
-");
+$mats = $conn->query("SELECT id_material, nombre FROM materiales ORDER BY nombre");
 
 // 6) Traer últimas asignaciones
 $asigs = $conn->query("
@@ -163,6 +150,7 @@ $asigs = $conn->query("
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <!-- 1) Meta viewport ANTES de cualquier CSS -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Suministro de Material</title>
@@ -178,12 +166,19 @@ $asigs = $conn->query("
       word-break: break-word;
     }
   </style>
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
   <div class="contenedor-pagina">
     <header class="mb-4">
       <div class="encabezado d-flex align-items-center">
-        <a class="navbar-brand me-3" href="#"><img src="../logoplantulas.png" width="130" height="124"></a>
+        <a class="navbar-brand me-3" href="#">
+          <img src="../logoplantulas.png" width="130" height="124" alt="Logo Plantulas">
+        </a>
         <div>
           <h2>Suministro de Material</h2>
           <p>Asigna materiales y cantidades a cada operadora.</p>
@@ -193,7 +188,9 @@ $asigs = $conn->query("
         <nav class="navbar bg-body-tertiary">
           <div class="container-fluid">
             <div class="Opciones-barra">
-              <button onclick="location.href='dashboard_eism.php'">🔙 Volver al Dashboard</button>
+              <button onclick="window.location.href='dashboard_eism.php'">
+                🏠 Volver al Inicio
+              </button>
             </div>
           </div>
         </nav>
@@ -242,7 +239,8 @@ $asigs = $conn->query("
                 </div>
                 <div class="row g-3">
                   <?php while ($m = $mats->fetch_assoc()): ?>
-                    <div class="col-6 col-md-4 d-flex align-items-center">
+                    <!-- AQUI: para móvil col-12, sm=6, md=4 -->
+                    <div class="col-12 col-sm-6 col-md-4 d-flex align-items-center">
                       <input type="hidden" name="material[]" value="<?= $m['id_material'] ?>">
                       <label class="form-label flex-grow-1 mb-0"><?= htmlspecialchars($m['nombre']) ?></label>
                       <input type="number"
@@ -255,7 +253,9 @@ $asigs = $conn->query("
                   <?php endwhile; ?>
                 </div>
                 <div class="text-end mt-4">
-                  <button name="asignar_materiales" class="btn btn-success">Guardar Asignación</button>
+                  <button name="asignar_materiales" class="btn btn-success">
+                    Guardar Asignación
+                  </button>
                 </div>
               </form>
             </div>
@@ -298,6 +298,79 @@ $asigs = $conn->query("
 
     <footer class="text-center py-3">&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</footer>
   </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+   <!-- Modal de advertencia de sesión -->
+<script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
 </body>
 </html>

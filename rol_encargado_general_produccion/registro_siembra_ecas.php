@@ -1,17 +1,32 @@
 <?php
-include '../db.php';
-session_start();
+// 0) Mostrar errores (solo en desarrollo)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-if (!isset($_SESSION["ID_Operador"])) {
-    echo "<script>
-            alert('Debes iniciar sesión primero.');
-            window.location.href='../login.php';
-          </script>";
-    exit();
+date_default_timezone_set('America/Mexico_City');
+
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
+
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
+}
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+
+if ((int) $_SESSION['Rol'] !== 5) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
+    exit;
 }
 
-$ID_Operador = $_SESSION["ID_Operador"];
-$mensaje = "";
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
+
+$mensaje = '';
 
 // Autocompletado para medios ECAS únicos
 if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
@@ -40,6 +55,7 @@ $sql_des = "
     SELECT 
         D.ID_Desinfeccion,
         D.ID_Variedad,
+        D.FechaHr_Desinfeccion,
         D.Explantes_Desinfectados,
         V.Codigo_Variedad,
         V.Nombre_Variedad,
@@ -62,16 +78,30 @@ $desinfecciones = $stmt_des->get_result()->fetch_all(MYSQLI_ASSOC);
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_siembra"])) {
     $id_desinfeccion = (int)$_POST["id_desinfeccion"];
     $id_variedad     = (int)$_POST["id_variedad"];
-    $fecha_siembra   = $_POST["fecha_siembra"];
+    $fecha_siembra   = date('Y-m-d H:i:s'); // Fecha automática con zona horaria establecida arriba
     $medio           = $_POST["medio"];
     $cantidad        = (int)$_POST["cantidad"];
     $tuppers_llenos  = (int)$_POST["tuppers_llenos"];
     $observaciones   = $_POST["observaciones"] ?? '';
 
+//Validación para que no se inserten brotes menores a 1
+if ($cantidad < 1) {
+    $mensaje = "⚠️ La cantidad de brotes a sembrar debe ser mayor a 0.";
+}
+
+
+    // 1. Validación: tuppers no deben exceder a cantidad
     if ($tuppers_llenos > $cantidad) {
         $mensaje = "❌ Los tuppers llenos no pueden exceder la cantidad de explantes.";
-    } else {
-        // Validar medio nutritivo
+    }
+
+    // 2. Validación: tuppers deben estar entre 1 y 60
+    elseif ($tuppers_llenos < 1 || $tuppers_llenos > 100) {
+        $mensaje = "⚠️ El número de tuppers debe estar entre 1 y 100.";
+    }
+
+    // 3. Validación: existencia del medio nutritivo
+    else {
         $ver = $conn->prepare("
             SELECT COUNT(*) AS total 
             FROM medios_nutritivos 
@@ -81,71 +111,98 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_siembra"])) {
         $ver->bind_param("s", $medio);
         $ver->execute();
         $res = $ver->get_result()->fetch_assoc();
+
         if ($res['total'] == 0) {
             $mensaje = "❌ El código del medio nutritivo no está registrado para ECAS.";
+        }
+    }
+
+    // 4. Validación: no sembrar más de lo disponible
+    if (empty($mensaje)) {
+        $sql_disp = "SELECT D.Explantes_Desinfectados - COALESCE(SUM(S.Cantidad_Sembrada),0) AS disponibles
+                     FROM desinfeccion_explantes D
+                     LEFT JOIN siembra_ecas S ON D.ID_Desinfeccion = S.ID_Desinfeccion
+                     WHERE D.ID_Desinfeccion = ?";
+        $stmt_disp = $conn->prepare($sql_disp);
+        $stmt_disp->bind_param("i", $id_desinfeccion);
+        $stmt_disp->execute();
+        $row_disp = $stmt_disp->get_result()->fetch_assoc();
+        $disponibles = (int)$row_disp['disponibles'];
+
+        if ($cantidad > $disponibles) {
+            $mensaje = "⚠️ No puedes sembrar más de los $disponibles explantes disponibles.";
+        }
+    }
+
+    // 5. Si todo va bien: buscar o crear lote
+    if (empty($mensaje)) {
+        $sql_buscar_lote = "
+            SELECT ID_Lote 
+            FROM lotes 
+            WHERE Fecha = ? 
+              AND ID_Variedad = ? 
+              AND ID_Operador = ? 
+              AND ID_Etapa = 1
+        ";
+        $stmt_buscar_lote = $conn->prepare($sql_buscar_lote);
+        $stmt_buscar_lote->bind_param("sii", $fecha_siembra, $id_variedad, $ID_Operador);
+        $stmt_buscar_lote->execute();
+        $row = $stmt_buscar_lote->get_result()->fetch_assoc();
+
+        if ($row) {
+          var_dump($row);
+            $id_lote = $row['ID_Lote'];
         } else {
-            // Verificar o crear lote
-            $sql_buscar_lote = "
-                SELECT ID_Lote 
-                FROM lotes 
-                WHERE Fecha = ? 
-                  AND ID_Variedad = ? 
-                  AND ID_Operador = ? 
-                  AND ID_Etapa = 1
+            $sql_lote = "
+                INSERT INTO lotes (Fecha, ID_Variedad, ID_Operador, ID_Etapa)
+                VALUES (?, ?, ?, 1)
             ";
-            $stmt_buscar_lote = $conn->prepare($sql_buscar_lote);
-            $stmt_buscar_lote->bind_param("sii", $fecha_siembra, $id_variedad, $ID_Operador);
-            $stmt_buscar_lote->execute();
-            $row = $stmt_buscar_lote->get_result()->fetch_assoc();
-
-            if ($row) {
-                $id_lote = $row['ID_Lote'];
+            $stmt_lote = $conn->prepare($sql_lote);
+            $stmt_lote->bind_param("sii", $fecha_siembra, $id_variedad, $ID_Operador);
+            if ($stmt_lote->execute()) {
+                $id_lote = $conn->insert_id;
             } else {
-                $sql_lote = "
-                    INSERT INTO lotes (Fecha, ID_Variedad, ID_Operador, ID_Etapa)
-                    VALUES (?, ?, ?, 1)
-                ";
-                $stmt_lote = $conn->prepare($sql_lote);
-                $stmt_lote->bind_param("sii", $fecha_siembra, $id_variedad, $ID_Operador);
-                if ($stmt_lote->execute()) {
-                    $id_lote = $conn->insert_id;
-                } else {
-                    $mensaje = "❌ Error al crear el lote.";
-                }
-            }
-
-            if (empty($mensaje)) {
-                // Insertar registro de siembra con Tuppers_Llenos
-                $sql_siembra = "
-                    INSERT INTO siembra_ecas
-                      (ID_Desinfeccion, ID_Variedad, Fecha_Siembra, Medio_Nutritivo,
-                       Cantidad_Sembrada, Tuppers_Llenos, Observaciones,
-                       Operador_Responsable, ID_Lote)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ";
-                $stmt_siembra = $conn->prepare($sql_siembra);
-                $stmt_siembra->bind_param(
-                    "iissisiis",
-                    $id_desinfeccion,
-                    $id_variedad,
-                    $fecha_siembra,
-                    $medio,
-                    $cantidad,
-                    $tuppers_llenos,
-                    $observaciones,
-                    $ID_Operador,
-                    $id_lote
-                );
-                if ($stmt_siembra->execute()) {
-                    header("Location: registro_siembra_ecas.php?success=1");
-                    exit();
-                } else {
-                    $mensaje = "❌ Error al registrar la siembra: " . $stmt_siembra->error;
-                }
+                $mensaje = "❌ Error al crear el lote.";
             }
         }
     }
+
+// 6. Registrar la siembra
+if (empty($mensaje)) {
+    $brotes_disponibles = $cantidad;
+
+    $sql_siembra = "
+        INSERT INTO siembra_ecas
+          (ID_Desinfeccion, ID_Variedad, Fecha_Siembra, Medio_Nutritivo,
+           Cantidad_Sembrada, Tuppers_Llenos, Brotes_Disponibles, Observaciones,
+           Operador_Responsable, ID_Lote)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ";
+
+    $stmt_siembra = $conn->prepare($sql_siembra);
+    $stmt_siembra->bind_param(
+        "iissiiisii", // ← CORRECTO: 10 variables, tipos exactos
+        $id_desinfeccion,
+        $id_variedad,
+        $fecha_siembra,
+        $medio,
+        $cantidad,
+        $tuppers_llenos,
+        $brotes_disponibles,
+        $observaciones,
+        $ID_Operador,
+        $id_lote
+    );
+
+    if ($stmt_siembra->execute()) {
+        header("Location: registro_siembra_ecas.php?success=1");
+        exit();
+    } else {
+        $mensaje = "❌ Error al registrar la siembra: " . $stmt_siembra->error;
+    }
 }
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -156,6 +213,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_siembra"])) {
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" />
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
 <div class="contenedor-pagina">
@@ -165,15 +227,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_siembra"])) {
       <h2>Registro de Siembra Inicial - ECAS</h2>
       <div></div>
     </div>
+
     <div class="barra-navegacion">
-      <nav class="navbar bg-body-tertiary">
-        <div class="container-fluid">
-          <div class="Opciones-barra">
-            <button onclick="window.location.href='dashboard_egp.php'">🏠 Volver al inicio</button>
+        <nav class="navbar bg-body-tertiary">
+          <div class="container-fluid">
+            <div class="Opciones-barra">
+              <button onclick="window.location.href='dashboard_egp.php'">
+              🏠 Volver al Inicio
+              </button>
+            </div>
           </div>
-        </div>
-      </nav>
-    </div>
+        </nav>
+      </div>
   </header>
 
   <main class="container mt-4">
@@ -185,7 +250,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_siembra"])) {
 
     <h4>🧼 Desinfecciones con explantes disponibles:</h4>
     <div class="carrusel-desinfecciones mb-4">
-      <?php foreach ($desinfecciones as $d): 
+      <?php foreach ($desinfecciones as $d):
           $disponibles = $d['Explantes_Desinfectados'] - $d['Cantidad_Sembrada_Total'];
       ?>
         <div class="tarjeta-desinf" 
@@ -195,7 +260,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_siembra"])) {
              data-explantes="<?= $disponibles ?>">
           <strong><?= htmlspecialchars($d['Codigo_Variedad'] . ' - ' . $d['Nombre_Variedad']) ?></strong><br>
           Disponibles: <?= $disponibles ?><br>
-          Fecha: <?= date("d/m/Y", strtotime($d['FechaHr_Desinfeccion'])) ?>
+          Fecha:
+          <?php 
+            if (!empty($d['FechaHr_Desinfeccion'])) {
+                echo date("d/m/Y", strtotime($d['FechaHr_Desinfeccion']));
+            } else {
+                echo '—';
+            }
+          ?>
         </div>
       <?php endforeach; ?>
     </div>
@@ -205,9 +277,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_siembra"])) {
       <input type="hidden" name="id_desinfeccion" id="id_desinfeccion">
 
       <label>Variedad: <strong><span id="nombre_variedad"></span></strong></label>
-      <label for="fecha_siembra">📅 Fecha de siembra:</label>
-      <input type="date" name="fecha_siembra" class="form-control" required>
-
       <label for="medio">🧪 Código del medio nutritivo:</label>
       <input type="text" id="medio_nutritivo" name="medio" class="form-control" required>
 
@@ -215,7 +284,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_siembra"])) {
       <input type="number" name="cantidad" class="form-control" min="1" required>
 
       <label for="tuppers_llenos">📦 Tuppers llenos:</label>
-      <input type="number" name="tuppers_llenos" class="form-control" min="0" required>
+      <input type="number" name="tuppers_llenos" class="form-control" min="1" max="100" required>
 
       <label for="observaciones">📝 Observaciones:</label>
       <textarea name="observaciones" class="form-control" rows="3"></textarea>
@@ -255,7 +324,6 @@ $(function(){
     $("#nombre_variedad").text($(this).data("variedad-nombre"));
 
     $("input[name='cantidad']").attr("max", explantesDisponibles);
-    $("input[name='tuppers_llenos']").attr("max", explantesDisponibles);
 
     $("#formulario-siembra").slideDown("fast");
     window.scrollTo({ top: $("#formulario-siembra").offset().top - 100, behavior: 'smooth' });
@@ -281,5 +349,76 @@ $(function(){
   });
 });
 </script>
+ <!-- Modal de advertencia de sesión -->
+ <script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
 </body>
 </html>

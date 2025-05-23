@@ -886,6 +886,47 @@ main {
   /* =========================
    MEDIA QUERIES PARA FILTROS
    ========================= */
+
+/* =========================
+   Ajustes para filtros en móvil
+   ========================= */
+   @media (max-width: 576px) {
+    .filter-toolbar {
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 0.5rem 1rem;
+    }
+  
+    /* Mostrar cada label en bloque sobre su campo */
+    .filter-toolbar label {
+      display: block;
+      width: 100%;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+      color: #333;
+    }
+  
+    /* Campos a 100% ancho */
+    .filter-toolbar select,
+    .filter-toolbar input,
+    .filter-toolbar .btn-inicio {
+      width: 100% !important;
+      margin-bottom: 0.5rem;
+    }
+  }
+  
+  /* =========================
+     Espacio extra antes del footer
+     ========================= */
+  main.container-fluid {
+    padding-bottom: 2rem; /* separa el contenido del footer */
+  }
+  
+  .text-center.mb-2 {
+    margin-bottom: 1.5rem !important; /* más espacio bajo los botones */
+  }
+  
+  
 @media (max-width: 1200px) {
   .filter-toolbar .form-select,
   .filter-toolbar .form-control {
@@ -942,4 +983,130 @@ main {
       gap: 1rem;            /* un poco más de espacio entre filtros */
     }
   }
+/* =========================
+   AJUSTES SUMINISTRO MATERAL PARA MÓVIL (≤576px)
+   ========================= */
+   @media (max-width: 576px) {
+    /* 1) Cada material ocupa toda la fila */
+    .row.g-3 > .col-12,
+    .row.g-3 > .col-sm-6 {
+      flex: 0 0 100% !important;
+      max-width: 100% !important;
+    }
   
+    /* 2) Inputs de cantidad más compactos */
+    form input[type="number"] {
+      width: 50px !important;
+    }
+  
+    /* 3) Logo más pequeño para no pegar el título */
+    .encabezado .navbar-brand img {
+      width: 80px !important;
+      height: auto !important;
+    }
+  
+    /* 4) Asegurar que inventario y formulario se apilen */
+    .row.g-4 > .col-lg-4,
+    .row.g-4 > .col-lg-8 {
+      flex: 0 0 100% !important;
+      max-width: 100% !important;
+    }
+  }
+  
+
+/* =========================
+   MODAL DE AVISO DE SESIÓN
+   ========================= */
+   .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  
+  .modal-box {
+    background: #ffffff;
+    padding: 1.5rem;
+    border-radius: 8px;
+    max-width: 320px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  
+  .modal-box p {
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    color: #333;
+  }
+  
+  .btn-keepalive {
+    display: inline-block;
+    background-color: #45814d;
+    color: #fff;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+  }
+  
+  .btn-keepalive:hover {
+    background-color: #356d3c;
+    transform: translateY(-2px);
+  }
+  
+
+  /* Modal de advertencia de sesión */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal-box {
+  background: #fff;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  max-width: 320px;
+  text-align: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.btn-keepalive {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+#contaminados_list table {
+  width: 100%;
+  table-layout: fixed;
+}
+#contaminados_list th,
+#contaminados_list td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: .25rem .5rem;
+  font-size: .875rem;
+}
+
+/* opcional: si quieres ajustes específicos en móviles */
+@media (max-width: 576px) {
+  #contaminados_list th,
+  #contaminados_list td {
+    font-size: .75rem;
+    padding: .2rem .4rem;
+  }
+}

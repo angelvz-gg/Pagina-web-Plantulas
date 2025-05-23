@@ -1,30 +1,50 @@
 <?php
-session_start();
+// 0) Mostrar errores (solo en desarrollo)
 ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-require '../db.php'; // Conexión incluida
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
 
-// Validación de sesión
 if (!isset($_SESSION['ID_Operador'])) {
-  header("Location: ../login.php");
-  exit();
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
 }
+$ID_Operador = (int) $_SESSION['ID_Operador'];
 
-// Validación de rol (5 = Encargado General de Producción)
-if ($_SESSION['Rol'] != 5) {
-  echo "<p style='color:red;'>⚠️ Acceso denegado. Este panel es solo para Encargado General de Producción.</p>";
-  exit();
+if ((int) $_SESSION['Rol'] !== 5) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
+    exit;
 }
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Panel Encargado General de Producción</title>
-  <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
+  <link rel="stylesheet" href="../style.css?v=<?= time() ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .highlight {
+      animation: highlight 2s ease-out;
+    }
+    @keyframes highlight {
+      from { background-color: #fffae6; }
+      to   { background-color: transparent; }
+    }
+  </style>
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
   <div class="contenedor-pagina panel-admin">
@@ -32,7 +52,7 @@ if ($_SESSION['Rol'] != 5) {
     <header>
       <div class="encabezado">
         <a class="navbar-brand" href="dashboard_egp.php">
-          <img src="../logoplantulas.png" alt="Logo" width="130" height="124" class="d-inline-block align-text-center" />
+          <img src="../logoplantulas.png" alt="Logo" width="130" height="124" />
         </a>
         <div>
           <h2>Encargado General de Producción</h2>
@@ -54,74 +74,115 @@ if ($_SESSION['Rol'] != 5) {
     <main>
       <h3 class="mt-5 mb-3">🌱 Producción - Etapa 1 (ECAS)</h3>
       <section class="dashboard-grid">
-        <div class="card card-ecas" id="card-desinfeccion">
+        <div class="card card-ecas" data-card-id="desinfeccion">
           <h2>🧼 Desinfección de Explantes</h2>
           <p>Preparación inicial de explantes para el cultivo.</p>
-          <a href="desinfeccion_explantes.php" onclick="guardarScroll('card-desinfeccion')">Ir a Desinfección</a>
+          <a href="desinfeccion_explantes.php"
+             onclick="rememberCard('desinfeccion')">
+            Ir a Desinfección
+          </a>
         </div>
-        <div class="card" id="card-historial-desinfeccion">
+        <div class="card" data-card-id="historial-desinfeccion">
           <h2>📄 Historial de Desinfección</h2>
           <p>Consulta todas las desinfecciones registradas por los operadores.</p>
-          <a href="historial_desinfeccion_explantes.php" onclick="guardarScroll('card-historial-desinfeccion')">Ver Historial</a>
+          <a href="historial_desinfeccion_explantes.php"
+             onclick="rememberCard('historial-desinfeccion')">
+            Ver Historial
+          </a>
         </div>
-        <div class="card card-ecas" id="card-siembra-inicial">
+        <div class="card card-ecas" data-card-id="siembra-inicial">
           <h2>📋 Registro de Siembra Inicial</h2>
           <p>Captura la siembra inicial de explantes tras la desinfección.</p>
-          <a href="registro_siembra_ecas.php" onclick="guardarScroll('card-siembra-inicial')">Registrar Siembra</a>
+          <a href="registro_siembra_ecas.php"
+             onclick="rememberCard('siembra-inicial')">
+            Registrar Siembra
+          </a>
         </div>
-        <div class="card card-ecas" id="card-divisiones">
+        <div class="card card-ecas" data-card-id="divisiones">
           <h2>✂️ Divisiones de Explantes</h2>
           <p>Registra las divisiones hechas en ECAS y su generación correspondiente.</p>
-          <a href="divisiones_ecas.php" onclick="guardarScroll('card-divisiones')">Registrar División</a>
+          <a href="divisiones_ecas.php"
+             onclick="rememberCard('divisiones')">
+            Registrar División
+          </a>
         </div>
-        <div class="card card-ecas" id="card-evaluacion">
+        <div class="card card-ecas" data-card-id="evaluacion">
           <h2>🧪 Evaluación de Desarrollo</h2>
           <p>Clasifica los explantes: vivos, hinchados, con brote, infectados o muertos.</p>
-          <a href="evaluacion_ecas.php" onclick="guardarScroll('card-evaluacion')">Evaluar Desarrollo</a>
+          <a href="evaluacion_ecas.php"
+             onclick="rememberCard('evaluacion')">
+            Evaluar Desarrollo
+          </a>
         </div>
-        <div class="card card-ecas" id="card-diseccion">
+        <div class="card card-ecas" data-card-id="diseccion">
           <h2>🌿 Disección de Brotes</h2>
           <p>Registra el número de hojas separadas por brote y su siguiente medio nutritivo.</p>
-          <a href="diseccion_hojas_ecas.php" onclick="guardarScroll('card-diseccion')">Registrar Disección</a>
+          <a href="diseccion_hojas_ecas.php"
+             onclick="rememberCard('diseccion')">
+            Registrar Disección
+          </a>
         </div>
-        <div class="card card-ecas" id="card-envio-multiplicacion">
+        <div class="card card-ecas" data-card-id="envio-multiplicacion">
           <h2>📤 Envío a Multiplicación</h2>
           <p>Finaliza el proceso ECAS enviando brotes listos a multiplicación.</p>
-          <a href="envio_multiplicacion.php" onclick="guardarScroll('card-envio-multiplicacion')">Registrar Envío</a>
+          <a href="envio_multiplicacion.php"
+             onclick="rememberCard('envio-multiplicacion')">
+            Registrar Envío
+          </a>
         </div>
-        <div class="card card-ecas" id="card-estadisticas-ecas">
+        <!--
+        <div class="card card-ecas" data-card-id="estadisticas-ecas">
           <h2>📈 Estadísticas de ECAS</h2>
           <p>Consulta métricas clave de desarrollo por variedad, generación y éxito.</p>
-          <a href="estadisticas_ecas.php" onclick="guardarScroll('card-estadisticas-ecas')">Ver Estadísticas</a>
+          <a href="estadisticas_ecas.php"
+             onclick="rememberCard('estadisticas-ecas')">
+            Ver Estadísticas
+          </a>
         </div>
+  -->
       </section>
 
       <h3 class="mt-5 mb-3">🔧 Funciones Generales</h3>
       <section class="dashboard-grid">
-        <div class="card" id="card-reportes-produccion">
+        <div class="card" data-card-id="reportes-produccion">
           <h2>🔬 Reportes de Producción</h2>
           <p>Consulta y revisa los reportes diarios de producción.</p>
-          <a href="reportes_produccion.php" onclick="guardarScroll('card-reportes-produccion')">Ver Reportes</a>
+          <a href="reportes_produccion.php"
+             onclick="rememberCard('reportes-produccion')">
+            Ver Reportes
+          </a>
         </div>
-        <div class="card" id="card-preparacion-soluciones">
+        <div class="card" data-card-id="preparacion-soluciones">
           <h2>🧪 Preparación de Soluciones Madre</h2>
           <p>Supervisa y controla la preparación de soluciones madre en el laboratorio.</p>
-          <a href="preparacion_soluciones.php" onclick="guardarScroll('card-preparacion-soluciones')">Ir a Preparación</a>
+          <a href="preparacion_soluciones.php"
+             onclick="rememberCard('preparacion-soluciones')">
+            Ir a Preparación
+          </a>
         </div>
-        <div class="card" id="card-inventario-soluciones">
+        <div class="card" data-card-id="inventario-soluciones">
           <h2>📈 Inventario de Soluciones Madre</h2>
           <p>Consulta la cantidad restante de cada solución madre.</p>
-          <a href="inventario_soluciones_madre.php" onclick="guardarScroll('card-inventario-soluciones')">Ver Inventario</a>
+          <a href="inventario_soluciones_madre.php"
+             onclick="rememberCard('inventario-soluciones')">
+            Ver Inventario
+          </a>
         </div>
-        <div class="card" id="card-rol-limpieza">
-          <h2>🧹 Crear el Rol de Limpieza</h2>
+        <div class="card" data-card-id="rol-limpieza">
+          <h2>🧹 Rol de Limpieza</h2>
           <p>Define las tareas de limpieza y asigna responsabilidades.</p>
-          <a href="rol_limpieza.php" onclick="guardarScroll('card-rol-limpieza')">Crear Rol de Limpieza</a>
+          <a href="rol_limpieza.php"
+             onclick="rememberCard('rol-limpieza')">
+            Crear Rol de Limpieza
+          </a>
         </div>
-        <div class="card" id="card-historial-lavado">
+        <div class="card" data-card-id="historial-lavado">
           <h2>📈 Historial de Lavado Parcial</h2>
           <p>Visualiza los reportes de avance de todos los operadores.</p>
-          <a href="historial_lavado_parcial.php" onclick="guardarScroll('card-historial-lavado')">Ver Historial</a>
+          <a href="historial_lavado_parcial.php"
+             onclick="rememberCard('historial-lavado')">
+            Ver Historial
+          </a>
         </div>
       </section>
     </main>
@@ -132,37 +193,102 @@ if ($_SESSION['Rol'] != 5) {
     </footer>
   </div>
 
-  <!-- Scripts Bootstrap y Scroll -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // Guardar y restaurar scroll
-    function guardarScroll(cardId) {
-      localStorage.setItem('ultima_tarjeta_click', cardId);
-    }
-    document.addEventListener('DOMContentLoaded', function() {
-      const cardId = localStorage.getItem('ultima_tarjeta_click');
-      if (cardId) {
-        const card = document.getElementById(cardId);
-        if (card) {
-          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.addEventListener('DOMContentLoaded', () => {
+      const cards = document.querySelectorAll('.dashboard-grid .card');
+      // Al hacer clic en cualquier enlace de tarjeta
+      cards.forEach(card => {
+        const link = card.querySelector('a');
+        link.addEventListener('click', () => {
+          const id = card.dataset.cardId;
+          sessionStorage.setItem('lastCard', id);
+        });
+      });
+
+      // Al cargar la página, leer y, si existe, hacer scroll y resaltar
+      const last = sessionStorage.getItem('lastCard');
+      if (last) {
+        const target = document.querySelector(`.dashboard-grid .card[data-card-id="${last}"]`);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target.classList.add('highlight');
         }
-        localStorage.removeItem('ultima_tarjeta_click');
       }
     });
-    // Compactar header al hacer scroll
-    (function() {
-      const header = document.querySelector('.encabezado');
-      function toggleCompact() {
-        if (window.pageYOffset > 50) {
-          header.classList.add('compact');
-        } else {
-          header.classList.remove('compact');
-        }
-      }
-      window.addEventListener('scroll', toggleCompact);
-      window.addEventListener('resize', toggleCompact);
-      toggleCompact();
-    })();
   </script>
+
+  <!-- Modal de advertencia de sesión -->
+<script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

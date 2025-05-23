@@ -1,17 +1,32 @@
 <?php
-include '../db.php';
-session_start();
+// 0) Mostrar errores (solo en desarrollo)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-// 1) Verificar sesión
-if (!isset($_SESSION["ID_Operador"])) {
-    echo "<script>
-            alert('Debes iniciar sesión primero.');
-            window.location.href='../login.php';
-          </script>";
-    exit();
+date_default_timezone_set('America/Mexico_City');
+
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
+
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
 }
-$ID_Operador = $_SESSION["ID_Operador"];
-$mensaje = "";
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+
+if ((int) $_SESSION['Rol'] !== 5) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
+    exit;
+}
+
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
+
+$mensaje = '';
 
 // 2) Autocompletado para medios ECAS
 if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
@@ -69,8 +84,10 @@ $siembras = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
 
 // 4) Procesar formulario de división
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) {
+    date_default_timezone_set('America/Mexico_City');
+
     $id_siembra          = (int) $_POST["id_siembra"];
-    $fecha               = $_POST["fecha_div"];
+    $fecha               = date('Y-m-d H:i:s'); // ✅ Paso 1: fecha automática
     $cantidad_div        = (int) $_POST["cantidad"];
     $tuppers_llenos      = (int) $_POST["tuppers_llenos"];
     $tuppers_vacios      = (int) $_POST["tuppers_desocupados"];
@@ -78,22 +95,59 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
     $brotes_totales      = (int) $_POST["brotes_totales"];
     $tasa                = (float) $_POST["tasa_multiplicacion"];
     $medio               = $_POST["medio"];
-    $obs                 = $_POST["observaciones"] ?? '';
+    $obs                 = htmlspecialchars(strip_tags(trim($_POST["observaciones"] ?? '')), ENT_QUOTES, 'UTF-8'); // ✅ Paso 9
     $gen                 = (int) $_POST["generacion"];
+    $brotes_disponibles  = (int) $_POST["brotes_disponibles"];   // desde campo oculto
+    $tuppers_iniciales   = (int) $_POST["tuppers_iniciales"];    // desde campo oculto
 
-    // Validar medio nutritivo
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS total
-          FROM medios_nutritivos
-         WHERE Codigo_Medio = ?
-           AND Etapa_Destinada = 'ECAS'
-    ");
-    $stmt->bind_param("s", $medio);
-    $stmt->execute();
-    if ($stmt->get_result()->fetch_assoc()['total'] === 0) {
-        $mensaje = "❌ Medio nutritivo no registrado para ECAS.";
-    } else {
-        // Insertar división
+    // ✅ Paso 2: cantidad dividida no debe superar los disponibles
+    if ($cantidad_div > $brotes_disponibles) {
+        $mensaje = "⚠️ No puedes dividir más brotes de los disponibles.";
+    }
+
+    // ✅ Paso 3: tuppers llenos entre 1 y 100
+    elseif ($tuppers_llenos < 1 || $tuppers_llenos > 100) {
+        $mensaje = "⚠️ La cantidad de tuppers llenos debe estar entre 1 y 100.";
+    }
+
+    // ✅ Paso 4: tuppers desocupados entre 1 y los iniciales
+    elseif ($tuppers_vacios < 1 || $tuppers_vacios > $tuppers_iniciales) {
+        $mensaje = "⚠️ Los tuppers desocupados deben estar entre 1 y $tuppers_iniciales.";
+    }
+
+    // ✅ Paso 5: cantidad dividida + contaminados no mayor a disponibles
+    elseif (($cantidad_div + $brotes_cont) > $brotes_disponibles) {
+        $mensaje = "⚠️ La suma de brotes divididos y contaminados no puede superar los disponibles.";
+    }
+
+    // ✅ Paso 6: brotes totales entre 1 y 100
+    elseif ($brotes_totales < 1 || $brotes_totales > 100) {
+        $mensaje = "⚠️ El total de brotes debe estar entre 1 y 100.";
+    }
+
+    // ✅ Paso 7: tasa multiplicación entre 1.00 y 50.00, 2 decimales
+    elseif ($tasa < 1 || $tasa > 50 || !preg_match('/^\d+(\.\d{1,2})?$/', $tasa)) {
+        $mensaje = "⚠️ La tasa de multiplicación debe estar entre 1.00 y 50.00 con hasta 2 decimales.";
+    }
+
+    // ✅ Paso 8: Validar medio nutritivo
+    else {
+        $stmt = $conn->prepare("
+            SELECT COUNT(*) AS total
+              FROM medios_nutritivos
+             WHERE Codigo_Medio = ?
+               AND Etapa_Destinada = 'ECAS'
+        ");
+        $stmt->bind_param("s", $medio);
+        $stmt->execute();
+
+        if ($stmt->get_result()->fetch_assoc()['total'] === 0) {
+            $mensaje = "❌ Medio nutritivo no registrado para ECAS.";
+        }
+    }
+
+    // ✅ Si no hay errores, continuar con el insert
+    if (empty($mensaje)) {
         $ins = $conn->prepare("
             INSERT INTO division_ecas
               (ID_Siembra, Fecha_Division, Cantidad_Dividida,
@@ -102,7 +156,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
                Brotes_Totales, Tasa_Multiplicacion, Brotes_Contaminados)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        // Tuppers_Disponibles = Tuppers_Llenos
         $ins->bind_param(
             "isiiiisisiidi",
             $id_siembra,
@@ -121,7 +174,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
         );
         if ($ins->execute()) {
             $id_div = $conn->insert_id;
-            // Actualizar brotes sembrados en siembra_ecas
+
+            // Actualizar brotes disponibles
             $upd = $conn->prepare("
                 UPDATE siembra_ecas
                    SET Brotes_Disponibles = Brotes_Disponibles - ?
@@ -129,6 +183,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
             ");
             $upd->bind_param("ii", $cantidad_div, $id_siembra);
             $upd->execute();
+
             // Registrar pérdidas por contaminación
             if ($brotes_cont > 0) {
                 $perd = $conn->prepare("
@@ -140,6 +195,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
                 $perd->bind_param("isiii", $id_div, $fecha, $brotes_cont, $ID_Operador, $ID_Operador);
                 $perd->execute();
             }
+
             header("Location: divisiones_ecas.php?success=1");
             exit;
         } else {
@@ -147,6 +203,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
         }
     }
 }
+
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -156,9 +213,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
   <link rel="stylesheet" href="../style.css?v=<?=time()?>">
   <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
 <div class="contenedor-pagina">
+  
   <header>
     <div class="encabezado">
       <a class="navbar-brand" href="#"><img src="../logoplantulas.png" width="130" height="124" alt="Logo"></a>
@@ -166,15 +229,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
       <div></div>
     </div>
     <div class="barra-navegacion">
-      <nav class="navbar bg-body-tertiary">
-        <div class="container-fluid">
-          <div class="Opciones-barra">
-            <button onclick="location.href='dashboard_egp.php'">🏠 Volver al inicio</button>
+        <nav class="navbar bg-body-tertiary">
+          <div class="container-fluid">
+            <div class="Opciones-barra">
+              <button onclick="window.location.href='dashboard_egp.php'">
+              🏠 Volver al Inicio
+              </button>
+            </div>
           </div>
-        </div>
-      </nav>
-    </div>
+        </nav>
+      </div>
   </header>
+
   <main class="container mt-4">
     <?php if ($mensaje): ?>
       <div class="alert alert-warning"><?= $mensaje ?></div>
@@ -204,12 +270,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
     <form method="POST" id="formulario-division" class="form-doble-columna" style="display:none;">
       <input type="hidden" name="id_siembra" id="id_siembra">
       <input type="hidden" name="generacion" id="generacion">
+      <input type="hidden" name="brotes_disponibles" id="brotes_disponibles">
+      <input type="hidden" name="tuppers_iniciales" id="tuppers_iniciales">
 
       <p><strong>Variedad:</strong> <span id="nombre_variedad"></span></p>
       <p>Disponibles: <span id="span_disponibles"></span></p>
-
-      <label>📅 Fecha de división:</label>
-      <input type="date" name="fecha_div" class="form-control" required>
 
       <label>🔢 Cantidad dividida:</label>
       <input type="number" name="cantidad" id="cantidad" class="form-control" min="1" required>
@@ -218,13 +283,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
       <input type="number" name="tuppers_llenos" id="tuppers_llenos" class="form-control" min="0" required>
 
       <label>📦 Tuppers desocupados:</label>
-      <input type="number" name="tuppers_desocupados" id="tuppers_desocupados" class="form-control" min="0" required>
+      <input type="number" name="tuppers_desocupados" id="tuppers_desocupados" class="form-control" min="1" required>
 
       <label>💥 Brotes contaminados:</label>
       <input type="number" name="brotes_contaminados" class="form-control" min="0">
 
       <label>🌿 Brotes totales:</label>
-      <input type="number" name="brotes_totales" class="form-control" min="0" required>
+      <input type="number" name="brotes_totales" class="form-control" min="1" required>
 
       <label>📈 Tasa multiplicación:</label>
       <input type="number" name="tasa_multiplicacion" step="0.01" class="form-control" min="0" required>
@@ -251,6 +316,8 @@ $(function(){
     tuppersInit = +$t.data("tuppers-iniciales");
     $("#id_siembra").val($t.data("id"));
     $("#generacion").val($t.data("generacion"));
+    $("#brotes_disponibles").val($t.data("disponibles"));
+    $("#tuppers_iniciales").val($t.data("tuppers-iniciales"));
     $("#nombre_variedad").text($t.data("variedad"));
     $("#span_disponibles").text($t.data("disponibles"));
     $("#cantidad").val($t.data("disponibles")).attr("max", $t.data("disponibles"));
@@ -276,5 +343,78 @@ $(function(){
   }).focus(function(){ $(this).autocomplete("search"); });
 });
 </script>
+
+ <!-- Modal de advertencia de sesión -->
+ <script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
+
 </body>
 </html>

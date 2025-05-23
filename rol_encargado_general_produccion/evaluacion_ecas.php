@@ -1,83 +1,133 @@
 <?php
-// Mostrar errores en pantalla (solo en desarrollo)
+// 0) Mostrar errores (solo en desarrollo)
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-include '../db.php';
-session_start();
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
 
-// 1) Verificar sesión
-if (!isset($_SESSION["ID_Operador"])) {
-    echo "<script>
-            alert('Debes iniciar sesión primero.');
-            window.location.href='../login.php';
-          </script>";
-    exit();
+date_default_timezone_set('America/Mexico_City');
+$conn->query("SET time_zone = '-06:00'");
+
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
 }
-$ID_Operador = $_SESSION["ID_Operador"];
-$mensaje = "";
+$ID_Operador = (int) $_SESSION['ID_Operador'];
 
-// 2) Procesar registro de pérdida
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_evaluacion"])) {
-    $id_lote       = (int) $_POST["id_lote"];
-    $cont          = $_POST["contaminacion"] ?? 'no';
-    $fecha_perd    = date("Y-m-d");
-    $tupp_perd     = (int) ($_POST["tuppers_desechados"] ?? 0);
-    $bro_perd      = (int) ($_POST["brotes_desechados"] ?? 0);
-    $motivo        = $_POST["motivo_desecho"] ?? '';
-    $obs           = $_POST["observaciones"] ?? '';
-
-    if ($cont === "si" && ($tupp_perd > 0 || $bro_perd > 0)) {
-        $total = $tupp_perd + $bro_perd;
-        $stmt = $conn->prepare("
-            INSERT INTO perdidas_laboratorio
-              (ID_Entidad, Tipo_Entidad, Fecha_Perdida, Cantidad_Perdida,
-               Tuppers_Perdidos, Brotes_Perdidos, Motivo,
-               Operador_Entidad, Operador_Chequeo)
-            VALUES (?, 'lotes', ?, ?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->bind_param("isiiisii",
-            $id_lote, $fecha_perd, $total,
-            $tupp_perd, $bro_perd,
-            $motivo, $ID_Operador, $ID_Operador
-        );
-        $mensaje = $stmt->execute()
-            ? "✅ Pérdida registrada correctamente."
-            : "❌ Error al registrar pérdida: ".$stmt->error;
-    } else {
-        $mensaje = "✅ Evaluación registrada sin pérdidas.";
-    }
+if ((int) $_SESSION['Rol'] !== 5) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
+    exit;
 }
 
-// 3) Cargar automáticamente lotes de ECAS
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
+
+$mensaje = '';
+
+// 3) Cargar lotes ECAS con brotes disponibles
 $sql = "
   SELECT
     L.ID_Lote,
     L.Fecha AS Fecha,
     V.Nombre_Variedad,
     V.Codigo_Variedad,
-    COALESCE(NULLIF(V.Color,''),'Sin datos') AS Color,
-    COALESCE(S.Tuppers_Llenos,0)           AS Tuppers,
-    COALESCE(S.Brotes_Disponibles,0)       AS Brotes,
+    COALESCE(NULLIF(V.Color,''), 'Sin datos') AS Color,
+    COALESCE(S.Brotes_Disponibles, D.Brotes_Totales) AS Brotes,
+    COALESCE(S.Tuppers_Llenos, D.Tuppers_Llenos) AS Tuppers,
     CASE
-      WHEN EXISTS (
-        SELECT 1
-          FROM division_ecas D
-          JOIN siembra_ecas S2 ON D.ID_Siembra = S2.ID_Siembra
-         WHERE S2.ID_Lote = L.ID_Lote
-      ) THEN 'División de brotes'
+      WHEN D.ID_Division IS NOT NULL THEN 'División de brotes'
       ELSE 'Siembra de explantes'
-    END                                    AS SubEtapa
+    END AS SubEtapa
   FROM lotes L
-  JOIN siembra_ecas S ON S.ID_Lote    = L.ID_Lote
-  JOIN variedades V   ON V.ID_Variedad = L.ID_Variedad
+  LEFT JOIN siembra_ecas S ON S.ID_Lote = L.ID_Lote
+  LEFT JOIN division_ecas D ON D.ID_Siembra = S.ID_Siembra
+  JOIN variedades V ON V.ID_Variedad = L.ID_Variedad
   WHERE L.ID_Etapa = 1
-    AND COALESCE(S.Brotes_Disponibles,0) > 0
+    AND COALESCE(S.Brotes_Disponibles, D.Brotes_Totales, 0) > 0
   ORDER BY L.Fecha DESC
 ";
 $lotes = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
+
+// 4) Procesar registro de pérdida
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_evaluacion"])) {
+    $id_lote     = (int) $_POST["id_lote"];
+    $cont        = $_POST["contaminacion"] ?? 'no';
+    $fecha_perd  = date("Y-m-d");
+    $tupp_perd   = (int) ($_POST["tuppers_desechados"] ?? 0);
+    $bro_perd    = (int) ($_POST["brotes_desechados"] ?? 0);
+    $motivo      = htmlspecialchars(strip_tags(trim($_POST["motivo_desecho"] ?? '')), ENT_QUOTES, 'UTF-8');
+    $obs         = htmlspecialchars(strip_tags(trim($_POST["observaciones"] ?? '')), ENT_QUOTES, 'UTF-8');
+
+    // Validar contra los datos del lote
+    $tuppers_disponibles = 0;
+    $brotes_disponibles  = 0;
+    foreach ($lotes as $l) {
+        if ($l['ID_Lote'] == $id_lote) {
+            $tuppers_disponibles = (int) $l['Tuppers'];
+            $brotes_disponibles  = (int) $l['Brotes'];
+            break;
+        }
+    }
+
+    if ($cont === "si") {
+        if ($tupp_perd < 1 || $tupp_perd > $tuppers_disponibles) {
+            $mensaje = "❌ La cantidad de tuppers desechados debe estar entre 1 y $tuppers_disponibles.";
+        } elseif ($bro_perd < 1 || $bro_perd > $brotes_disponibles) {
+            $mensaje = "❌ La cantidad de brotes desechados debe estar entre 1 y $brotes_disponibles.";
+        }
+
+        if (empty($mensaje) && ($tupp_perd > 0 || $bro_perd > 0)) {
+            // Buscar ID de siembra asociado
+            $id_siembra = null;
+            $res_siembra = $conn->prepare("SELECT ID_Siembra FROM siembra_ecas WHERE ID_Lote = ? LIMIT 1");
+            $res_siembra->bind_param("i", $id_lote);
+            $res_siembra->execute();
+            $res = $res_siembra->get_result()->fetch_assoc();
+            if ($res) {
+                $id_siembra = (int) $res['ID_Siembra'];
+            }
+
+            // Insertar pérdida
+            $total = $tupp_perd + $bro_perd;
+            $stmt = $conn->prepare("
+                INSERT INTO perdidas_laboratorio
+                  (ID_Entidad, Tipo_Entidad, Fecha_Perdida, Cantidad_Perdida,
+                   Tuppers_Perdidos, Brotes_Perdidos, Motivo,
+                   Operador_Entidad, Operador_Chequeo)
+                VALUES (?, 'lotes', ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->bind_param("isiiisii",
+                $id_lote, $fecha_perd, $total,
+                $tupp_perd, $bro_perd,
+                $motivo, $ID_Operador, $ID_Operador
+            );
+
+            // Actualizar brotes en siembra_ecas
+            if ($id_siembra !== null) {
+                $upd = $conn->prepare("
+                    UPDATE siembra_ecas
+                       SET Brotes_Disponibles = GREATEST(Brotes_Disponibles - ?, 0)
+                     WHERE ID_Siembra = ?
+                ");
+                $upd->bind_param("ii", $bro_perd, $id_siembra);
+                $upd->execute();
+            }
+
+            $mensaje = $stmt->execute()
+                ? "✅ Pérdida registrada correctamente."
+                : "❌ Error al registrar pérdida: " . $stmt->error;
+        }
+    } elseif ($cont === "no") {
+        $mensaje = "✅ Evaluación registrada sin pérdidas.";
+    }
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -85,9 +135,15 @@ $lotes = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
   <title>Evaluación de Lotes - ECAS</title>
   <link rel="stylesheet" href="../style.css?v=<?=time()?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
 <div class="contenedor-pagina">
+  
   <header>
     <div class="encabezado">
       <a class="navbar-brand" href="#"><img src="../logoplantulas.png" width="130" height="124" alt="Logo"></a>
@@ -95,14 +151,16 @@ $lotes = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
       <div class="Opciones-barra"></div>
     </div>
     <div class="barra-navegacion">
-      <nav class="navbar bg-body-tertiary">
-        <div class="container-fluid">
-          <div class="Opciones-barra">
-            <button onclick="window.location.href='dashboard_egp.php'">🏠 Volver al inicio</button>
+        <nav class="navbar bg-body-tertiary">
+          <div class="container-fluid">
+            <div class="Opciones-barra">
+              <button onclick="window.location.href='dashboard_egp.php'">
+              🏠 Volver al Inicio
+              </button>
+            </div>
           </div>
-        </div>
-      </nav>
-    </div>
+        </nav>
+      </div>
   </header>
 
   <main class="container mt-4">
@@ -159,11 +217,11 @@ $lotes = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
         <div id="cont_campos" style="display:none;">
           <div class="mb-3">
             <label>Tuppers desechados:</label>
-            <input type="number" name="tuppers_desechados" class="form-control" min="0">
+            <input type="number" name="tuppers_desechados" class="form-control" min="1">
           </div>
           <div class="mb-3">
             <label>Brotes desechados:</label>
-            <input type="number" name="brotes_desechados" class="form-control" min="0">
+            <input type="number" name="brotes_desechados" class="form-control" min="1">
           </div>
           <div class="mb-3">
             <label>Motivo:</label>
@@ -214,5 +272,77 @@ $lotes = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
       this.value === 'si' ? 'block' : 'none';
   });
 </script>
+
+ <!-- Modal de advertencia de sesión -->
+ <script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
 </body>
 </html>

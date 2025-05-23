@@ -1,45 +1,135 @@
 <?php
-include '../db.php';
-session_start();
+// 0) Mostrar errores (solo en desarrollo)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-if (!isset($_SESSION['ID_Operador']) || $_SESSION['Rol'] != 7) {
-  header("Location: ../login.php");
-  exit();
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
+
+date_default_timezone_set('America/Mexico_City');
+$conn->query("SET time_zone = '-06:00'");
+
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
 }
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+
+if ((int) $_SESSION['Rol'] !== 7) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Solo Responsable de Producción de Medios de Cultivo.</p>";
+    exit;
+}
+// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 60 * 3;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
 
 $mensaje = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $id_operador = $_SESSION['ID_Operador'];
 
-  if (isset($_POST['guardar_diario'])) {
-    $litros = $_POST['litros'];
-    $ppm = $_POST['ppm'];
-    $obs = $_POST['observaciones_diario'];
-    $stmt = $conn->prepare("INSERT INTO osmosis_chequeo_diario (FechaHora, Litros_Tratados, PPM, Observaciones, ID_Operador) VALUES (NOW(), ?, ?, ?, ?)");
-    $stmt->bind_param("ddsi", $litros, $ppm, $obs, $id_operador);
-    $mensaje = $stmt->execute() ? "✅ Registro diario guardado correctamente." : "❌ Error al guardar el registro diario.";
-  }
+if (isset($_POST['guardar_diario'])) {
+    // 1) Validar y sanitizar Litros y PPM
+    $litros = floatval($_POST['litros']);
+    $ppm    = floatval($_POST['ppm']);
+    $observaciones_raw = $_POST['observaciones_diario'];
+ $observaciones      = htmlspecialchars(strip_tags(trim($observaciones_raw)), ENT_QUOTES, 'UTF-8');
+    if ($litros < 1 || $litros > 100) {
+        $mensaje = "❌ Litros debe estar entre 1 y 100.";
+    }
+    elseif ($ppm < 1 || $ppm > 100) {
+        $mensaje = "❌ PPM debe estar entre 1 y 100.";
+    }
+    else {
+        // 2) Limitar y limpiar Observaciones
+        $obs_raw   = $_POST['observaciones_diario'];
+        $obs_trim  = trim($obs_raw);
+        $obs_lim   = substr($obs_trim, 0, 255);
+        $obs_clean = strip_tags($obs_lim);
 
-  if (isset($_POST['guardar_retrolavado'])) {
-    $sal = $_POST['sal'];
-    $nivel = $_POST['nivel'];
-    $obs = $_POST['observaciones_retrolavado'];
-    $stmt = $conn->prepare("INSERT INTO osmosis_retrolavado (FechaHora, Sal_Utilizada_Kg, Nivel_Agua_Porc, Observaciones, ID_Operador) VALUES (NOW(), ?, ?, ?, ?)");
-    $stmt->bind_param("ddsi", $sal, $nivel, $obs, $id_operador);
-    $mensaje = $stmt->execute() ? "✅ Retrolavado registrado correctamente." : "❌ Error al guardar el retrolavado.";
-  }
+        // 3) Inserción segura con prepared statement
+        $stmt = $conn->prepare("
+            INSERT INTO osmosis_chequeo_diario
+              (FechaHora, Litros_Tratados, PPM, Observaciones, ID_Operador)
+            VALUES
+              (NOW(), ?, ?, ?, ?)
+        ");
+        $stmt->bind_param("ddsi",
+            $litros,
+            $ppm,
+            $obs_clean,
+            $id_operador
+        );
 
-  if (isset($_POST['guardar_mantenimiento'])) {
-    $empresa = $_POST['empresa'];
-    $lavados = isset($_POST['filtros_lavados']) ? 1 : 0;
-    $reemplazados = isset($_POST['filtros_reemplazados']) ? 1 : 0;
-    $obs = $_POST['observaciones_mantenimiento'];
-    $stmt = $conn->prepare("INSERT INTO osmosis_mantenimiento (FechaHora, Empresa_Responsable, Filtros_Lavados, Filtros_Reemplazados, Observaciones, ID_Operador) VALUES (NOW(), ?, ?, ?, ?, ?)");
-    $stmt->bind_param("sbbsi", $empresa, $lavados, $reemplazados, $obs, $id_operador);
-    $mensaje = $stmt->execute() ? "✅ Mantenimiento registrado correctamente." : "❌ Error al guardar el mantenimiento.";
+        $mensaje = $stmt->execute()
+            ? "✅ Registro diario guardado correctamente."
+            : "❌ Error al guardar el registro diario.";
+    }
+}
+}
+
+if (isset($_POST['guardar_retrolavado'])) {
+  // 1) Rango de Sal y Nivel
+  $sal   = floatval($_POST['sal']);
+  $nivel = floatval($_POST['nivel']);
+  $observaciones_raw = $_POST['observaciones_diario'];
+   $observaciones      = htmlspecialchars(strip_tags(trim($observaciones_raw)), ENT_QUOTES, 'UTF-8');
+  if ($sal < 1 || $sal > 100) {
+    $mensaje = "❌ Sal debe estar entre 1 y 100 kg.";
+  }
+  elseif ($nivel < 1 || $nivel > 100) {
+    $mensaje = "❌ Nivel de agua debe estar entre 1 y 100%.";
+  }
+  else {
+    // 2) Limpieza de Observaciones
+    $obs_raw   = $_POST['observaciones_retrolavado'];
+    $obs_trim  = trim($obs_raw);
+    $obs_lim   = substr($obs_trim, 0, 255);
+    $obs_clean = strip_tags($obs_lim);
+
+    // 3) Inserción segura
+    $stmt = $conn->prepare("
+      INSERT INTO osmosis_retrolavado
+      (FechaHora, Sal_Utilizada_Kg, Nivel_Agua_Porc, Observaciones, ID_Operador)
+      VALUES (NOW(), ?, ?, ?, ?)
+    ");
+    $stmt->bind_param("ddsi", $sal, $nivel, $obs_clean, $id_operador);
+    $mensaje = $stmt->execute()
+      ? "✅ Retrolavado registrado correctamente."
+      : "❌ Error al guardar el retrolavado.";
   }
 }
+
+
+if (isset($_POST['guardar_mantenimiento'])) {
+  // 1) Sanitizar campos
+  $empresa      = trim($_POST['empresa']);
+  $lavados      = isset($_POST['filtros_lavados'])    ? 1 : 0;
+  $reemplazados = isset($_POST['filtros_reemplazados']) ? 1 : 0;
+  $observaciones_raw = $_POST['observaciones_diario'];
+   $observaciones      = htmlspecialchars(strip_tags(trim($observaciones_raw)), ENT_QUOTES, 'UTF-8');
+
+  // 2) Limpieza de Observaciones
+  $obs_raw   = $_POST['observaciones_mantenimiento'];
+  $obs_trim  = trim($obs_raw);
+  $obs_lim   = substr($obs_trim, 0, 255);
+  $obs_clean = strip_tags($obs_lim);
+
+  // 3) Inserción segura
+  $stmt = $conn->prepare("
+    INSERT INTO osmosis_mantenimiento
+    (FechaHora, Empresa_Responsable, Filtros_Lavados, Filtros_Reemplazados, Observaciones, ID_Operador)
+    VALUES (NOW(), ?, ?, ?, ?, ?)
+  ");
+  $stmt->bind_param("sbbsi", $empresa, $lavados, $reemplazados, $obs_clean, $id_operador);
+  $mensaje = $stmt->execute()
+    ? "✅ Mantenimiento registrado correctamente."
+    : "❌ Error al guardar el mantenimiento.";
+}
+
 
 function mostrarTabla($query, $encabezados, $campos) {
   global $conn;
@@ -78,6 +168,11 @@ $tipo_historial = $_GET['tipo'] ?? '';
   <title>Chequeo de Ósmosis Inversa</title>
   <link rel="stylesheet" href="../style.css?v=<?=time();?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS         = <?= $nowTs           * 1000 ?>;
+  </script>
 </head>
 <body>
 <div class="contenedor-pagina">
@@ -91,15 +186,18 @@ $tipo_historial = $_GET['tipo'] ?? '';
         <p>Registro de producción diaria, retrolavado y mantenimiento del sistema.</p>
       </div>
     </div>
+
     <div class="barra-navegacion">
-      <nav class="navbar bg-body-tertiary">
-        <div class="container-fluid">
-          <div class="Opciones-barra">
-            <button onclick="window.location.href='dashboard_rpmc.php'">🔄 Regresar</button>
+        <nav class="navbar bg-body-tertiary">
+          <div class="container-fluid">
+            <div class="Opciones-barra">
+              <button onclick="window.location.href='dashboard_rpmc.php'">
+              🏠 Volver al Inicio
+              </button>
+            </div>
           </div>
-        </div>
-      </nav>
-    </div>
+        </nav>
+      </div>
   </header>
 
   <main class="container py-4">
@@ -127,21 +225,23 @@ $tipo_historial = $_GET['tipo'] ?? '';
     <div class="tab-content" id="osmosisTabContent">
       <div class="tab-pane fade show active" id="diario" role="tabpanel">
         <form method="POST" class="row g-3">
+
           <div class="col-md-6">
             <label for="litros" class="form-label">Litros Tratados</label>
-            <input type="number" class="form-control" id="litros" name="litros" required>
+            <input type="number" class="form-control" id="litros" name="litros" min="1" max="100" required>
           </div>
           <div class="col-md-6">
             <label for="ppm" class="form-label">PPM</label>
-            <input type="number" class="form-control" id="ppm" name="ppm" required>
+            <input type="number" class="form-control" id="ppm" name="ppm" min="1" max="100" required>
           </div>
           <div class="col-12">
             <label for="observaciones_diario" class="form-label">Observaciones</label>
-            <textarea class="form-control" id="observaciones_diario" name="observaciones_diario" rows="2"></textarea>
+            <textarea class="form-control" id="observaciones_diario" name="observaciones_diario" rows="2" maxlength="255"></textarea>
           </div>
           <div class="col-12 text-end">
             <button type="submit" name="guardar_diario" class="btn btn-success">Guardar Registro Diario</button>
           </div>
+
         </form>
       </div>
 
@@ -149,15 +249,15 @@ $tipo_historial = $_GET['tipo'] ?? '';
         <form method="POST" class="row g-3">
           <div class="col-md-6">
             <label for="sal" class="form-label">Sal Utilizada (kg)</label>
-            <input type="number" step="0.1" class="form-control" id="sal" name="sal" required>
+            <input type="number" step="0.1" class="form-control" id="sal" name="sal" min="0.1" max="100" required>
           </div>
           <div class="col-md-6">
             <label for="nivel" class="form-label">Nivel de Agua Estimado (%)</label>
-            <input type="number" min="0" max="100" class="form-control" id="nivel" name="nivel" required>
+            <input type="number" min="1" max="100" class="form-control" id="nivel" name="nivel" required>
           </div>
           <div class="col-12">
             <label for="observaciones_retrolavado" class="form-label">Observaciones</label>
-            <textarea class="form-control" id="observaciones_retrolavado" name="observaciones_retrolavado" rows="2"></textarea>
+            <textarea class="form-control" id="observaciones_retrolavado" name="observaciones_retrolavado" rows="2" maxlength="255"></textarea>
           </div>
           <div class="col-12 text-end">
             <button type="submit" name="guardar_retrolavado" class="btn btn-success">Guardar Retrolavado</button>
@@ -184,7 +284,7 @@ $tipo_historial = $_GET['tipo'] ?? '';
           </div>
           <div class="col-12">
             <label for="observaciones_mantenimiento" class="form-label">Observaciones</label>
-            <textarea class="form-control" id="observaciones_mantenimiento" name="observaciones_mantenimiento" rows="2"></textarea>
+            <textarea class="form-control" id="observaciones_mantenimiento" name="observaciones_mantenimiento" rows="2" maxlength="255"></textarea>
           </div>
           <div class="col-12 text-end">
             <button type="submit" name="guardar_mantenimiento" class="btn btn-success">Guardar Mantenimiento</button>
@@ -247,6 +347,77 @@ $tipo_historial = $_GET['tipo'] ?? '';
   });
 </script>
 
+ <!-- Modal de advertencia de sesión -->
+ <script>
+ (function(){
+  // Estado y referencias a los temporizadores
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  // Función para mostrar el modal de aviso
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document
+      .getElementById('keepalive-btn')
+      .addEventListener('click', keepSessionAlive);
+  }
+
+  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
+  function keepSessionAlive() {
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'OK') {
+          // Quitar el modal
+          const modal = document.getElementById('session-warning');
+          if (modal) modal.remove();
+
+          // Reiniciar tiempo de inicio
+          START_TS   = Date.now();
+          modalShown = false;
+
+          // Reprogramar los timers
+          clearTimeout(warningTimer);
+          clearTimeout(expireTimer);
+          scheduleTimers();
+        } else {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => alert('Error al mantener viva la sesión'));
+  }
+
+  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  // Inicia la lógica al cargar el script
+  scheduleTimers();
+})();
+  </script>
 
 </body>
 </html>
