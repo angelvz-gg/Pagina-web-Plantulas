@@ -24,7 +24,7 @@ $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
 $ID_Operador = $_SESSION['ID_Operador'] ?? null;
-$fecha_actual = date('Y-m-d');
+$fecha_actual = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y-m-d H:i:s');
 
 // Buscar la asignacion activa de este operador
 $sql = "SELECT * FROM asignaciones_multiplicacion 
@@ -103,6 +103,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["asignacion_a_trabajar"
     $id_medio = intval($_POST["id_medio_nutritivo"]);
     $tupper_lleno = intval($_POST["tupper_lleno"]);
     $tupper_vacio = intval($_POST["tupper_vacios"]);
+    $brotes_iniciales = intval($_POST["brotes_iniciales"]);
 
     // Obtener la asignación para validar
     $stmt = $conn->prepare("SELECT * FROM asignaciones_multiplicacion WHERE ID_Asignacion = ? AND Operador_Asignado = ?");
@@ -112,56 +113,172 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["asignacion_a_trabajar"
     $asignacion = $res->fetch_assoc();
 
     if (!$asignacion) {
-        echo "<script>alert('❌ Asignación no válida.');</script>";
-    } elseif ($num_brotes < 1 || $num_brotes > $asignacion['Brotes_Asignados']) {
-        echo "<script>alert('❌ Los brotes deben ser entre 1 y {$asignacion['Brotes_Asignados']}.');</script>";
-    } elseif ($tasa < 1.00 || $tasa > 50.00) {
-        echo "<script>alert('❌ La tasa debe estar entre 1.00 y 50.00.');</script>";
+        echo "<script>alert('❌ Asignación no válida.'); window.history.back();</script>";
+        exit;
+    }
+
+    // Validar que el medio nutritivo existe y es válido
+    $stmt_medio = $conn->prepare("SELECT COUNT(*) AS total FROM medios_nutritivos WHERE ID_MedioNutritivo = ? AND Estado = 'Activo' AND Etapa_Destinada = 'Multiplicación' AND Especie = ?");
+    $stmt_medio->bind_param("is", $id_medio, $especie);
+    $stmt_medio->execute();
+    $res_medio = $stmt_medio->get_result();
+    $row_medio = $res_medio->fetch_assoc();
+
+    if ($row_medio['total'] == 0) {
+        echo "<script>alert('❌ El medio nutritivo seleccionado no es válido para la especie {$especie} o no está activo.'); window.history.back();</script>";
+        exit;
+    }
+
+    // Sumar lo trabajado
+    $stmt_sum = $conn->prepare("SELECT 
+        COALESCE(SUM(Brotes_Iniciales), 0) AS Total_Brotes_Trabajados,
+        COALESCE(SUM(Tuppers_Desocupados), 0) AS Total_Tuppers_Trabajados
+    FROM multiplicacion
+    WHERE ID_Asignacion = ?");
+    $stmt_sum->bind_param("i", $id_asignacion);
+    $stmt_sum->execute();
+    $res_sum = $stmt_sum->get_result();
+    $trabajado = $res_sum->fetch_assoc();
+
+    $brotes_restantes = max($asignacion['Brotes_Asignados'] - $trabajado['Total_Brotes_Trabajados'], 0);
+    $tuppers_restantes = max($asignacion['Tuppers_Asignados'] - $trabajado['Total_Tuppers_Trabajados'], 0);
+
+// Validación brotes generados > brotes iniciales
+if ($num_brotes <= $brotes_iniciales) {
+    echo "<script>alert('❌ El número de brotes generados ({$num_brotes}) debe ser mayor que el número de brotes iniciales ({$brotes_iniciales}).'); window.history.back();</script>";
+    exit;
+}
+
+// Validación adicional: no permitir exceder brotes asignados
+if ($num_brotes > ($brotes_restantes + $brotes_iniciales)) {
+    echo "<script>alert('❌ El número de brotes generados ({$num_brotes}) excede los brotes permitidos por la asignación.'); window.history.back();</script>";
+    exit;
+}
+
+    // Validación de brotes iniciales y tuppers
+    if ($asignacion['Tuppers_Asignados'] == 1) {
+        if ($brotes_iniciales != $asignacion['Brotes_Asignados']) {
+            echo "<script>alert('❌ Asignación con 1 tupper. Debes registrar exactamente {$asignacion['Brotes_Asignados']} brotes. Tú pusiste: {$brotes_iniciales}.'); window.history.back();</script>";
+            exit;
+        } elseif ($tupper_vacio != 1) {
+            echo "<script>alert('❌ Asignación con 1 tupper. Debes registrar 1 tupper vacío. Tú pusiste: {$tupper_vacio}.'); window.history.back();</script>";
+            exit;
+        }
     } else {
-        // Obtener ID_Variedad desde Código_Variedad
-        $id_variedad = null;
-        $stmt_var = $conn->prepare("SELECT ID_Variedad FROM variedades WHERE Codigo_Variedad = ? LIMIT 1");
-        $stmt_var->bind_param("s", $asignacion['Codigo_Variedad']);
-        $stmt_var->execute();
-        $res_var = $stmt_var->get_result();
-        if ($row = $res_var->fetch_assoc()) {
-            $id_variedad = intval($row['ID_Variedad']);
-        }
-
-        if (!$id_variedad) {
-            echo "<script>alert('❌ Variedad no encontrada.');</script>";
-        } else {
-            // Insertar registro
-            $sql_insert = "INSERT INTO multiplicacion 
-                (ID_Variedad, ID_MedioNutritivo, Cantidad_Dividida, Fecha_Siembra, Tasa_Multiplicacion, 
-                 Tuppers_Llenos, Tuppers_Desocupados, Operador_Responsable, Estado_Revision)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente')";
-            $stmt = $conn->prepare($sql_insert);
-            $stmt->bind_param("iiissiii", 
-                $id_variedad, 
-                $id_medio, 
-                $num_brotes, 
-                $fecha_actual, 
-                $tasa, 
-                $tupper_lleno, 
-                $tupper_vacio, 
-                $ID_Operador
-            );
-
-            if ($stmt->execute()) {
-                // Marcar asignación como trabajada
-                $stmt_update = $conn->prepare("UPDATE asignaciones_multiplicacion SET Estado = 'Trabajado' WHERE ID_Asignacion = ?");
-                $stmt_update->bind_param("i", $id_asignacion);
-                $stmt_update->execute();
-
-                header("Location: trabajo_multiplicacion.php?success=1");
-                exit;
-            } else {
-                echo "<script>alert('❌ Error al guardar el registro.');</script>";
-            }
-        }
+    if ($brotes_iniciales < 1 || $brotes_iniciales > $asignacion['Brotes_Asignados']) {
+        echo "<script>alert('❌ Brotes iniciales deben estar entre 1 y {$asignacion['Brotes_Asignados']}. Tú pusiste: {$brotes_iniciales}.'); window.history.back();</script>";
+        exit;
+    } elseif ($tasa < 1.00 || $tasa > 50.00) {
+        echo "<script>alert('❌ Tasa debe estar entre 1.00 y 50.00. Tú pusiste: {$tasa}.'); window.history.back();</script>";
+        exit;
+    } elseif ($tupper_lleno < 1) {
+        echo "<script>alert('❌ Debes registrar al menos 1 tupper lleno. Tú pusiste: {$tupper_lleno}.'); window.history.back();</script>";
+        exit;
+    } elseif ($tuppers_restantes == 1 && $brotes_iniciales != $brotes_restantes) {
+        echo "<script>alert('❌ Último tupper disponible: debes usar todos los brotes restantes: {$brotes_restantes}. Tú pusiste: {$brotes_iniciales}.'); window.history.back();</script>";
+        exit;
+    } elseif ($tuppers_restantes == 1 && $tupper_vacio != 1) {
+        echo "<script>alert('❌ Último tupper: debes registrar exactamente 1 tupper vacío. Tú pusiste: {$tupper_vacio}.'); window.history.back();</script>";
+        exit;
+    } elseif ($tupper_vacio < 1 || $tupper_vacio > $tuppers_restantes) {
+        echo "<script>alert('❌ Tuppers vacíos deben estar entre 1 y {$tuppers_restantes}. Tú pusiste: {$tupper_vacio}.'); window.history.back();</script>";
+        exit;
+    } elseif ($num_brotes <= $brotes_iniciales) {
+        echo "<script>alert('❌ Brotes generados ({$num_brotes}) deben ser mayores que los brotes iniciales ({$brotes_iniciales}).'); window.history.back();</script>";
+        exit;
     }
 }
+// Obtener ID_Variedad desde Código_Variedad
+$id_variedad = null;
+$stmt_var = $conn->prepare("SELECT ID_Variedad FROM variedades WHERE Codigo_Variedad = ? LIMIT 1");
+$stmt_var->bind_param("s", $asignacion['Codigo_Variedad']);
+$stmt_var->execute();
+$res_var = $stmt_var->get_result();
+if ($row = $res_var->fetch_assoc()) {
+    $id_variedad = intval($row['ID_Variedad']);
+}
+
+if (!$id_variedad) {
+    echo "<script>alert('❌ Variedad no encontrada.'); window.history.back();</script>";
+    exit;
+}
+
+// 🔥 Buscar o crear el LOTE
+$id_lote = null;
+
+// 1️⃣ Verificar si ya existe un lote para esta variedad en Multiplicación (ID_Etapa = 2)
+$stmt_lote = $conn->prepare("SELECT ID_Lote FROM lotes WHERE ID_Variedad = ? AND ID_Etapa = 2 LIMIT 1");
+$stmt_lote->bind_param("i", $id_variedad);
+$stmt_lote->execute();
+$res_lote = $stmt_lote->get_result();
+if ($row = $res_lote->fetch_assoc()) {
+    $id_lote = $row['ID_Lote'];
+} else {
+    // 2️⃣ Si no existe, crear el lote
+    $stmt_create_lote = $conn->prepare("INSERT INTO lotes (Fecha, ID_Variedad, ID_Operador, ID_Etapa) VALUES (?, ?, ?, 2)");
+    $stmt_create_lote->bind_param("sii", $fecha_actual, $id_variedad, $ID_Operador);
+    if ($stmt_create_lote->execute()) {
+        $id_lote = $stmt_create_lote->insert_id;
+    } else {
+        echo "<script>alert('❌ Error al crear el lote.'); window.history.back();</script>";
+        exit;
+    }
+}
+
+// 🔥 Insertar registro en Multiplicación (ya con el ID_Lote correcto)
+$sql_insert = "INSERT INTO multiplicacion 
+    (ID_Variedad, ID_MedioNutritivo, Brotes_Iniciales, Cantidad_Dividida, Fecha_Siembra, 
+     Tasa_Multiplicacion, Tuppers_Llenos, Tuppers_Desocupados, Operador_Responsable, 
+     ID_Asignacion, Estado_Revision, ID_Lote)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?)";
+
+$stmt = $conn->prepare($sql_insert);
+$stmt->bind_param("iiiisddiiii", 
+    $id_variedad, 
+    $id_medio,  
+    $brotes_iniciales,
+    $num_brotes, 
+    $fecha_actual, 
+    $tasa, 
+    $tupper_lleno, 
+    $tupper_vacio, 
+    $ID_Operador, 
+    $id_asignacion,
+    $id_lote
+);
+
+if ($stmt->execute()) {
+    // Actualizar brotes y tuppers restantes en asignaciones
+    $stmt_sum = $conn->prepare("SELECT 
+        COALESCE(SUM(Brotes_Iniciales), 0) AS Total_Brotes_Trabajados,
+        COALESCE(SUM(Tuppers_Desocupados), 0) AS Total_Tuppers_Desocupados
+    FROM multiplicacion
+    WHERE ID_Asignacion = ?");
+    $stmt_sum->bind_param("i", $id_asignacion);
+    $stmt_sum->execute();
+    $res_sum = $stmt_sum->get_result();
+    $trabajado = $res_sum->fetch_assoc();
+
+    // Calcular nuevos valores
+    $nuevo_brotes = max($asignacion['Brotes_Asignados'] - $trabajado['Total_Brotes_Trabajados'], 0);
+    $nuevo_tuppers = max($asignacion['Tuppers_Asignados'] - $trabajado['Total_Tuppers_Desocupados'], 0);
+   
+    // Actualizar el estado de la asignación
+$estado = ($nuevo_brotes <= 0 && $nuevo_tuppers <= 0) ? 'Trabajado' : 'Asignado';
+$stmt_update = $conn->prepare("UPDATE asignaciones_multiplicacion 
+    SET Estado = ? 
+    WHERE ID_Asignacion = ?");
+$stmt_update->bind_param("si", $estado, $id_asignacion);
+$stmt_update->execute();
+
+    header("Location: trabajo_multiplicacion.php?success=1");
+    exit;
+}else {
+    echo "<script>alert('❌ Error al guardar el registro.');</script>";
+}
+
+        }
+  
 ?>
 
 <!DOCTYPE html>
@@ -173,36 +290,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["asignacion_a_trabajar"
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<style>
-.card-asignacion {
-  background-color: #f8f9fa;
-  border: 1px solid #ced4da;
-  border-radius: 10px;
-  padding: 0.8rem;
-  height: 115px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  display: flex;
-  justify-content: center;
-  text-align: center;
-}
-.card-asignacion:hover,
-.card-asignacion.selected {
-  background-color: #d6eaff;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.1);
-}
-.card-asignacion h6 {
-  font-size: 1.05rem;
-  font-weight: 700;
-  margin-bottom: 0.4rem;
-}
-.card-asignacion p {
-  font-size: 0.95rem;
-  margin: 0.2rem 0;
-}
-</style>
-
 <style>
   #formulario-trabajo {
     opacity: 0;
@@ -253,64 +340,108 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["asignacion_a_trabajar"
 <?php endif; ?>
 
 <?php if (!empty($asignaciones)): ?>
-  <div class="container mt-4">
+<div class="container mt-4">
   <h4 class="mb-3">📦 Asignaciones pendientes</h4>
-  <div class="row row-cols-1 row-cols-md-3 g-3">
-    <?php foreach ($asignaciones as $asignacion): ?>
-      <div class="col">
-        <div class="card card-asignacion <?= (isset($_POST['asignacion_a_trabajar']) && $_POST['asignacion_a_trabajar'] == $asignacion['ID_Asignacion']) ? 'selected' : '' ?>" data-asignacion="<?= $asignacion['ID_Asignacion'] ?>">
-          <h6><?= htmlspecialchars($asignacion['Codigo_Variedad']) ?> – <?= htmlspecialchars($asignacion['Nombre_Variedad']) ?></h6>
-          <p><strong>Brotes:</strong> <?= $asignacion['Brotes_Asignados'] ?></p>
-          <p><strong>Fecha:</strong> <?= $asignacion['Fecha_Registro'] ?></p>
-          <p><strong>Estado:</strong> <?= $asignacion['Estado'] ?></p>
-        </div>
-      </div>
-    <?php endforeach; ?>
+  <div class="carrousel">
+<?php foreach ($asignaciones as $asignacion): ?>
+  <?php
+    $seleccionada = $_GET['asignacion'] ?? null;
+    $id_actual = $asignacion['ID_Asignacion'];
+    $class = 'card card-asignacion';
+    if ($seleccionada) {
+      $class .= ($seleccionada == $id_actual) ? ' selected' : ' blur';
+    }
+    $fecha = date('Y-m-d', strtotime($asignacion['Fecha_Registro']));
+    $hora = date('H:i:s', strtotime($asignacion['Fecha_Registro']));
+
+// Obtener avances acumulados de multiplicacion para esta asignación
+$stmt_sum = $conn->prepare("SELECT 
+    COALESCE(SUM(Brotes_Iniciales), 0) AS Total_Brotes_Trabajados,
+    COALESCE(SUM(Tuppers_Desocupados), 0) AS Total_Tuppers_Trabajados
+FROM multiplicacion
+WHERE ID_Asignacion = ?");
+$stmt_sum->bind_param("i", $id_actual);
+$stmt_sum->execute();
+$res_sum = $stmt_sum->get_result();
+$trabajado = $res_sum->fetch_assoc();
+
+// Calcular restantes
+$brotes_restantes = max($asignacion['Brotes_Asignados'] - $trabajado['Total_Brotes_Trabajados'], 0);
+$tuppers_restantes = max($asignacion['Tuppers_Asignados'] - $trabajado['Total_Tuppers_Trabajados'], 0);
+
+// Ocultar tarjeta solo si ambos son 0 o menos
+if ($brotes_restantes <= 0 && $tuppers_restantes <= 0) {
+  continue;
+}
+
+  ?>
+
+  <div class="<?= $class ?>" data-asignacion="<?= $id_actual ?>">
+    <h3><?= htmlspecialchars($asignacion['Codigo_Variedad']) ?> – <?= htmlspecialchars($asignacion['Nombre_Variedad']) ?></h3>
+    <div class="dato-tarjeta"><span class="etiqueta">Brotes asignados:</span> <span class="valor"><?= $asignacion['Brotes_Asignados'] ?></span></div>
+    <div class="dato-tarjeta"><span class="etiqueta">Brotes restantes:</span> <span class="valor"><?= $brotes_restantes ?></span></div>
+    <div class="dato-tarjeta"><span class="etiqueta">Tuppers asignados:</span> <span class="valor"><?= $asignacion['Tuppers_Asignados'] ?></span></div>
+    <div class="dato-tarjeta"><span class="etiqueta">Tuppers restantes:</span> <span class="valor"><?= $tuppers_restantes ?></span></div>
+    <div class="dato-tarjeta"><span class="etiqueta">Fecha:</span> <span class="valor"><?= $fecha ?></span></div>
+    <div class="dato-tarjeta"><span class="etiqueta">Hora:</span> <span class="valor"><?= $hora ?></span></div>
+    <div class="dato-tarjeta"><span class="etiqueta">Estado:</span> <span class="valor"><?= $asignacion['Estado'] ?></span></div>
+  </div>
+<?php endforeach; ?>
+
+
   </div>
 </div>
 
-  <?php if (isset($asignacion) && $asignacion): ?>
+  <?php if (isset($_GET['asignacion']) && $asignacion): ?>
   <div id="formulario-trabajo" class="container mt-5 border-top pt-4">
     <h5 class="mb-3">✍️ Registro de trabajo – <?= htmlspecialchars($asignacion['Codigo_Variedad'] . ' – ' . $asignacion['Nombre_Variedad']) ?></h5>
-    <form method="POST" class="row g-3 border p-4 bg-light rounded shadow-sm">
-      <input type="hidden" name="asignacion_a_trabajar" value="<?= $asignacion['ID_Asignacion'] ?>">
+<form method="POST" class="formulario-bootstrap border p-4 bg-light rounded shadow-sm">
+  <div class="row g-4">
+    <input type="hidden" name="asignacion_a_trabajar" value="<?= $asignacion['ID_Asignacion'] ?>">
 
-      <div class="col-md-4">
-        <label class="form-label">Fecha de Reporte:</label>
-        <input type="text" class="form-control" value="<?= $fecha_actual ?>" readonly>
-      </div>
+    <div class="col-md-4">
+      <label class="form-label">Fecha de Reporte:</label>
+      <input type="text" class="form-control" value="<?= $fecha_actual ?>" readonly>
+    </div>
 
-      <div class="col-md-4">
-        <label class="form-label">Tasa de Multiplicación:</label>
-        <input type="text" class="form-control" name="tasa_multiplicacion" required>
-      </div>
+    <div class="col-md-4">
+      <label class="form-label">Tasa de Multiplicación:</label>
+      <input type="number" class="form-control" name="tasa_multiplicacion" required min="1" max="50" step="0.01">
+    </div>
 
-      <div class="col-md-4">
-        <label class="form-label">Número de Brotes:</label>
-        <input type="number" class="form-control" name="numero_brotes" required>
-      </div>
+    <div class="col-md-4">
+      <label class="form-label">Numero de brotes Iniciales:</label>
+      <input type="number" class="form-control" name="brotes_iniciales" required min="1" max="<?= $asignacion['Brotes_Asignados'] ?>">
+    </div>
 
-      <div class="col-md-6">
-        <label class="form-label">Medio Nutritivo:</label>
-        <input type="text" id="medio_nutritivo" class="form-control" placeholder="Selecciona el código sugerido automáticamente" required>
-        <input type="hidden" id="id_medio_nutritivo" name="id_medio_nutritivo">
-        <small class="text-muted">🔍 Escribe para ver los medios nutritivos recomendados para esta especie.</small>
-      </div>
+    <div class="col-md-4">
+      <label class="form-label">Número de Brotes Generados:</label>
+      <input type="number" class="form-control" name="numero_brotes" required min="1" max="250">
+    </div>
 
-      <div class="col-md-3">
-        <label class="form-label">Tuppers Llenos:</label>
-        <input type="number" class="form-control" name="tupper_lleno" required>
-      </div>
+    <div class="col-md-6">
+      <label class="form-label">Medio Nutritivo:</label>
+      <input type="text" id="medio_nutritivo" class="form-control" placeholder="Selecciona el código sugerido automáticamente" required>
+      <input type="hidden" id="id_medio_nutritivo" name="id_medio_nutritivo">
+      <small class="text-muted">🔍 Escribe para ver los medios nutritivos recomendados para esta especie.</small>
+    </div>
 
-      <div class="col-md-3">
-        <label class="form-label">Tuppers Vacíos:</label>
-        <input type="number" class="form-control" name="tupper_vacios" required>
-      </div>
+    <div class="col-md-3">
+      <label class="form-label">Tuppers Llenos:</label>
+      <input type="number" class="form-control" name="tupper_lleno" required>
+    </div>
 
-      <div class="col-12 text-end">
-        <button type="submit" class="btn btn-success">✅ Guardar información</button>
-      </div>
-    </form>
+    <div class="col-md-3">
+      <label class="form-label">Tuppers Vacíos:</label>
+    <input type="number" class="form-control" name="tupper_vacios" required min="1" max="<?= max(1, $tuppers_restantes) ?>">
+    </div>
+
+    <div class="col-12">
+      <button type="submit" class="btn btn-success w-100">✅ Guardar información</button>
+    </div>
+  </div>
+</form>
+
   </div>
 <?php endif; ?>
 
@@ -334,15 +465,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["asignacion_a_trabajar"
         formBlock.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 200); // pequeño retraso para asegurar que el DOM esté cargado
     }
-  });
 
-document.querySelectorAll(".card-asignacion").forEach(card => {
-  card.addEventListener("click", () => {
-    const id = card.dataset.asignacion;
-    window.location.href = `trabajo_multiplicacion.php?asignacion=${id}`;
+    // Redirigir al hacer clic en la tarjeta
+    document.querySelectorAll(".card-asignacion").forEach(card => {
+      card.addEventListener("click", () => {
+        const id = card.dataset.asignacion;
+        window.location.href = `trabajo_multiplicacion.php?asignacion=${id}`;
+      });
+    });
   });
-});
-
 </script>
 
 <script>
@@ -365,15 +496,13 @@ $(function () {
 });
 </script>
 
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<script>
+(function(){
   let modalShown = false,
       warningTimer,
       expireTimer;
 
-  // Función para mostrar el modal de aviso
   function showModal() {
     modalShown = true;
     const modalHtml = `
@@ -384,37 +513,36 @@ $(function () {
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
+        if (data.status !== 'OK') {
           alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
   }
 
-  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
+  }
+
   function scheduleTimers() {
     const elapsed     = Date.now() - START_TS;
     const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
@@ -432,9 +560,16 @@ $(function () {
     }, Math.max(expireAfter - elapsed, 0));
   }
 
-  // Inicia la lógica al cargar el script
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
   scheduleTimers();
 })();
-  </script>
+</script>
+
 </body>
 </html>

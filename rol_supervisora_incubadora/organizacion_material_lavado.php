@@ -27,9 +27,7 @@ $nowTs           = time();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id_enr'])) {
     $id   = intval($_POST['id_enr']);
     $org  = intval($_POST['organizados']);
-    $cont = ($_POST['hubo_contaminados'] === 'Si') 
-            ? intval($_POST['contaminados']) 
-            : 0;
+    $cont = ($_POST['hubo_contaminados'] === 'Si') ? intval($_POST['contaminados']) : 0;
     $user = $_SESSION['ID_Operador'];
     $hoy  = date('Y-m-d');
 
@@ -60,12 +58,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id_enr'])) {
     exit();
 }
 
-// Consulta corregida
+// Consulta para tabla
 $sql = "
   SELECT 
     E.ID_Enraizamiento AS id,
     V.Codigo_Variedad, V.Nombre_Variedad,
-    E.Fecha_Siembra,
+    DATE(E.Fecha_Siembra) AS Fecha_Siembra,
     E.Tuppers_Llenos AS llenos,
     COALESCE(E.Tuppers_Organizados_Lavado,0) AS organizados,
     COALESCE((
@@ -87,16 +85,18 @@ $sql = "
  ORDER BY E.Fecha_Siembra DESC
 ";
 $result = $conn->query($sql);
+if (!$result) {
+    die("Error en consulta organizacion_material_lavado: " . $conn->error);
+}
 ?>
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Organizar Material para Lavado</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <link rel="stylesheet" href="../style.css?v=<?=time()?>"/>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Organización de Material para Lavado</title>
+  <link rel="stylesheet" href="../style.css?v=<?=time()?>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script>
     const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
     const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
@@ -107,9 +107,12 @@ $result = $conn->query($sql);
   <div class="contenedor-pagina">
     <header>
       <div class="encabezado d-flex align-items-center">
-        <a class="navbar-brand me-3" href="#"><img src="../logoplantulas.png" width="130" height="124" alt="Logo"></a>
+        <a class="navbar-brand me-3" href="dashboard_supervisora.php">
+          <img src="../logoplantulas.png" width="130" height="124" alt="Logo">
+        </a>
         <div>
           <h2>Organización de Material para Lavado</h2>
+          <p class="mb-0">Gestión de tuppers disponibles, organizados y contaminados.</p>
         </div>
       </div>
 
@@ -133,8 +136,8 @@ $result = $conn->query($sql);
           <thead class="table-light">
             <tr>
               <th>ID</th><th>Variedad</th><th>Fecha Siembra</th>
-              <th>Tuppers Llenos</th><th>Tuppers Organizados</th><th>Tuppers Perdidos</th>
-              <th>Tuppers Disponibles</th><th>Acción</th>
+              <th>Tuppers Llenos</th><th>Organizados</th><th>Perdidos</th>
+              <th>Disponibles</th><th>Acción</th>
             </tr>
           </thead>
           <tbody>
@@ -150,12 +153,10 @@ $result = $conn->query($sql);
               <td><?= $r['perdidos'] ?></td>
               <td><?= $disp ?></td>
               <td class="text-center">
-                <button
-                  class="btn-consolidar btn-sm"
+                <button class="btn-consolidar btn-sm"
                   data-id="<?= $r['id'] ?>"
                   data-disponibles="<?= $disp ?>"
-                  onclick="abrirModal(this)"
-                >✔ Organizar</button>
+                  onclick="abrirModal(this)">✔ Organizar</button>
               </td>
             </tr>
             <?php endwhile; ?>
@@ -164,9 +165,10 @@ $result = $conn->query($sql);
       </div>
     </main>
 
-    <footer class="text-center py-3">&copy; 2025 PLANTAS AGRODEX</footer>
+    <footer class="text-center py-3">&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</footer>
   </div>
 
+  <!-- Modal Organizar -->
   <div class="modal fade" id="organizarModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-sm">
       <form id="organizarForm" method="POST" class="modal-content" onsubmit="return validarModal()">
@@ -192,7 +194,7 @@ $result = $conn->query($sql);
             </select>
           </div>
           <div class="mb-2 d-none" id="contRow">
-            <label class="form-label">Cantidad de tuppers contaminados:</label>
+            <label class="form-label">Cantidad de tuppers contaminados</label>
             <input type="number" min="1" name="contaminados" id="modalContaminados" class="form-control form-control-sm">
           </div>
         </div>
@@ -237,76 +239,43 @@ $result = $conn->query($sql);
     }
   </script>
 
-   <!-- Modal de advertencia de sesión -->
-<script>
- (function(){
-  // Estado y referencias a los temporizadores
-  let modalShown = false,
-      warningTimer,
-      expireTimer;
-
-  // Función para mostrar el modal de aviso
-  function showModal() {
-    modalShown = true;
-    const modalHtml = `
-      <div id="session-warning" class="modal-overlay">
+  <!-- Modal de advertencia de sesión + Ping -->
+  <script>
+  (function(){
+    let modalShown = false, warningTimer, expireTimer;
+    function showModal() {
+      modalShown = true;
+      const modalHtml = `<div id="session-warning" class="modal-overlay">
         <div class="modal-box">
           <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
           <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
-        </div>
-      </div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
-  }
-
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
-    fetch('../keepalive.php', { credentials: 'same-origin' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
-          alert('No se pudo extender la sesión');
-        }
-      })
-      .catch(() => alert('Error al mantener viva la sesión'));
-  }
-
-  // Configura los timeouts para mostrar el aviso y para la expiración real
-  function scheduleTimers() {
-    const elapsed     = Date.now() - START_TS;
-    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
-    const expireAfter = SESSION_LIFETIME;
-
-    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
-
-    expireTimer = setTimeout(() => {
-      if (!modalShown) {
-        showModal();
-      } else {
-        window.location.href = '/plantulas/login.php?mensaje='
-          + encodeURIComponent('Sesión caducada por inactividad');
-      }
-    }, Math.max(expireAfter - elapsed, 0));
-  }
-
-  // Inicia la lógica al cargar el script
-  scheduleTimers();
-})();
+        </div></div>`;
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      document.getElementById('keepalive-btn').addEventListener('click', () => { cerrarModalYReiniciar(); });
+    }
+    function cerrarModalYReiniciar() {
+      const modal = document.getElementById('session-warning');
+      if (modal) modal.remove();
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    }
+    function reiniciarTimers() {
+      START_TS = Date.now(); modalShown = false;
+      clearTimeout(warningTimer); clearTimeout(expireTimer); scheduleTimers();
+    }
+    function scheduleTimers() {
+      const elapsed = Date.now() - START_TS;
+      warningTimer = setTimeout(showModal, Math.max(SESSION_LIFETIME - WARNING_OFFSET - elapsed, 0));
+      expireTimer = setTimeout(() => {
+        if (!modalShown) { showModal(); }
+        else { window.location.href = '/plantulas/login.php?mensaje=' + encodeURIComponent('Sesión caducada por inactividad'); }
+      }, Math.max(SESSION_LIFETIME - elapsed, 0));
+    }
+    ['click', 'keydown'].forEach(event => {
+      document.addEventListener(event, () => { reiniciarTimers(); fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {}); });
+    });
+    scheduleTimers();
+  })();
   </script>
 </body>
 </html>

@@ -8,6 +8,31 @@ error_reporting(E_ALL);
 require_once __DIR__ . '/../session_manager.php';
 require_once __DIR__ . '/../db.php';
 
+// Autocompletado AJAX para buscar variedad
+if (isset($_GET['action']) && $_GET['action'] === 'buscar_variedad') {
+    $term = $_GET['term'] ?? '';
+    $sql = "SELECT ID_Variedad, Codigo_Variedad, Nombre_Variedad, Especie 
+            FROM variedades 
+            WHERE Estado = 'Activa' AND (Codigo_Variedad LIKE ? OR Nombre_Variedad LIKE ?) LIMIT 10";
+    $stmt = $conn->prepare($sql);
+    $like = "%$term%";
+    $stmt->bind_param("ss", $like, $like);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $sugerencias = [];
+    while ($row = $result->fetch_assoc()) {
+        $sugerencias[] = [
+            'id' => $row['ID_Variedad'],
+            'especie' => $row['Especie'],
+            'label' => $row['Codigo_Variedad'] . " - " . $row['Nombre_Variedad'],
+            'value' => $row['Codigo_Variedad'] . " - " . $row['Nombre_Variedad']
+        ];
+    }
+    echo json_encode($sugerencias);
+    exit; // 🔥 Este exit es clave: para que no pase a las demás validaciones
+}
+
 if (!isset($_SESSION['ID_Operador'])) {
     header('Location: ../login.php?mensaje=Debe iniciar sesión');
     exit;
@@ -46,21 +71,33 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $cantidad = $_POST['Cantidad_Dividida'] ?? null;
     $tuppersLlenos = $_POST['Tuppers_Llenos'] ?? null;
     $tuppersVacios = $_POST['Tuppers_Desocupados'] ?? null;
-    
+    $ID_Variedad = $_POST['ID_Variedad'] ?? $reporte['ID_Variedad']; // Valor enviado o el actual
+
+// Validar existencia del ID_Variedad
+$stmtVer = $conn->prepare("SELECT 1 FROM variedades WHERE ID_Variedad = ?");
+$stmtVer->bind_param("i", $ID_Variedad);
+$stmtVer->execute();
+$stmtVer->store_result();
+if ($stmtVer->num_rows === 0) {
+    echo "<script>alert('❌ La variedad seleccionada no existe.'); history.back();</script>";
+    exit();
+}
+$stmtVer->close();
+
     // Se asume que luego de la corrección se vuelve a poner el estado a "Pendiente"
     // y se limpian los campos de observaciones y los campos rechazados.
     if ($tipo === "multiplicacion") {
-        $stmt = $conn->prepare("UPDATE multiplicacion 
-            SET Tasa_Multiplicacion = ?, Cantidad_Dividida = ?, Tuppers_Llenos = ?, Tuppers_Desocupados = ?, 
-                Estado_Revision = 'Pendiente', Observaciones_Revision = NULL, Campos_Rechazados = NULL 
-            WHERE ID_Multiplicacion = ?");
-        $stmt->bind_param("iiiii", $tasa, $cantidad, $tuppersLlenos, $tuppersVacios, $id);
+      $stmt = $conn->prepare("UPDATE multiplicacion 
+    SET ID_Variedad = ?, Tasa_Multiplicacion = ?, Cantidad_Dividida = ?, Tuppers_Llenos = ?, Tuppers_Desocupados = ?, 
+        Estado_Revision = 'Pendiente', Observaciones_Revision = NULL, Campos_Rechazados = NULL 
+    WHERE ID_Multiplicacion = ?");
+      $stmt->bind_param("iiiiii", $ID_Variedad, $tasa, $cantidad, $tuppersLlenos, $tuppersVacios, $id);
     } else { // enraizamiento
-        $stmt = $conn->prepare("UPDATE enraizamiento 
-            SET Tasa_Multiplicacion = ?, Cantidad_Dividida = ?, Tuppers_Llenos = ?, Tuppers_Desocupados = ?, 
-                Estado_Revision = 'Pendiente', Observaciones_Revision = NULL, Campos_Rechazados = NULL 
-            WHERE ID_Enraizamiento = ?");
-        $stmt->bind_param("iiiii", $tasa, $cantidad, $tuppersLlenos, $tuppersVacios, $id);
+      $stmt = $conn->prepare("UPDATE enraizamiento 
+    SET ID_Variedad = ?, Tasa_Multiplicacion = ?, Cantidad_Dividida = ?, Tuppers_Llenos = ?, Tuppers_Desocupados = ?, 
+        Estado_Revision = 'Pendiente', Observaciones_Revision = NULL, Campos_Rechazados = NULL 
+    WHERE ID_Enraizamiento = ?");
+      $stmt->bind_param("iiiiii", $ID_Variedad, $tasa, $cantidad, $tuppersLlenos, $tuppersVacios, $id);
     }
     $stmt->execute();
     echo "<script>alert('Reporte corregido exitosamente.'); window.location.href='dashboard_cultivo.php';</script>";
@@ -145,11 +182,19 @@ if (!empty($reporte['Campos_Rechazados'])) {
         <input type="hidden" name="tipo" value="<?= $tipo ?>">
         <input type="hidden" name="id" value="<?= $id ?>">
 
+        <!-- Campo: Variedad -->
+      <div class="mb-3">
+        <label class="form-label">Buscar Variedad</label>
+          <?php if (in_array('Variedad', $camposRechazados)): ?>
+            <input type="text" id="nombre_variedad" class="form-control" placeholder="Buscar variedad..." value="<?= $reporte['Codigo_Variedad'] . ' - ' . $reporte['Nombre_Variedad'] ?>" required autocomplete="off">
+            <input type="hidden" id="id_variedad" name="ID_Variedad" value="<?= $reporte['ID_Variedad'] ?>">
+          <?php else: ?>
+            <input type="text" class="form-control readonly" value="<?= $reporte['Codigo_Variedad'] . ' - ' . $reporte['Nombre_Variedad'] ?>" disabled>
+            <input type="hidden" name="ID_Variedad" value="<?= $reporte['ID_Variedad'] ?>">
+          <?php endif; ?>
+      </div>
+
         <!-- Datos generales: no editables -->
-        <div class="mb-3">
-            <label class="form-label">Código de Variedad</label>
-            <input type="text" class="form-control readonly" value="<?= $reporte['Codigo_Variedad'] . " - " . $reporte['Nombre_Variedad'] ?>" disabled>
-        </div>
         <div class="mb-3">
             <label class="form-label">Fecha de Siembra</label>
             <input type="text" class="form-control readonly" value="<?= $reporte['Fecha_Siembra'] ?>" disabled>
@@ -209,15 +254,13 @@ if (!empty($reporte['Campos_Rechazados'])) {
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<script>
+(function(){
   let modalShown = false,
       warningTimer,
       expireTimer;
 
-  // Función para mostrar el modal de aviso
   function showModal() {
     modalShown = true;
     const modalHtml = `
@@ -228,37 +271,36 @@ if (!empty($reporte['Campos_Rechazados'])) {
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
+        if (data.status !== 'OK') {
           alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
   }
 
-  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
+  }
+
   function scheduleTimers() {
     const elapsed     = Date.now() - START_TS;
     const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
@@ -276,9 +318,42 @@ if (!empty($reporte['Campos_Rechazados'])) {
     }, Math.max(expireAfter - elapsed, 0));
   }
 
-  // Inicia la lógica al cargar el script
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
   scheduleTimers();
 })();
-  </script>
+</script>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+
+<script>
+$(function () {
+  $("#nombre_variedad").autocomplete({
+    source: "corregir_reporte.php?action=buscar_variedad",
+    minLength: 2,
+    select: function (event, ui) {
+      $("#id_variedad").val(ui.item.id);
+    }
+  });
+
+  $('form').on('submit', function () {
+    if (!$('#id_variedad').val()) {
+      alert('❌ Por favor selecciona una variedad válida desde la lista sugerida.');
+      $('#nombre_variedad').addClass('is-invalid').focus();
+      return false;
+    } else {
+      $('#nombre_variedad').removeClass('is-invalid');
+    }
+  });
+});
+</script>
+
 </body>
 </html>

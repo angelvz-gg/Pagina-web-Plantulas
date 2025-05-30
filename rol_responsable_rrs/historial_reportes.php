@@ -19,8 +19,8 @@ if ((int) $_SESSION['Rol'] !== 8) {
     exit;
 }
 // 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
-$sessionLifetime = 60 * 3;   // 180 s
-$warningOffset   = 60 * 1;   // 60 s
+$sessionLifetime = 60 * 3;
+$warningOffset   = 60 * 1;
 $nowTs           = time();
 
 // Procesar consolidación
@@ -38,14 +38,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tipo'], $_POST['id'])
     exit();
 }
 
-// Capturar filtros
+// Filtros
 $filterOp     = trim($_GET['operador']   ?? '');
 $filterEstado = $_GET['estado']          ?? '';
 $filterOpEsc  = $conn->real_escape_string($filterOp);
 
-$whereOp = $filterOp
-    ? " AND O.Nombre LIKE '%{$filterOpEsc}%'"
-    : '';
+$whereOp = $filterOp ? " AND O.Nombre LIKE '%{$filterOpEsc}%'" : '';
 
 $whereMul = $whereEnr = '';
 if ($filterEstado === 'Pendiente') {
@@ -60,7 +58,7 @@ if ($filterEstado === 'Pendiente') {
 $sql_mul = "
   SELECT M.ID_Multiplicacion AS id, O.Nombre AS operador,
          V.Codigo_Variedad, V.Nombre_Variedad,
-         M.Fecha_Siembra, M.Tasa_Multiplicacion,
+         DATE(M.Fecha_Siembra) AS Fecha_Siembra, M.Tasa_Multiplicacion,
          M.Cantidad_Dividida, M.Tuppers_Llenos, M.Tuppers_Desocupados,
          M.Estado_Revision
     FROM multiplicacion M
@@ -74,7 +72,7 @@ $sql_mul = "
 $sql_enr = "
   SELECT E.ID_Enraizamiento AS id, O.Nombre AS operador,
          V.Codigo_Variedad, V.Nombre_Variedad,
-         E.Fecha_Siembra, E.Tasa_Multiplicacion,
+         DATE(E.Fecha_Siembra) AS Fecha_Siembra, E.Tasa_Multiplicacion,
          E.Cantidad_Dividida, E.Tuppers_Llenos, E.Tuppers_Desocupados,
          E.Estado_Revision
     FROM enraizamiento E
@@ -103,16 +101,19 @@ $hist_enr = $conn->query($sql_enr);
     let START_TS         = <?= $nowTs           * 1000 ?>;
   </script>
 </head>
-<body class="scrollable">
+<body>
   <div class="contenedor-pagina">
     <header>
       <div class="encabezado d-flex align-items-center">
-        <a class="navbar-brand me-3" href="#"><img src="../logoplantulas.png" width="130" height="124"></a>
+        <a class="navbar-brand me-3" href="dashboard_rrs.php">
+          <img src="../logoplantulas.png" width="130" height="124" alt="Logo">
+        </a>
         <div>
           <h2>Historial de Reportes</h2>
           <p class="mb-0">Filtra por operador o estado.</p>
         </div>
       </div>
+
       <div class="barra-navegacion">
         <nav class="navbar bg-body-tertiary">
           <div class="container-fluid">
@@ -126,32 +127,31 @@ $hist_enr = $conn->query($sql_enr);
       </div>
 
       <!-- Filtros compactos -->
-  <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
-    <div class="d-flex flex-column" style="min-width:160px;">
-      <label for="filtro-operador" class="small mb-1">Operador</label>
-      <input id="filtro-operador" type="text" name="operador" form="filtrosForm"
-             class="form-control form-control-sm"
-             placeholder="Operador…" value="<?= htmlspecialchars($filterOp) ?>">
-    </div>
+      <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
+        <div class="d-flex flex-column" style="min-width:160px;">
+          <label for="filtro-operador" class="small mb-1">Operador</label>
+          <input id="filtro-operador" type="text" name="operador" form="filtrosForm"
+                class="form-control form-control-sm"
+                placeholder="Operador…" value="<?= htmlspecialchars($filterOp) ?>">
+        </div>
 
-    <div class="d-flex flex-column" style="min-width:140px;">
-      <label for="filtro-estado" class="small mb-1">Estado</label>
-      <select id="filtro-estado" name="estado" form="filtrosForm"
-              class="form-select form-select-sm">
-        <option value="">— Todos —</option>
-        <option value="Pendiente"   <?= $filterEstado==='Pendiente'   ? 'selected':''?>>Pendiente</option>
-        <option value="Consolidado" <?= $filterEstado==='Consolidado' ? 'selected':''?>>Consolidado</option>
-      </select>
-    </div>
+        <div class="d-flex flex-column" style="min-width:140px;">
+          <label for="filtro-estado" class="small mb-1">Estado</label>
+          <select id="filtro-estado" name="estado" form="filtrosForm"
+                  class="form-select form-select-sm">
+            <option value="">— Todos —</option>
+            <option value="Pendiente"   <?= $filterEstado==='Pendiente'   ? 'selected':''?>>Pendiente</option>
+            <option value="Consolidado" <?= $filterEstado==='Consolidado' ? 'selected':''?>>Consolidado</option>
+          </select>
+        </div>
 
-    <button form="filtrosForm" type="submit"
-            class="btn-inicio btn btn-success btn-sm ms-auto">
-      Filtrar
-    </button>
-  </nav>
+        <button form="filtrosForm" type="submit"
+                class="btn-inicio btn btn-success btn-sm ms-auto">
+          Filtrar
+        </button>
+      </nav>
 
-  <!-- Formulario oculto para filtros -->
-  <form id="filtrosForm" method="GET" class="d-none"></form>
+      <form id="filtrosForm" method="GET" class="d-none"></form>
     </header>
 
     <main class="container mt-4">
@@ -181,11 +181,6 @@ $hist_enr = $conn->query($sql_enr);
               <td data-label="LLenos"><?=$r['Tuppers_Llenos']?></td>
               <td data-label="Vacíos"><?=$r['Tuppers_Desocupados']?></td>
               <td data-label="Estado"><?=$estado?></td>
-                <?php if($r['Estado_Revision']==='Verificado'): ?>
-                <?php else: ?>
-
-                <?php endif; ?>
-              </td>
             </tr>
             <?php endwhile; ?>
           </tbody>
@@ -218,10 +213,6 @@ $hist_enr = $conn->query($sql_enr);
               <td data-label="LLenos"><?=$r['Tuppers_Llenos']?></td>
               <td data-label="Vacíos"><?=$r['Tuppers_Desocupados']?></td>
               <td data-label="Estado"><?=$estado?></td>
-                <?php if($r['Estado_Revision']==='Verificado'): ?>
-                <?php else: ?>
-                <?php endif; ?>
-              </td>
             </tr>
             <?php endwhile; ?>
           </tbody>
@@ -231,78 +222,46 @@ $hist_enr = $conn->query($sql_enr);
 
     <footer class="text-center py-3">&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</footer>
   </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
-  let modalShown = false,
-      warningTimer,
-      expireTimer;
-
-  // Función para mostrar el modal de aviso
-  function showModal() {
-    modalShown = true;
-    const modalHtml = `
-      <div id="session-warning" class="modal-overlay">
+  <!-- Modal de advertencia de sesión + Ping -->
+  <script>
+  (function(){
+    let modalShown = false, warningTimer, expireTimer;
+    function showModal() {
+      modalShown = true;
+      const modalHtml = `<div id="session-warning" class="modal-overlay">
         <div class="modal-box">
           <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
           <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
-        </div>
-      </div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
-  }
-
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
-    fetch('../keepalive.php', { credentials: 'same-origin' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
-          alert('No se pudo extender la sesión');
-        }
-      })
-      .catch(() => alert('Error al mantener viva la sesión'));
-  }
-
-  // Configura los timeouts para mostrar el aviso y para la expiración real
-  function scheduleTimers() {
-    const elapsed     = Date.now() - START_TS;
-    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
-    const expireAfter = SESSION_LIFETIME;
-
-    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
-
-    expireTimer = setTimeout(() => {
-      if (!modalShown) {
-        showModal();
-      } else {
-        window.location.href = '/plantulas/login.php?mensaje='
-          + encodeURIComponent('Sesión caducada por inactividad');
-      }
-    }, Math.max(expireAfter - elapsed, 0));
-  }
-
-  // Inicia la lógica al cargar el script
-  scheduleTimers();
-})();
+        </div></div>`;
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      document.getElementById('keepalive-btn').addEventListener('click', () => { cerrarModalYReiniciar(); });
+    }
+    function cerrarModalYReiniciar() {
+      const modal = document.getElementById('session-warning');
+      if (modal) modal.remove();
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    }
+    function reiniciarTimers() {
+      START_TS = Date.now(); modalShown = false;
+      clearTimeout(warningTimer); clearTimeout(expireTimer); scheduleTimers();
+    }
+    function scheduleTimers() {
+      const elapsed = Date.now() - START_TS;
+      warningTimer = setTimeout(showModal, Math.max(SESSION_LIFETIME - WARNING_OFFSET - elapsed, 0));
+      expireTimer = setTimeout(() => {
+        if (!modalShown) { showModal(); }
+        else { window.location.href = '/plantulas/login.php?mensaje=' + encodeURIComponent('Sesión caducada por inactividad'); }
+      }, Math.max(SESSION_LIFETIME - elapsed, 0));
+    }
+    ['click', 'keydown'].forEach(event => {
+      document.addEventListener(event, () => { reiniciarTimers(); fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {}); });
+    });
+    scheduleTimers();
+  })();
   </script>
 </body>
 </html>

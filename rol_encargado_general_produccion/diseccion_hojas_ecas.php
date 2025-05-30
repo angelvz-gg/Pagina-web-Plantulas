@@ -54,6 +54,7 @@ $sql = "
         NULL AS ID_Division,
         S.ID_Lote,
         S.Brotes_Disponibles,
+        S.Tuppers_Disponibles,
         V.Codigo_Variedad,
         V.Nombre_Variedad,
         S.Fecha_Siembra,
@@ -70,6 +71,7 @@ UNION ALL
         D.ID_Division,
         NULL AS ID_Lote,
         D.Brotes_Totales AS Brotes_Disponibles,
+        D.Tuppers_Disponibles,
         V.Codigo_Variedad,
         V.Nombre_Variedad,
         D.Fecha_Division AS Fecha_Siembra,
@@ -103,28 +105,31 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_diseccion"]))
     $total_tuppers       = $tuppers_llenos + $tuppers_desocupados;
 
 
-    // Validaciones
+// Validaciones
 if ($cantidad_hojas < 1 || $cantidad_hojas > $brotes_disponibles) {
     $mensaje = "❌ La cantidad de explantes diseccionadas debe ser de 1 a $brotes_disponibles.";
+} elseif (isset($_POST["tuppers_disponibles"]) && (int)$_POST["tuppers_disponibles"] === 1 && $cantidad_hojas !== $brotes_disponibles) {
+    $mensaje = "⚠️ Como solo queda 1 tupper disponible, debes usar los $brotes_disponibles explantes restantes.";
 } elseif ($brotes_generados < 1 || $brotes_generados > 150) {
     $mensaje = "❌ Los brotes generados deben estar entre 1 y 150.";
 } elseif ($tuppers_llenos < 1 || $tuppers_llenos > 300) {
     $mensaje = "❌ Los tuppers llenos deben estar entre 1 y 300.";
 } elseif ($tuppers_desocupados < 0) {
     $mensaje = "❌ Los tuppers desocupados deben ser al menos 0.";
-    } else {
-        // Validar medio nutritivo con BD
-        $stmt = $conn->prepare("
-            SELECT COUNT(*) AS total FROM medios_nutritivos 
-            WHERE Codigo_Medio = ? AND Etapa_Destinada = 'ECAS' AND Estado = 'Activo'
-        ");
-        $stmt->bind_param("s", $medio_usado);
-        $stmt->execute();
-        $res = $stmt->get_result()->fetch_assoc();
-        if ($res['total'] == 0) {
-            $mensaje = "❌ El código del medio nutritivo no está registrado o no es válido para ECAS.";
-        }
+} else {
+    // Validar medio nutritivo con BD
+    $stmt = $conn->prepare("
+        SELECT COUNT(*) AS total FROM medios_nutritivos 
+        WHERE Codigo_Medio = ? AND Etapa_Destinada = 'ECAS' AND Estado = 'Activo'
+    ");
+    $stmt->bind_param("s", $medio_usado);
+    $stmt->execute();
+    $res = $stmt->get_result()->fetch_assoc();
+    if ($res['total'] == 0) {
+        $mensaje = "❌ El código del medio nutritivo no está registrado o no es válido para ECAS.";
     }
+}
+
 
     if (empty($mensaje)) {
         $sql_insert = "INSERT INTO diseccion_hojas_ecas 
@@ -177,28 +182,33 @@ $stmt_insert->bind_param(
     $tuppers_desocupados
 );
 
-        if ($stmt_insert->execute()) {
-            // Actualizar brotes disponibles
-            if ($id_division) {
-                $update = $conn->prepare("UPDATE division_ecas SET Brotes_Totales = Brotes_Totales - ? WHERE ID_Division = ?");
-                $update->bind_param("ii", $cantidad_hojas, $id_division);
-            } else {
-                $update = $conn->prepare("UPDATE siembra_ecas SET Brotes_Disponibles = Brotes_Disponibles - ? WHERE ID_Siembra = ?");
-                $update->bind_param("ii", $cantidad_hojas, $id_siembra);
-            }
-            $update->execute();
-
-            echo "<script>alert('✅ Disección registrada y brotes actualizados correctamente.'); window.location.href='dashboard_egp.php';</script>";
-            exit();
-        } else {
-            echo "<script>alert('❌ Error al registrar la disección: " . $stmt_insert->error . "'); window.history.back();</script>";
-            exit();
-        }
+if ($stmt_insert->execute()) {
+    // Actualizar brotes disponibles
+    if ($id_division) {
+        $update = $conn->prepare("UPDATE division_ecas SET Brotes_Totales = Brotes_Totales - ? WHERE ID_Division = ?");
+        $update->bind_param("ii", $cantidad_hojas, $id_division);
     } else {
-        echo "<script>alert('$mensaje'); window.history.back();</script>";
-        exit();
+        $update = $conn->prepare("UPDATE siembra_ecas SET Brotes_Disponibles = Brotes_Disponibles - ? WHERE ID_Siembra = ?");
+        $update->bind_param("ii", $cantidad_hojas, $id_siembra);
     }
+    $update->execute();
+
+// Restar SOLO los tuppers desocupados de los disponibles, según la tabla origen
+if ($id_division) {
+    $stmt = $conn->prepare("UPDATE division_ecas SET Tuppers_Disponibles = Tuppers_Disponibles - ? WHERE ID_Division = ?");
+    $stmt->bind_param("ii", $tuppers_desocupados, $id_division);
+} else {
+    $stmt = $conn->prepare("UPDATE siembra_ecas SET Tuppers_Disponibles = Tuppers_Disponibles - ? WHERE ID_Siembra = ?");
+    $stmt->bind_param("ii", $tuppers_desocupados, $id_siembra);
 }
+$stmt->execute();
+
+echo "<script>alert('✅ Disección registrada correctamente.'); window.location.href='dashboard_egp.php';</script>";
+exit();
+}
+
+    }
+  }
 ?>
 
 <!DOCTYPE html>
@@ -253,6 +263,7 @@ $stmt_insert->bind_param(
                     data-variedad="<?= $s['Nombre_Variedad'] ?>"
                     data-codigo="<?= $s['Codigo_Variedad'] ?>"
                     data-fecha="<?= $s['Fecha_Siembra'] ?>"
+                    data-tuppers="<?= $s['Tuppers_Disponibles'] ?>"
                     data-brotes="<?= $s['Brotes_Disponibles'] ?>"
                     data-generacion="<?= $s['Generacion'] ?>">
               <?= "({$s['Tipo']}) {$s['Codigo_Variedad']} - {$s['Nombre_Variedad']} (Fecha: {$s['Fecha_Siembra']})" ?>
@@ -262,6 +273,7 @@ $stmt_insert->bind_param(
       </div>
 
       <input type="hidden" name="id_division" id="id_division">
+      <input type="hidden" name="tuppers_disponibles" id="input_tuppers_disponibles">
       <input type="hidden" name="brotes_disponibles" id="brotes_disponibles">
       <input type="hidden" name="generacion" id="generacion">
       <input type="hidden" name="fecha_diseccion" value="<?= date('Y-m-d H:i:s') ?>">
@@ -271,6 +283,7 @@ $stmt_insert->bind_param(
         <p><strong>Fecha:</strong> <span id="fecha_siembra"></span></p>
         <p><strong>Variedad:</strong> <span id="variedad_siembra"></span></p>
         <p><strong>Código:</strong> <span id="codigo_variedad"></span></p>
+        <p><strong>Tuppers Disponibles:</strong> <span id="tuppers_disponibles">—</span></p>
         <p><strong>Explantes Disponibles:</strong> <span id="brotes_siembra"></span></p>
         <p><strong>Generación:</strong> <span id="generacion_siembra"></span></p>
       </div>
@@ -325,6 +338,8 @@ document.getElementById('id_siembra')?.addEventListener('change', function () {
   document.getElementById('brotes_siembra').innerText = opt.getAttribute('data-brotes') || '0';
 
   document.getElementById('id_division').value = opt.getAttribute('data-division') || '';
+  document.getElementById('input_tuppers_disponibles').value = opt.getAttribute('data-tuppers') || '0';
+  document.getElementById('tuppers_disponibles').innerText = opt.getAttribute('data-tuppers') || '—';
   document.getElementById('brotes_disponibles').value = opt.getAttribute('data-brotes') || '0';
   document.getElementById('generacion').value = opt.getAttribute('data-generacion') || '1';
   document.getElementById('generacion_siembra').innerText = opt.getAttribute('data-generacion') || '1';
@@ -345,15 +360,13 @@ $(function () {
 });
 </script>
 
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<script>
+(function(){
   let modalShown = false,
       warningTimer,
       expireTimer;
 
-  // Función para mostrar el modal de aviso
   function showModal() {
     modalShown = true;
     const modalHtml = `
@@ -364,37 +377,36 @@ $(function () {
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
+        if (data.status !== 'OK') {
           alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
   }
 
-  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
+  }
+
   function scheduleTimers() {
     const elapsed     = Date.now() - START_TS;
     const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
@@ -412,8 +424,16 @@ $(function () {
     }, Math.max(expireAfter - elapsed, 0));
   }
 
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
   scheduleTimers();
 })();
-  </script>
+</script>
+
 </body>
 </html>

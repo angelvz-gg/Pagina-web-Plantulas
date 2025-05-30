@@ -8,6 +8,10 @@ error_reporting(E_ALL);
 require_once __DIR__ . '/../session_manager.php';
 require_once __DIR__ . '/../db.php';
 
+// Definir la zona horaria a México (CDMX)
+date_default_timezone_set('America/Mexico_City');
+$conn->query("SET time_zone = '-06:00'");
+
 if (!isset($_SESSION['ID_Operador'])) {
     header('Location: ../login.php?mensaje=Debe iniciar sesión');
     exit;
@@ -18,38 +22,26 @@ if ((int) $_SESSION['Rol'] !== 2) {
     echo "<p class=\"error\">⚠️ Acceso denegado. Solo Operador.</p>";
     exit;
 }
+
 // 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
 $sessionLifetime = 60 * 3;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
-// Marcar como realizada
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["marcar_realizada"])) {
-    $fecha = $_POST["fecha"] ?? date('Y-m-d');
-    $area = $_POST["area"] ?? '';
-
-    $sql_update = "UPDATE registro_limpieza 
-                   SET Estado_Limpieza = 'Realizada' 
-                   WHERE ID_Operador = ? AND Fecha = ? AND Area = ?";
-    $stmt = $conn->prepare($sql_update);
-    $stmt->bind_param("iss", $ID_Operador, $fecha, $area);
-    $stmt->execute();
-
-    echo "<script>alert('Área marcada como realizada.'); window.location.href='area_limpieza.php';</script>";
-    exit();
-}
-
-// Obtener TODAS las asignaciones del día, sin filtrar estado
-$sql = "SELECT Fecha, Area, Estado_Limpieza 
-        FROM registro_limpieza 
-        WHERE ID_Operador = ? 
-          AND Fecha = CURDATE()
-        ORDER BY Hora_Registro DESC";
-$stmt = $conn->prepare($sql);
+// 3) Consulta de materiales asignados SOLO del día actual
+$stmt = $conn->prepare("
+  SELECT 
+    m.nombre AS Nombre_Material,
+    SUM(s.cantidad) AS Cantidad_Asignada
+  FROM suministro_material s
+  INNER JOIN materiales m ON s.id_material = m.id_material
+  WHERE s.id_operador = ? AND DATE(s.fecha_entrega) = CURDATE()
+  GROUP BY m.nombre
+  ORDER BY m.nombre
+");
 $stmt->bind_param("i", $ID_Operador);
 $stmt->execute();
-$result = $stmt->get_result();
-$asignaciones = $result->fetch_all(MYSQLI_ASSOC);
+$resultado = $stmt->get_result();
 ?>
 
 <!DOCTYPE html>
@@ -57,10 +49,9 @@ $asignaciones = $result->fetch_all(MYSQLI_ASSOC);
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Área de Limpieza Asignada</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mis Materiales Asignados</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script>
     const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
     const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
@@ -69,16 +60,15 @@ $asignaciones = $result->fetch_all(MYSQLI_ASSOC);
 </head>
 <body>
 <div class="contenedor-pagina">
-  <header>
-    <div class="encabezado">
-      <a class="navbar-brand">
-        <img src="../logoplantulas.png" alt="Logo" width="130" height="124" />
-        PLÁNTULAS AGRODEX
-      </a>
-      <h2>Área de Limpieza Asignada</h2>
-    </div>
+    <header>
+        <div class="encabezado">
+            <a class="navbar-brand" href="#">
+                <img src="../logoplantulas.png" alt="Logo" width="130" height="124">
+            </a>
+            <h2>📦 Mis Materiales Asignados</h2>
+        </div>
 
-    <div class="barra-navegacion">
+        <div class="barra-navegacion">
         <nav class="navbar bg-body-tertiary">
           <div class="container-fluid">
             <div class="Opciones-barra">
@@ -89,59 +79,41 @@ $asignaciones = $result->fetch_all(MYSQLI_ASSOC);
           </div>
         </nav>
       </div>
-  </header>
+    </header>
 
-  <main>
-    <section class="section">
-      <h3>🧹 Asignaciones de limpieza para hoy</h3>
+    <main class="container mt-4">
+    <h3 class="mb-4 text-center">📋 Materiales asignados para hoy, día: <?= date('d-m-Y') ?></h3>
 
-      <?php if (count($asignaciones) > 0): ?>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>📅 Fecha</th>
-              <th>🧭 Área Asignada</th>
-              <th>✅ Estado</th>
-              <th>🛠 Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($asignaciones as $asignacion): ?>
-              <tr>
-                <td><?= htmlspecialchars($asignacion['Fecha']) ?></td>
-                <td><?= htmlspecialchars($asignacion['Area']) ?></td>
-                <td><?= htmlspecialchars($asignacion['Estado_Limpieza']) ?></td>
-                <td>
-                  <?php if (strtolower(trim($asignacion['Estado_Limpieza'])) !== 'realizada'): ?>
-                    <form method="POST" class="form-inline">
-                      <input type="hidden" name="fecha" value="<?= htmlspecialchars($asignacion['Fecha']) ?>">
-                      <input type="hidden" name="area" value="<?= htmlspecialchars($asignacion['Area']) ?>">
-                      <button type="submit" name="marcar_realizada" class="save-button verificar btn-sm">
-                        Marcar como realizada
-                      </button>
-                    </form>
-                  <?php else: ?>
-                    <span class="text-success">✔ Realizada</span>
-                  <?php endif; ?>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
+    <?php if ($resultado->num_rows > 0): ?>
+        <table class="table table-bordered table-hover table-striped">
+            <thead class="table-dark">
+                <tr>
+                    <th>Nombre del Material</th>
+                    <th>Cantidad Asignada</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php while ($material = $resultado->fetch_assoc()): ?>
+                    <tr>
+                        <td><?= htmlspecialchars($material['Nombre_Material']) ?></td>
+                        <td><?= (int)$material['Cantidad_Asignada'] ?></td>
+                    </tr>
+                <?php endwhile; ?>
+            </tbody>
         </table>
-      <?php else: ?>
-        <p style="color: red;">No tienes asignaciones de limpieza para hoy.</p>
-      <?php endif; ?>
-    </section>
-  </main>
+    <?php else: ?>
+        <div class="alert alert-warning text-center">
+            <strong>🔔 No tienes materiales asignados para el dia de Hoy.</strong>
+        </div>
+    <?php endif; ?>
+</main>
 
-  <footer>
+<footer>
     <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
-  </footer>
+</footer>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
-        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
 <script>

@@ -133,7 +133,7 @@ $cajas = $conn->query("
         v.Codigo_Variedad,
         v.Nombre_Variedad,
         pc.Tuppers_Buenos,
-        l.Fecha AS Fecha_Ingreso,
+        pc.Fecha_Registro AS Fecha_Ingreso,
         CASE
           WHEN l.ID_Etapa = 2 THEN 'Multiplicación'
           WHEN l.ID_Etapa = 3 THEN 'Enraizamiento'
@@ -307,44 +307,80 @@ $cajas = $conn->query("
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- Modal de advertencia de sesión -->
-  <script>
-  (function(){
-    let modalShown = false, warningTimer, expireTimer;
-    function showModal() {
-      modalShown = true;
-      document.body.insertAdjacentHTML('beforeend', `
-        <div id="session-warning" class="modal-overlay">
-          <div class="modal-box">
-            <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
-            <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
-          </div>
-        </div>`);
-      document.getElementById('keepalive-btn').addEventListener('click', function(){
-        fetch('../keepalive.php', { credentials: 'same-origin' })
-          .then(res => res.json())
-          .then(data => {
-            if (data.status === 'OK') {
-              document.getElementById('session-warning').remove();
-              modalShown = false;
-              START_TS = Date.now();
-              clearTimeout(warningTimer);
-              clearTimeout(expireTimer);
-              scheduleTimers();
-            } else alert('No se pudo extender la sesión');
-          }).catch(()=>alert('Error al mantener viva la sesión'));
-      });
-    }
-    function scheduleTimers() {
-      const elapsed = Date.now() - START_TS;
-      warningTimer = setTimeout(showModal, Math.max(SESSION_LIFETIME - WARNING_OFFSET - elapsed, 0));
-      expireTimer = setTimeout(function(){
-        if (!modalShown) return showModal();
-        window.location.href = '/plantulas/login.php?mensaje=' + encodeURIComponent('Sesión caducada por inactividad');
-      }, Math.max(SESSION_LIFETIME - elapsed, 0));
-    }
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<script>
+(function(){
+  let modalShown = false,
+      warningTimer,
+      expireTimer;
+
+  function showModal() {
+    modalShown = true;
+    const modalHtml = `
+      <div id="session-warning" class="modal-overlay">
+        <div class="modal-box">
+          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
+  }
+
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
+    fetch('../keepalive.php', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status !== 'OK') {
+          alert('No se pudo extender la sesión');
+        }
+      })
+      .catch(() => {}); // Silenciar errores de red
+  }
+
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
     scheduleTimers();
-  })();
-  </script>
+  }
+
+  function scheduleTimers() {
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+    const expireAfter = SESSION_LIFETIME;
+
+    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+    expireTimer = setTimeout(() => {
+      if (!modalShown) {
+        showModal();
+      } else {
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
+      }
+    }, Math.max(expireAfter - elapsed, 0));
+  }
+
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
+  scheduleTimers();
+})();
+</script>
+
 </body>
 </html>

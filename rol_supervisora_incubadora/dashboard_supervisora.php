@@ -94,7 +94,7 @@ $nowTs           = time();
           <a href="existencias_tuppers.php" onclick="guardarScroll('card-vista-tuppers')">Ir a Vista</a>
         </div>
         <div class="card" id="card-seleccion-tuppers">
-          <h2>🔬 Selección de Tuppers</h2>
+          <h2>🔬 Registro de acomodo de Tuppers en cajas negras</h2>
           <p>Coordina la selección de tuppers para lavado.</p>
           <a href="seleccion_tuppers.php" onclick="guardarScroll('card-seleccion-tuppers')">Gestionar selección</a>
         </div>
@@ -115,31 +115,22 @@ $nowTs           = time();
           <a href="inventario_etapa3.php">Ver detalles</a>
         </div>
 
-                  <div class="card card-ecas" id="card-desinfeccion">
+        <div class="card card-ecas" data-card-id="card-desinfeccion">
             <h2>📋 Organización de material para clasificación</h2>
             <p>Organiza los materiales para clasificación.</p>
-            <a
-              href="organizacion_material_lavado.php"
-              onclick="guardarScroll('card-desinfeccion')"
-              >Ir a Registros</a
-            >
-          </div>
-          <div class="card" id="card-limpieza-incubador">
+            <a href="organizacion_material_lavado.php">Ir a Registros</a>
+        </div>
+
+        <div class="card" id="card-limpieza-incubador">
             <h2>🧽 Registrar Limpieza de Incubador</h2>
             <p>Registrar repisas limpias por anaquel en el incubador.</p>
-            <a
-              href="limpieza_incubador.php"
-              onclick="guardarScroll('card-limpieza-incubador')"
-            >Ir al Registro</a>
+            <a href="limpieza_incubador.php">Ir al Registro</a>
         </div>
-          <div class="card" id="card-historial-desinfeccion">
+
+        <div class="card" id="card-historial-desinfeccion">
             <h2>🧼 Historial de Limpieza</h2>
-            <p>Accede a las asignaciones de limpieza de repisas.</p>
-            <a
-              href="limpieza_repisas.php"
-              onclick="guardarScroll('card-historial-desinfeccion')"
-              >Ver Historial</a
-            >
+            <p>Accede al historial de la limpieza.</p>
+            <a href="limpieza_repisas.php">Ver Historial</a>
           </div>
       </section>
     </main>
@@ -171,15 +162,19 @@ $nowTs           = time();
     });
   </script>
 
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
+  <script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+    crossorigin="anonymous"
+  ></script>
+
+  <!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<script>
+(function(){
   let modalShown = false,
       warningTimer,
       expireTimer;
 
-  // Función para mostrar el modal de aviso
   function showModal() {
     modalShown = true;
     const modalHtml = `
@@ -190,37 +185,36 @@ $nowTs           = time();
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
+        if (data.status !== 'OK') {
           alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
   }
 
-  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
+  }
+
   function scheduleTimers() {
     const elapsed     = Date.now() - START_TS;
     const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
@@ -238,15 +232,16 @@ $nowTs           = time();
     }, Math.max(expireAfter - elapsed, 0));
   }
 
-  // Inicia la lógica al cargar el script
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
   scheduleTimers();
 })();
-  </script>
+</script>
 
-  <script
-    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
-    crossorigin="anonymous"
-  ></script>
 </body>
 </html>

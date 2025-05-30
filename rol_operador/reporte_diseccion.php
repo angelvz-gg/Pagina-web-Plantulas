@@ -130,17 +130,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && $editable) {
     $etapa = $_POST["etapa"] ?? $ID_Etapa;
     $variedad = $_POST["id_variedad"] ?? $ID_Variedad;
 
-    $tabla = ($etapa == 1) ? "multiplicacion" : "enraizamiento";
+$tabla = ($etapa == 2) ? "multiplicacion" : (($etapa == 3) ? "enraizamiento" : null);
 
-if ($num_brotes < 1 || $num_brotes > 1000) {
-    echo "<script>alert('❌ Número de brotes debe ser entre 1 y 1000'); window.history.back();</script>";
+$brotes_iniciales = intval($_POST["brotes_iniciales"]);
+
+if ($brotes_iniciales < 1 || $brotes_iniciales > 300) {
+    echo "<script>alert('❌ Los brotes iniciales deben ser entre 1 y 300'); window.history.back();</script>";
     exit;
 }
-if ($tupper_lleno < 1 || $tupper_lleno > 500 || $tupper_vacio < 1 || $tupper_vacio > 500) {
-    echo "<script>alert('❌ Tuppers deben estar entre 1 y 500'); window.history.back();</script>";
+if ($num_brotes < 1 || $num_brotes > 500) {
+    echo "<script>alert('❌ Los brotes divididos deben ser entre 1 y 500'); window.history.back();</script>";
     exit;
 }
-
+if ($tupper_lleno < 1 || $tupper_lleno > 300) {
+    echo "<script>alert('❌ Los tuppers llenos deben ser entre 1 y 300'); window.history.back();</script>";
+    exit;
+}
+if ($tupper_vacio < 1 || $tupper_vacio > 150) {
+    echo "<script>alert('❌ Los tuppers vacíos deben ser entre 1 y 150'); window.history.back();</script>";
+    exit;
+}
 
     if ($reporteExistente) {
         $sql = "UPDATE $tabla 
@@ -150,24 +159,41 @@ if ($tupper_lleno < 1 || $tupper_lleno > 500 || $tupper_vacio < 1 || $tupper_vac
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("diiiii", $tasa, $id_medio, $num_brotes, $tupper_lleno, $tupper_vacio, $ID_Asignacion);
     } else {
-        $sql = "INSERT INTO $tabla 
-                (ID_Asignacion, Fecha_Siembra, ID_Variedad, Tasa_Multiplicacion, ID_MedioNutritivo, 
-                 Cantidad_Dividida, Tuppers_Llenos, Tuppers_Desocupados, Estado_Revision, Operador_Responsable) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?)";
+      $sql = "INSERT INTO $tabla 
+    (ID_Asignacion, Fecha_Siembra, ID_Variedad, Tasa_Multiplicacion, ID_MedioNutritivo, 
+     Brotes_Iniciales, Cantidad_Dividida, Tuppers_Llenos, Tuppers_Desocupados, Estado_Revision, Operador_Responsable) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?)";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("issdiiiis", $ID_Asignacion, $fecha_actual, $variedad, $tasa, $id_medio, $num_brotes, $tupper_lleno, $tupper_vacio, $ID_Operador);
+        $stmt->bind_param("issdiiiiis", $ID_Asignacion, $fecha_actual, $variedad, $tasa, $id_medio, $brotes_iniciales, $num_brotes, $tupper_lleno, $tupper_vacio, $ID_Operador);
+    }
+if ($stmt->execute()) {
+    // ✅ Crear lote en la tabla 'lotes'
+    $sql_lote = "INSERT INTO lotes (Fecha, ID_Variedad, ID_Operador, ID_Etapa) VALUES (?, ?, ?, ?)";
+    $stmt_lote = $conn->prepare($sql_lote);
+    $stmt_lote->bind_param("siii", $fecha_actual, $variedad, $ID_Operador, $etapa);
+
+    if ($stmt_lote->execute()) {
+        $ID_Lote = $stmt_lote->insert_id;
+
+        // ✅ Asignar el ID_Lote al registro recién creado
+        $tabla_id = ($tabla == "multiplicacion") ? "ID_Multiplicacion" : "ID_Enraizamiento";
+        $stmt_update = $conn->prepare("UPDATE $tabla SET ID_Lote = ? WHERE $tabla_id = ?");
+        $last_id = $stmt->insert_id; // ID del registro recién insertado en multiplicacion/enraizamiento
+        $stmt_update->bind_param("ii", $ID_Lote, $last_id);
+        $stmt_update->execute();
     }
 
-    if ($stmt->execute()) {
-        if ($ID_Asignacion) {
-            $stmt = $conn->prepare("UPDATE asignaciones SET Estado = 'Completado' WHERE ID_Asignacion = ?");
-            $stmt->bind_param("i", $ID_Asignacion);
-            $stmt->execute();
-        }
-        echo "<script>alert('Registro guardado correctamente.'); window.location.href='dashboard_cultivo.php';</script>";
-    } else {
-        echo "<script>alert('Error al guardar el registro.');</script>";
+    // ✅ Actualizar el estado de la asignación
+    if ($ID_Asignacion) {
+        $stmt_asig = $conn->prepare("UPDATE asignaciones SET Estado = 'Completado' WHERE ID_Asignacion = ?");
+        $stmt_asig->bind_param("i", $ID_Asignacion);
+        $stmt_asig->execute();
     }
+
+    echo "<script>alert('Registro guardado correctamente.'); window.location.href='dashboard_cultivo.php';</script>";
+} else {
+    echo "<script>alert('Error al guardar el registro.');</script>";
+}
 }
 ?>
 
@@ -238,7 +264,10 @@ if ($tupper_lleno < 1 || $tupper_lleno > 500 || $tupper_vacio < 1 || $tupper_vac
           <input type="text" id="medio_nutritivo" <?= $editable ? '' : 'readonly' ?> required>
           <input type="hidden" id="id_medio_nutritivo" name="id_medio_nutritivo">
 
-          <label for="numero_brotes">Número de Brotes:</label>
+          <label for="brotes_iniciales">Número de Brotes Iniciales:</label>
+          <input type="number" name="brotes_iniciales" min="1" max="300" required <?= $editable ? '' : 'readonly' ?>>
+
+          <label for="numero_brotes">Número de Brotes Finales:</label>
           <input type="number" name="numero_brotes" min="1" max="1000" required <?= $editable ? '' : 'readonly' ?>>
 
           <label for="tupper_lleno">Tuppers Llenos:</label>
@@ -308,16 +337,13 @@ $('form').on('submit', function () {
 });
 </script>
 
-
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<script>
+(function(){
   let modalShown = false,
       warningTimer,
       expireTimer;
 
-  // Función para mostrar el modal de aviso
   function showModal() {
     modalShown = true;
     const modalHtml = `
@@ -328,37 +354,36 @@ $('form').on('submit', function () {
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
+        if (data.status !== 'OK') {
           alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
   }
 
-  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
+  }
+
   function scheduleTimers() {
     const elapsed     = Date.now() - START_TS;
     const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
@@ -376,9 +401,16 @@ $('form').on('submit', function () {
     }, Math.max(expireAfter - elapsed, 0));
   }
 
-  // Inicia la lógica al cargar el script
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
   scheduleTimers();
 })();
-  </script>
+</script>
+
 </body>
 </html>

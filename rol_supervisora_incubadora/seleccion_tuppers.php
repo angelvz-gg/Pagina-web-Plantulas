@@ -159,23 +159,35 @@ if (isset($_GET['buscar_variedad']) && isset($_GET['etapa'])) {
     $buscar = "%" . $_GET['buscar_variedad'] . "%";
     $etapa = intval($_GET['etapa']);
 
-    $query = "SELECT l.ID_Lote, v.Nombre_Variedad, v.Especie, l.Fecha
-              FROM lotes l
-              INNER JOIN variedades v ON l.ID_Variedad = v.ID_Variedad
-              WHERE (v.Nombre_Variedad LIKE ? OR v.Especie LIKE ?) AND l.ID_Etapa = ?
-              ORDER BY l.Fecha DESC";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("ssi", $buscar, $buscar, $etapa);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    // Determinar la tabla de tuppers según la etapa
+    $tablaEtapa = ($etapa == 2) ? "multiplicacion" : (($etapa == 3) ? "enraizamiento" : null);
 
-    $lotes = [];
-    while ($row = $result->fetch_assoc()) {
-        $lotes[] = $row;
+    if ($tablaEtapa) {
+        $query = "
+            SELECT l.ID_Lote, v.Nombre_Variedad, v.Especie, l.Fecha
+            FROM lotes l
+            INNER JOIN variedades v ON l.ID_Variedad = v.ID_Variedad
+            INNER JOIN $tablaEtapa t ON l.ID_Lote = t.ID_Lote
+            WHERE (v.Nombre_Variedad LIKE ? OR v.Especie LIKE ?) AND l.ID_Etapa = ?
+            GROUP BY l.ID_Lote
+            ORDER BY l.Fecha DESC
+        ";
+        $stmt = $conn->prepare($query);
+        $stmt->bind_param("ssi", $buscar, $buscar, $etapa);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $lotes = [];
+        while ($row = $result->fetch_assoc()) {
+            $lotes[] = $row;
+        }
+        echo json_encode($lotes);
+    } else {
+        echo json_encode([]); // Si la etapa no es válida, devuelve vacío
     }
-    echo json_encode($lotes);
     exit();
 }
+
 ?>
 
 
@@ -203,7 +215,7 @@ if (isset($_GET['buscar_variedad']) && isset($_GET['etapa'])) {
       <a class="navbar-brand" href="#">
         <img src="../logoplantulas.png" alt="Logo" width="130" height="124" />
       </a>
-      <h2>📦 Selección de Tuppers</h2>
+      <h2>📦 Selección de Tuppers para guardado en cajas negras</h2>
     </div>
 
     <div class="barra-navegacion">
@@ -233,7 +245,7 @@ if (isset($_GET['buscar_variedad']) && isset($_GET['etapa'])) {
       </div>
 
       <div class="col-md-8">
-        <h4>🧼 Enviar Tuppers a Lavado</h4>
+        <h4>🧼 Preparar Tuppers en cajas negras para Clasificación</h4>
         <div class="row">
           <div class="col-md-6">
             <label class="form-label">Etapa:</label>
@@ -258,12 +270,12 @@ if (isset($_GET['buscar_variedad']) && isset($_GET['etapa'])) {
           </div>
 
           <div class="col-md-6">
-            <label class="form-label">Cantidad de Tuppers a Lavar:</label>
+            <label class="form-label">Cantidad de Tuppers a Clasificar:</label>
             <input type="number" name="cantidad_lavada" id="cantidad_lavada" class="form-control" required>
           </div>
 
           <div class="col-md-6">
-            <label class="form-label">Fecha de Lavado:</label>
+            <label class="form-label">Fecha de registro:</label>
             <input type="date" name="fecha_lavado" class="form-control" required readonly value="<?= date('Y-m-d') ?>">
           </div>
 
@@ -334,7 +346,7 @@ $(document).ready(function() {
           const lotes = JSON.parse(data);
           response($.map(lotes, function(lote) {
             return {
-              label: lote.Nombre_Variedad + ' (' + lote.Especie + ') - ' + lote.Fecha,
+              label: lote.Nombre_Variedad + ' (' + lote.Especie + ') - ' + lote.Fecha.substring(0,10),
               value: lote.Nombre_Variedad,
               id: lote.ID_Lote
             };
@@ -386,15 +398,13 @@ $(document).ready(function() {
 });
 </script>
 
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<script>
+(function(){
   let modalShown = false,
       warningTimer,
       expireTimer;
 
-  // Función para mostrar el modal de aviso
   function showModal() {
     modalShown = true;
     const modalHtml = `
@@ -405,37 +415,36 @@ $(document).ready(function() {
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
+        if (data.status !== 'OK') {
           alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
   }
 
-  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
+  }
+
   function scheduleTimers() {
     const elapsed     = Date.now() - START_TS;
     const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
@@ -453,10 +462,16 @@ $(document).ready(function() {
     }, Math.max(expireAfter - elapsed, 0));
   }
 
-  // Inicia la lógica al cargar el script
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
   scheduleTimers();
 })();
-  </script>
+</script>
   
 </body>
 </html>

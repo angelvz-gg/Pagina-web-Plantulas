@@ -318,15 +318,13 @@ while ($row = $inv_qty->fetch_assoc()) {
     crossorigin="anonymous"
   ></script>
   
-<!-- Modal de advertencia de sesión -->
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
 <script>
 (function(){
-  // Estado y referencias a los temporizadores
   let modalShown = false,
       warningTimer,
       expireTimer;
 
-  // Función para mostrar el modal de aviso
   function showModal() {
     modalShown = true;
     const modalHtml = `
@@ -337,37 +335,36 @@ while ($row = $inv_qty->fetch_assoc()) {
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
+        if (data.status !== 'OK') {
           alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
   }
 
-  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
+  }
+
   function scheduleTimers() {
     const elapsed     = Date.now() - START_TS;
     const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
@@ -385,65 +382,15 @@ while ($row = $inv_qty->fetch_assoc()) {
     }, Math.max(expireAfter - elapsed, 0));
   }
 
-  // Inicia la lógica al cargar el script
-  scheduleTimers();
-})();
-
-// -------------------------
-// Resaltar fila seleccionada
-document.getElementById('id_material')
-  .addEventListener('change', function(){
-    const selectedText = this.options[this.selectedIndex].text;
-    document.querySelectorAll('tbody tr').forEach(tr => {
-      tr.classList.toggle('table-warning',
-        tr.getAttribute('data-id-material') === selectedText
-      );
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
     });
   });
 
-  // — Bloque para bloquear por existencia individual —
-const selectMat = document.getElementById('id_material');
-const cantInput = document.getElementById('cantidad');
-const guardarBtn = document.querySelector('button[name="actualizar_inventario"]');
-
-function checkCantidadActual() {
-  const opt   = selectMat.selectedOptions[0];
-  const exist = parseInt(opt.getAttribute('data-cantidad'), 10);
-
-  // Si no hay material seleccionado, limpiar alerta y deshabilitar
-  if (!opt.value) {
-    cantInput.disabled = true;
-    guardarBtn.disabled = true;
-    document.getElementById('alert-stock')?.remove();
-    return;
-  }
-
-  // Determinar si debe bloquearse
-  const shouldBlock = exist >= 5;
-  cantInput.disabled = shouldBlock;
-  guardarBtn.disabled = shouldBlock;
-
-  // Gestionar la alerta
-  let alertEl = document.getElementById('alert-stock');
-  if (shouldBlock) {
-    const msg = `🚫 No puedes actualizar “${opt.textContent.trim()}” porque la existencia actual es ${exist} (debe ser < 5)`;
-    if (!alertEl) {
-      alertEl = document.createElement('div');
-      alertEl.id = 'alert-stock';
-      alertEl.className = 'alert alert-warning mt-3';
-      guardarBtn.closest('.card')?.append(alertEl);
-    }
-    alertEl.textContent = msg;
-  } else if (alertEl) {
-    // Si ya no debe bloquearse, quitar alerta
-    alertEl.remove();
-  }
-}
-
-// Ejecutar al cambiar selección y al cargar la página
-selectMat.addEventListener('change', checkCantidadActual);
-document.addEventListener('DOMContentLoaded', checkCantidadActual);
-
+  scheduleTimers();
+})();
 </script>
 
 </body>

@@ -25,10 +25,9 @@ $nowTs           = time();
 
 // Procesar consolidación y auditoría
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $tipo = $_POST['tipo'];    // 'multiplicacion' o 'enraizamiento'
+    $tipo = $_POST['tipo'];
     $id   = intval($_POST['id']);
 
-    // Determinar tabla, PK y obtener estado previo
     if ($tipo === 'multiplicacion') {
         $tabla   = 'multiplicacion';
         $pkCampo = 'ID_Multiplicacion';
@@ -37,7 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pkCampo = 'ID_Enraizamiento';
     }
 
-    // 1) Leer estado anterior
     $stmtOld = $conn->prepare(
         "SELECT Estado_Revision 
            FROM $tabla 
@@ -47,7 +45,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmtOld->execute();
     $old = $stmtOld->get_result()->fetch_assoc()['Estado_Revision'];
 
-    // 2) Actualizar a 'Consolidado'
     $nuevo = 'Consolidado';
     $stmtUpd = $conn->prepare(
         "UPDATE $tabla
@@ -57,8 +54,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmtUpd->bind_param('si', $nuevo, $id);
     $stmtUpd->execute();
 
-    // 3) Insertar en consolidacion_log
-    //    Solo especificamos la columna correspondiente; la otra queda NULL
     if ($tipo === 'multiplicacion') {
       $sqlLog = "
         INSERT INTO consolidacion_log
@@ -66,56 +61,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         VALUES (?, ?, ?, ?, ?)
       ";
       $stmtLog = $conn->prepare($sqlLog);
-  
-      // Guardamos en variables para pasarlas por referencia
       $operadorId = $_SESSION['ID_Operador'];
       $fechaHora  = date('Y-m-d H:i:s');
-  
-      $stmtLog->bind_param(
-          'iisss',
-          $id,
-          $operadorId,
-          $fechaHora,
-          $old,
-          $nuevo
-      );
-  } else {
+      $stmtLog->bind_param('iisss', $id, $operadorId, $fechaHora, $old, $nuevo);
+    } else {
       $sqlLog = "
         INSERT INTO consolidacion_log
           (ID_Enraizamiento, ID_Operador, Fecha_Hora, Estado_Anterior, Estado_Nuevo)
         VALUES (?, ?, ?, ?, ?)
       ";
       $stmtLog = $conn->prepare($sqlLog);
-  
-      // Nuevamente variables intermedias
       $operadorId = $_SESSION['ID_Operador'];
       $fechaHora  = date('Y-m-d H:i:s');
-  
-      $stmtLog->bind_param(
-          'iisss',
-          $id,
-          $operadorId,
-          $fechaHora,
-          $old,
-          $nuevo
-      );
-  }
-  
-  $stmtLog->execute();
-  
+      $stmtLog->bind_param('iisss', $id, $operadorId, $fechaHora, $old, $nuevo);
+    }
+
+    $stmtLog->execute();
 
     header('Location: consolidar_trabajo.php');
     exit();
 }
 
-// Consultas para mostrar pendientes
 $sql_mul = "
   SELECT 
     M.ID_Multiplicacion AS id,
     O.Nombre            AS operador,
     V.Codigo_Variedad,
     V.Nombre_Variedad,
-    M.Fecha_Siembra,
+    DATE(M.Fecha_Siembra) AS Fecha_Siembra,
     M.Cantidad_Dividida AS cantidad
   FROM multiplicacion M
   JOIN operadores O ON M.Operador_Responsable = O.ID_Operador
@@ -129,7 +102,7 @@ $sql_enr = "
     O.Nombre             AS operador,
     V.Codigo_Variedad,
     V.Nombre_Variedad,
-    E.Fecha_Siembra,
+    DATE(E.Fecha_Siembra) AS Fecha_Siembra,
     E.Cantidad_Dividida   AS cantidad
   FROM enraizamiento E
   JOIN operadores O ON E.Operador_Responsable = O.ID_Operador
@@ -155,11 +128,11 @@ $result_enr = $conn->query($sql_enr);
     let START_TS         = <?= $nowTs           * 1000 ?>;
   </script>
 </head>
-<body class="scrollable">
+<body>
   <div class="contenedor-pagina">
     <header>
       <div class="encabezado d-flex align-items-center">
-        <a class="navbar-brand me-3" href="#">
+        <a class="navbar-brand me-3" href="dashboard_rrs.php">
           <img src="../logoplantulas.png" width="130" height="124" alt="Logo">
         </a>
         <div>
@@ -254,76 +227,43 @@ $result_enr = $conn->query($sql_enr);
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
-  let modalShown = false,
-      warningTimer,
-      expireTimer;
-
-  // Función para mostrar el modal de aviso
-  function showModal() {
-    modalShown = true;
-    const modalHtml = `
-      <div id="session-warning" class="modal-overlay">
+  <!-- Modal de advertencia de sesión + Ping -->
+  <script>
+  (function(){
+    let modalShown = false, warningTimer, expireTimer;
+    function showModal() {
+      modalShown = true;
+      const modalHtml = `<div id="session-warning" class="modal-overlay">
         <div class="modal-box">
           <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
           <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
-        </div>
-      </div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
-  }
-
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
-    fetch('../keepalive.php', { credentials: 'same-origin' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
-          alert('No se pudo extender la sesión');
-        }
-      })
-      .catch(() => alert('Error al mantener viva la sesión'));
-  }
-
-  // Configura los timeouts para mostrar el aviso y para la expiración real
-  function scheduleTimers() {
-    const elapsed     = Date.now() - START_TS;
-    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
-    const expireAfter = SESSION_LIFETIME;
-
-    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
-
-    expireTimer = setTimeout(() => {
-      if (!modalShown) {
-        showModal();
-      } else {
-        window.location.href = '/plantulas/login.php?mensaje='
-          + encodeURIComponent('Sesión caducada por inactividad');
-      }
-    }, Math.max(expireAfter - elapsed, 0));
-  }
-
-  // Inicia la lógica al cargar el script
-  scheduleTimers();
-})();
+        </div></div>`;
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      document.getElementById('keepalive-btn').addEventListener('click', () => { cerrarModalYReiniciar(); });
+    }
+    function cerrarModalYReiniciar() {
+      const modal = document.getElementById('session-warning');
+      if (modal) modal.remove();
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    }
+    function reiniciarTimers() {
+      START_TS = Date.now(); modalShown = false;
+      clearTimeout(warningTimer); clearTimeout(expireTimer); scheduleTimers();
+    }
+    function scheduleTimers() {
+      const elapsed = Date.now() - START_TS;
+      warningTimer = setTimeout(showModal, Math.max(SESSION_LIFETIME - WARNING_OFFSET - elapsed, 0));
+      expireTimer = setTimeout(() => {
+        if (!modalShown) { showModal(); }
+        else { window.location.href = '/plantulas/login.php?mensaje=' + encodeURIComponent('Sesión caducada por inactividad'); }
+      }, Math.max(SESSION_LIFETIME - elapsed, 0));
+    }
+    ['click', 'keydown'].forEach(event => {
+      document.addEventListener(event, () => { reiniciarTimers(); fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {}); });
+    });
+    scheduleTimers();
+  })();
   </script>
 </body>
 </html>

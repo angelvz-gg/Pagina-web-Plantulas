@@ -8,6 +8,10 @@ error_reporting(E_ALL);
 require_once __DIR__ . '/../session_manager.php';
 require_once __DIR__ . '/../db.php';
 
+// Definir la zona horaria a México (CDMX)
+date_default_timezone_set('America/Mexico_City');
+$conn->query("SET time_zone = '-06:00'");
+
 if (!isset($_SESSION['ID_Operador'])) {
     header('Location: ../login.php?mensaje=Debe iniciar sesión');
     exit;
@@ -29,12 +33,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id_orden'])) {
     $tuppers_infectados = intval($_POST['tuppers_infectados']);
     $observaciones = trim($_POST['observaciones'] ?? '');
 
+    // 🔒 Validaciones antes de insertar
+
+    // 1️⃣ Obtener la cantidad asignada (Cantidad_Lavada) de la orden
+    $stmt_cantidad = $conn->prepare("SELECT Cantidad_Lavada FROM orden_tuppers_lavado WHERE ID_Orden = ?");
+    $stmt_cantidad->bind_param("i", $id_orden);
+    $stmt_cantidad->execute();
+    $res_cantidad = $stmt_cantidad->get_result();
+    $datos_orden = $res_cantidad->fetch_assoc();
+
+    if (!$datos_orden) {
+        echo "<script>alert('❌ La orden no existe.'); window.history.back();</script>";
+        exit;
+    }
+
+    $cantidad_asignada = (int)$datos_orden['Cantidad_Lavada'];
+
+    // 2️⃣ Validar tuppers buenos no excedan la cantidad asignada
+    if ($tuppers_buenos > $cantidad_asignada) {
+        echo "<script>alert('❌ La cantidad de tuppers en buen estado no puede ser mayor que la cantidad asignada: {$cantidad_asignada}.'); window.history.back();</script>";
+        exit;
+    }
+
+    // 3️⃣ Validar suma de tuppers buenos + infectados no exceda la cantidad asignada
+    $total = $tuppers_buenos + $tuppers_infectados;
+    if ($total > $cantidad_asignada) {
+        echo "<script>alert('❌ La suma de tuppers en buen estado e infectados no puede superar la cantidad asignada: {$cantidad_asignada}.'); window.history.back();</script>";
+        exit;
+    }
+
+    // 4️⃣ Sanitizar observaciones
+    $observaciones = strip_tags($observaciones);
+    $observaciones = htmlspecialchars($observaciones);
+
+$fecha_registro = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y-m-d H:i:s');
+
     // 1. Insertar en preparacion_cajas
     $query_registro = "INSERT INTO preparacion_cajas 
                        (ID_Orden, ID_Operador, Tuppers_Buenos, Tuppers_Infectados, Observaciones, Fecha_Registro)
-                       VALUES (?, ?, ?, ?, ?, NOW())";
+                       VALUES (?, ?, ?, ?, ?, ?)";
     $stmt_registro = $conn->prepare($query_registro);
-    $stmt_registro->bind_param("iiiis", $id_orden, $ID_Operador, $tuppers_buenos, $tuppers_infectados, $observaciones);
+    $stmt_registro->bind_param("iiiiss", $id_orden, $ID_Operador, $tuppers_buenos, $tuppers_infectados, $observaciones, $fecha_registro);
 
     if ($stmt_registro->execute()) {
 
@@ -249,15 +288,13 @@ function prepararCaja(idOrden, variedad, cantidad) {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<script>
+(function(){
   let modalShown = false,
       warningTimer,
       expireTimer;
 
-  // Función para mostrar el modal de aviso
   function showModal() {
     modalShown = true;
     const modalHtml = `
@@ -268,37 +305,36 @@ function prepararCaja(idOrden, variedad, cantidad) {
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
+        if (data.status !== 'OK') {
           alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
   }
 
-  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
+  }
+
   function scheduleTimers() {
     const elapsed     = Date.now() - START_TS;
     const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
@@ -316,9 +352,16 @@ function prepararCaja(idOrden, variedad, cantidad) {
     }, Math.max(expireAfter - elapsed, 0));
   }
 
-  // Inicia la lógica al cargar el script
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
   scheduleTimers();
 })();
-  </script>
+</script>
+
 </body>
 </html>

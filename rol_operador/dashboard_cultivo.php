@@ -78,6 +78,18 @@ if ($ID_Operador) {
     if ($row = $result_multiplicacion->fetch_assoc()) {
         $tieneAsignacionesMultiplicacion = $row['total'] > 0;
     }
+
+// Verificar si el operador tiene materiales asignados
+$stmt_materiales = $conn->prepare("
+  SELECT COUNT(*) AS total FROM suministro_material WHERE id_operador = ?
+");
+$stmt_materiales->bind_param("i", $ID_Operador);
+$stmt_materiales->execute();
+$result_materiales = $stmt_materiales->get_result();
+$materialesAsignados = 0;
+if ($row = $result_materiales->fetch_assoc()) {
+    $materialesAsignados = $row['total'];
+}
 }
 ?>
 
@@ -128,11 +140,29 @@ if ($ID_Operador) {
           <p>Revisa tus etapas asignadas.</p>
           <a href="reporte_diseccion.php">Trabajo en Disección</a>
         </div>
+
+        <?php if ($materialesAsignados > 0): ?>
+          <div class="card">
+            <h2>📦 Materiales Asignados</h2>
+            <p>Tienes artículos asignados para tu trabajo.</p>
+            <a href="ver_materiales.php" class="btn btn-primary">Ver mis materiales</a>
+          </div>
+        <?php endif; ?>
+
         <div class="card">
           <h2>📝 Asignación de Limpieza</h2>
           <p>Revisa qué área tienes asignada para limpieza.</p>
           <a href="area_limpieza.php">Ver detalles</a>
         </div>
+        
+        <?php if ($tieneAsignacionesMultiplicacion): ?>
+          <div class="card">
+            <h2>🧬 Trabajo en Multiplicación</h2>
+            <p>Tienes asignaciones pendientes de multiplicación para trabajar.</p>
+            <a href="trabajo_multiplicacion.php">Ver mis Asignaciones</a>
+          </div>
+        <?php endif; ?>
+
         <div class="card">
           <h2>🗂 Asignación para Clasificación</h2>
           <p>Revisa tu rol para la clasificación de plantas.</p>
@@ -163,14 +193,6 @@ if ($ID_Operador) {
           </div>
         <?php endif; ?>
 
-        <?php if ($tieneAsignacionesMultiplicacion): ?>
-          <div class="card">
-            <h2>🧬 Trabajo en Multiplicación</h2>
-            <p>Tienes asignaciones pendientes de multiplicación para trabajar.</p>
-            <a href="trabajo_multiplicacion.php">Ver mis Asignaciones</a>
-          </div>
-        <?php endif; ?>
-
       </section>
     </main>
 
@@ -181,15 +203,13 @@ if ($ID_Operador) {
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<script>
+(function(){
   let modalShown = false,
       warningTimer,
       expireTimer;
 
-  // Función para mostrar el modal de aviso
   function showModal() {
     modalShown = true;
     const modalHtml = `
@@ -200,37 +220,36 @@ if ($ID_Operador) {
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
+        if (data.status !== 'OK') {
           alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
   }
 
-  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
+  }
+
   function scheduleTimers() {
     const elapsed     = Date.now() - START_TS;
     const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
@@ -248,9 +267,16 @@ if ($ID_Operador) {
     }, Math.max(expireAfter - elapsed, 0));
   }
 
-  // Inicia la lógica al cargar el script
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
   scheduleTimers();
 })();
-  </script>
+</script>
+
 </body>
 </html>

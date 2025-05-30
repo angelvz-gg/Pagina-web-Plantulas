@@ -23,10 +23,8 @@ $sessionLifetime = 60 * 3;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
-
 require __DIR__ . '/../libs/dompdf/autoload.inc.php';
 use Dompdf\Dompdf;
-
 
 $operador   = trim($_GET['operador']   ?? '');
 $fechaDesde = $_GET['desde']          ?? '';
@@ -164,13 +162,13 @@ $opsResult = $conn->query($opsSql);
     const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
     const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
     let START_TS         = <?= $nowTs           * 1000 ?>;
-  </script> 
+  </script>
 </head>
-<body class="scrollable">
+<body>
   <div class="contenedor-pagina">
     <header>
       <div class="encabezado d-flex align-items-center">
-        <a class="navbar-brand me-3" href="#">
+        <a class="navbar-brand me-3" href="dashboard_rrs.php">
           <img src="../logoplantulas.png" width="130" height="124" alt="Logo">
         </a>
         <div>
@@ -191,43 +189,42 @@ $opsResult = $conn->query($opsSql);
         </nav>
       </div>
 
-<nav class="filter-toolbar d-flex flex-wrap align-items-center mb-2">
-  <div class="me-3 d-flex flex-column">
-    <label for="filtro-operador" class="small mb-0">Operador</label>
-    <select id="filtro-operador" name="operador" form="filtrosForm"
-            class="form-select form-select-sm" style="min-width:120px;">
-      <option value="">— Todos —</option>
-      <?php while($o = $opsResult->fetch_assoc()): ?>
-        <option value="<?= htmlspecialchars($o['Operador'])?>"
-          <?= $o['Operador'] === $operador ? 'selected' : ''?>>
-          <?= htmlspecialchars($o['Operador'])?>
-        </option>
-      <?php endwhile; ?>
-    </select>
-  </div>
+      <nav class="filter-toolbar d-flex flex-wrap align-items-center mb-2">
+        <div class="me-3 d-flex flex-column">
+          <label for="filtro-operador" class="small mb-0">Operador</label>
+          <select id="filtro-operador" name="operador" form="filtrosForm"
+                  class="form-select form-select-sm" style="min-width:120px;">
+            <option value="">— Todos —</option>
+            <?php while($o = $opsResult->fetch_assoc()): ?>
+              <option value="<?= htmlspecialchars($o['Operador'])?>"
+                <?= $o['Operador'] === $operador ? 'selected' : ''?>>
+                <?= htmlspecialchars($o['Operador'])?>
+              </option>
+            <?php endwhile; ?>
+          </select>
+        </div>
 
-  <div class="me-3 d-flex flex-column">
-    <label for="filtro-desde" class="small mb-0">Desde</label>
-    <input id="filtro-desde" form="filtrosForm" type="date" name="desde"
-           class="form-control form-control-sm" style="max-width:120px;"
-           value="<?= $fechaDesde ?>">
-  </div>
+        <div class="me-3 d-flex flex-column">
+          <label for="filtro-desde" class="small mb-0">Desde</label>
+          <input id="filtro-desde" form="filtrosForm" type="date" name="desde"
+                 class="form-control form-control-sm" style="max-width:120px;"
+                 value="<?= $fechaDesde ?>">
+        </div>
 
-  <div class="me-3 d-flex flex-column">
-    <label for="filtro-hasta" class="small mb-0">Hasta</label>
-    <input id="filtro-hasta" form="filtrosForm" type="date" name="hasta"
-           class="form-control form-control-sm" style="max-width:120px;"
-           value="<?= $fechaHasta ?>">
-  </div>
+        <div class="me-3 d-flex flex-column">
+          <label for="filtro-hasta" class="small mb-0">Hasta</label>
+          <input id="filtro-hasta" form="filtrosForm" type="date" name="hasta"
+                 class="form-control form-control-sm" style="max-width:120px;"
+                 value="<?= $fechaHasta ?>">
+        </div>
 
-  <button form="filtrosForm" type="submit"
-          class="btn-inicio btn btn-success btn-sm ms-auto">
-    Aplicar filtros
-  </button>
-</nav>
+        <button form="filtrosForm" type="submit"
+                class="btn-inicio btn btn-success btn-sm ms-auto">
+          Aplicar filtros
+        </button>
+      </nav>
 
     </header>
-    
 
     <main class="container-fluid mt-3">
       <form id="filtrosForm" method="GET" class="d-none"></form>
@@ -284,80 +281,48 @@ $opsResult = $conn->query($opsSql);
       </div>
     </main>
 
-    <footer class="text-center py-3">&copy; 2025 PLANTAS AGRODEX</footer>
+    <footer class="text-center py-3">&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</footer>
   </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-   <!-- Modal de advertencia de sesión -->
-<script>
- (function(){
-  // Estado y referencias a los temporizadores
-  let modalShown = false,
-      warningTimer,
-      expireTimer;
-
-  // Función para mostrar el modal de aviso
-  function showModal() {
-    modalShown = true;
-    const modalHtml = `
-      <div id="session-warning" class="modal-overlay">
+  <!-- Modal de advertencia de sesión + Ping -->
+  <script>
+  (function(){
+    let modalShown = false, warningTimer, expireTimer;
+    function showModal() {
+      modalShown = true;
+      const modalHtml = `<div id="session-warning" class="modal-overlay">
         <div class="modal-box">
           <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
           <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
-        </div>
-      </div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
-  }
-
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
-    fetch('../keepalive.php', { credentials: 'same-origin' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
-          alert('No se pudo extender la sesión');
-        }
-      })
-      .catch(() => alert('Error al mantener viva la sesión'));
-  }
-
-  // Configura los timeouts para mostrar el aviso y para la expiración real
-  function scheduleTimers() {
-    const elapsed     = Date.now() - START_TS;
-    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
-    const expireAfter = SESSION_LIFETIME;
-
-    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
-
-    expireTimer = setTimeout(() => {
-      if (!modalShown) {
-        showModal();
-      } else {
-        window.location.href = '/plantulas/login.php?mensaje='
-          + encodeURIComponent('Sesión caducada por inactividad');
-      }
-    }, Math.max(expireAfter - elapsed, 0));
-  }
-
-  // Inicia la lógica al cargar el script
-  scheduleTimers();
-})();
+        </div></div>`;
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      document.getElementById('keepalive-btn').addEventListener('click', () => { cerrarModalYReiniciar(); });
+    }
+    function cerrarModalYReiniciar() {
+      const modal = document.getElementById('session-warning');
+      if (modal) modal.remove();
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    }
+    function reiniciarTimers() {
+      START_TS = Date.now(); modalShown = false;
+      clearTimeout(warningTimer); clearTimeout(expireTimer); scheduleTimers();
+    }
+    function scheduleTimers() {
+      const elapsed = Date.now() - START_TS;
+      warningTimer = setTimeout(showModal, Math.max(SESSION_LIFETIME - WARNING_OFFSET - elapsed, 0));
+      expireTimer = setTimeout(() => {
+        if (!modalShown) { showModal(); }
+        else { window.location.href = '/plantulas/login.php?mensaje=' + encodeURIComponent('Sesión caducada por inactividad'); }
+      }, Math.max(SESSION_LIFETIME - elapsed, 0));
+    }
+    ['click', 'keydown'].forEach(event => {
+      document.addEventListener(event, () => { reiniciarTimers(); fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {}); });
+    });
+    scheduleTimers();
+  })();
   </script>
 </body>
 </html>

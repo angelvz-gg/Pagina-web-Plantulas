@@ -547,6 +547,94 @@ main {
     scroll-snap-align: start;       /* “snap” al hacer scroll */
   }
   
+  /* =========================
+   TARJETAS COMPACTAS MULTIPLICACIÓN (Estilo Carrusel OPERADORES)
+   ========================= */
+.card-asignacion {
+  flex: 0 0 auto;
+  width: 220px;
+  padding: 14px 10px;
+  background: linear-gradient(to bottom right, #fffdf5, #fdf6e3);
+  border: 1px solid #e0c080;
+  border-radius: 12px;
+  margin-right: 12px; 
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  text-align: center;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  scroll-snap-align: start;
+}
+
+.card-asignacion h3 {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #3b3b3b;
+  margin-bottom: 0.4rem;
+}
+
+.card-asignacion p {
+  font-size: 1.15rem;
+  margin: 0.2rem 0;
+  color: #40502a;
+}
+
+.card-asignacion:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+
+.card-asignacion.selected {
+  border: 2px solid #d9b310;
+  transform: scale(1.06);
+  z-index: 1;
+}
+
+.card-asignacion.blur {
+  filter: blur(0.9px) brightness(0.9);
+}
+
+/* Carrusel horizontal opcional */
+.carrousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 10px 20px;
+  scroll-snap-type: x mandatory;
+}
+.carrousel::-webkit-scrollbar {
+  height: 6px;
+}
+.carrousel::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+/* Formulario forzado a usar columnas Bootstrap correctamente */
+.formulario-bootstrap {
+  max-width: 100% !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* Contenedor estilo carrusel opcional */
+.carrusel-asignaciones {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 10px 0;
+  scroll-snap-type: x mandatory;
+}
+
+.carrusel-asignaciones::-webkit-scrollbar {
+  height: 6px;
+}
+.carrusel-asignaciones::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+
   /* Hover para destacar la carta bajo el puntero */
   .tarjeta-desinf:hover {
     transform: translateY(-4px);
@@ -564,7 +652,22 @@ main {
   .tarjeta-desinf.blur {
     filter: blur(1.3px) brightness(0.7);
   }
-  
+  .dato-tarjeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.05rem;
+  margin: 4px 0;
+}
+
+.dato-tarjeta .etiqueta {
+  font-weight: bold;
+  color: #3c3c3c;
+}
+
+.dato-tarjeta .valor {
+  color: #40502a;
+}
+
 
   /* =========================
      FORMULARIOS Y COLUMNAS

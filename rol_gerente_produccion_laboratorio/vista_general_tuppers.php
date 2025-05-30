@@ -23,50 +23,93 @@ $sessionLifetime = 60 * 3;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
-// 3) Capturar filtros
-$filter_fecha  = $_GET['fecha']  ?? '';
-$filter_area   = $_GET['area']   ?? '';
-$filter_estado = $_GET['estado'] ?? '';
+// 1) Capturar filtros
+$filter_estado      = $_GET['estado']      ?? '';
+$filter_etapa       = $_GET['etapa']       ?? '';
+$filter_variedad    = $_GET['variedad']    ?? '';
+$filter_responsable = $_GET['responsable'] ?? '';
+$filter_fecha       = $_GET['fecha']       ?? '';
 
-// 4) Construir consulta con WHERE dinámico
-$where = [];
-if ($filter_fecha)  $where[] = "LR.Fecha = '" . $conn->real_escape_string($filter_fecha) . "'";
-if ($filter_area)   $where[] = "LR.Area  = '" . $conn->real_escape_string($filter_area)   . "'";
-if ($filter_estado) $where[] = "LR.Estado_Limpieza = '" . $conn->real_escape_string($filter_estado) . "'";
-
-$sql = "
-  SELECT
-    LR.ID_Limpieza         AS id,
-    CONCAT(O.Nombre,' ',O.Apellido_P,' ',O.Apellido_M) AS operador,
-    LR.Fecha               AS fecha,
-    TIME(LR.Hora_Registro) AS hora,
-    LR.Area                AS area,
-    LR.Estado_Limpieza     AS estado
-  FROM registro_limpieza LR
-  JOIN operadores O ON LR.ID_Operador = O.ID_Operador
+// 2) Consulta base
+$baseSQL = "
+    SELECT 
+        l.ID_Lote,
+        CONCAT(v.Codigo_Variedad, ' – ', v.Nombre_Variedad) AS Variedad,
+        v.Color,
+        l.Fecha AS Fecha_Ingreso,
+        CASE 
+          WHEN l.ID_Etapa = 1 THEN COALESCE(s.Tuppers_Llenos,0) + COALESCE(d.Tuppers_Llenos,0)
+          WHEN l.ID_Etapa = 2 THEN COALESCE(m.Tuppers_Llenos,0)
+          WHEN l.ID_Etapa = 3 THEN COALESCE(e.Tuppers_Llenos,0)
+          ELSE 0
+        END AS Tuppers_Existentes,
+        CASE l.ID_Etapa
+          WHEN 1 THEN 'ECAS'
+          WHEN 2 THEN 'Multiplicación'
+          WHEN 3 THEN 'Enraizamiento'
+        END AS Etapa,
+        CASE 
+          WHEN l.ID_Etapa=1 AND s.ID_Siembra IS NOT NULL THEN 'Siembra'
+          WHEN l.ID_Etapa=1 AND d.ID_Division IS NOT NULL THEN 'División'
+          ELSE NULL
+        END AS Subetapa_ECAS,
+        CONCAT(o.Nombre,' ',o.Apellido_P,' ',o.Apellido_M) AS Responsable,
+        CASE 
+          WHEN l.ID_Etapa=2 THEN COALESCE(m.Estado_Revision,'S/D')
+          WHEN l.ID_Etapa=3 THEN COALESCE(e.Estado_Revision,'S/D')
+          ELSE 'S/D'
+        END AS Estado_Tupper
+    FROM lotes l
+    LEFT JOIN variedades v    ON l.ID_Variedad = v.ID_Variedad
+    LEFT JOIN operadores o    ON l.ID_Operador  = o.ID_Operador
+    LEFT JOIN siembra_ecas s  ON l.ID_Lote      = s.ID_Lote
+    LEFT JOIN division_ecas d ON s.ID_Siembra   = d.ID_Siembra
+    LEFT JOIN multiplicacion m ON l.ID_Lote     = m.ID_Lote
+    LEFT JOIN enraizamiento e  ON l.ID_Lote     = e.ID_Lote
 ";
+
+// 3) Aplicar filtros sobre alias (sub‐SELECT)
+$where = [];
+if ($filter_estado)      $where[] = "Estado_Tupper    = '" . $conn->real_escape_string($filter_estado) . "'";
+if ($filter_etapa)       $where[] = "Etapa            = '" . $conn->real_escape_string($filter_etapa) . "'";
+if ($filter_variedad)    $where[] = "Variedad LIKE   '%" . $conn->real_escape_string($filter_variedad) . "%'";
+if ($filter_responsable) $where[] = "Responsable LIKE '%" . $conn->real_escape_string($filter_responsable) . "%'";
+if ($filter_fecha)       $where[] = "Fecha_Ingreso   = '" . $conn->real_escape_string($filter_fecha) . "'";
+
+$sql = "SELECT * FROM ( $baseSQL ) AS t";
 if ($where) {
     $sql .= " WHERE " . implode(' AND ', $where);
 }
-$sql .= " ORDER BY LR.Fecha DESC, LR.Hora_Registro DESC";
+$sql .= " ORDER BY Fecha_Ingreso DESC";
 
-$result = $conn->query($sql);
-if (!$result) {
-    die("Error en la consulta: " . $conn->error);
-}
+$resultado = $conn->query($sql);
 
-// 5) Datos para selects dinámicos
-$areasResult   = $conn->query("SELECT DISTINCT Area FROM registro_limpieza ORDER BY Area");
-$estadosResult = $conn->query("SELECT DISTINCT Estado_Limpieza FROM registro_limpieza ORDER BY Estado_Limpieza");
+// 4) Opciones dinámicas para filtros
+$estadosResult      = $conn->query("SELECT DISTINCT Estado_Tupper    FROM ( $baseSQL ) AS t");
+$variedadesResult   = $conn->query("SELECT DISTINCT Variedad         FROM ( $baseSQL ) AS t ORDER BY Variedad");
+$responsablesResult = $conn->query("SELECT DISTINCT Responsable      FROM ( $baseSQL ) AS t ORDER BY Responsable");
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Limpieza de Repisas</title>
-  <link rel="stylesheet" href="../style.css?v=<?= time(); ?>"/>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vista General de Tuppers</title>
+  <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .etapa-ecas           { background-color: #f0f8ff !important; }
+    .subetapa-siembra     { background-color: #d1e7dd !important; }
+    .subetapa-division    { background-color: #bcd0c7 !important; }
+    .etapa-multiplicacion { background-color: #fff3cd !important; }
+    .etapa-enraizamiento  { background-color: #f8d7da !important; }
+
+    .filter-toolbar .form-select-sm {
+    padding-right: 1.5rem;               /* espacio para el texto */
+    background-position: right .5rem center; /* mueve la flecha más a la derecha */
+  }
+  </style>
   <script>
     const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
     const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
@@ -74,17 +117,15 @@ $estadosResult = $conn->query("SELECT DISTINCT Estado_Limpieza FROM registro_lim
   </script>
 </head>
 <body>
-  <div class="contenedor-pagina">
-    <header>
-      <div class="encabezado d-flex align-items-center">
-        <a class="navbar-brand me-3" href="#">
-          <img src="../logoplantulas.png" width="130" height="124" alt="Logo">
-        </a>
-        <div>
-          <h2>Historial de Limpieza de Repisas</h2>
-          <p class="mb-0">Revisa qué repisas y áreas se han limpiado.</p>
-        </div>
-      </div>
+<div class="contenedor-pagina">
+  <header>
+    <div class="encabezado d-flex align-items-center">
+      <a class="navbar-brand me-3" href="#">
+        <img src="../logoplantulas.png" width="130" height="124" alt="Logo">
+      </a>
+      <h2>📋 Vista General de Tuppers</h2>
+    </div>
+    <div class="barra-navegacion">
 
       <div class="barra-navegacion">
         <nav class="navbar bg-body-tertiary">
@@ -98,100 +139,109 @@ $estadosResult = $conn->query("SELECT DISTINCT Estado_Limpieza FROM registro_lim
         </nav>
       </div>
 
-        <!-- Nav de Filtros -->
- <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
-  <div class="d-flex flex-column" style="min-width:120px;">
-    <label for="filtro-fecha" class="small mb-1">Fecha</label>
-    <input id="filtro-fecha" type="date" name="fecha" form="filtrosForm"
-           class="form-control form-control-sm"
-           value="<?= htmlspecialchars($filter_fecha) ?>">
-  </div>
+      <!-- Nav de Filtros compactos -->
+      <nav class="filter-toolbar d-flex align-items-center gap-2 px-3 py-2" style="flex-wrap: nowrap; overflow-x: auto;">
+        <select name="estado" form="filtrosForm" class="form-select form-select-sm" style="width:120px;">
+          <option value="">— Todos Estados —</option>
+          <?php while($e = $estadosResult->fetch_assoc()): ?>
+            <option value="<?= $e['Estado_Tupper'] ?>" <?= $filter_estado === $e['Estado_Tupper'] ? 'selected':''?>>
+              <?= htmlspecialchars($e['Estado_Tupper']) ?>
+            </option>
+          <?php endwhile; ?>
+        </select>
 
-  <div class="d-flex flex-column" style="min-width:140px;">
-    <label for="filtro-area" class="small mb-1">Área</label>
-    <select id="filtro-area" name="area" form="filtrosForm"
-            class="form-select form-select-sm">
-      <option value="">— Todas Áreas —</option>
-      <?php while($a = $areasResult->fetch_assoc()): ?>
-        <option value="<?= htmlspecialchars($a['Area'])?>"
-          <?= $filter_area === $a['Area'] ? 'selected':''?>>
-          <?= htmlspecialchars($a['Area']) ?>
-        </option>
-      <?php endwhile; ?>
-    </select>
-  </div>
+        <select name="etapa" form="filtrosForm" class="form-select form-select-sm" style="width:120px;">
+          <option value="">— Todas Etapas —</option>
+          <option value="ECAS"           <?= $filter_etapa==='ECAS'           ? 'selected':'' ?>>ECAS</option>
+          <option value="Multiplicación" <?= $filter_etapa==='Multiplicación' ? 'selected':'' ?>>Multiplicación</option>
+          <option value="Enraizamiento"  <?= $filter_etapa==='Enraizamiento'  ? 'selected':'' ?>>Enraizamiento</option>
+        </select>
 
-  <div class="d-flex flex-column" style="min-width:140px;">
-    <label for="filtro-estado" class="small mb-1">Estado</label>
-    <select id="filtro-estado" name="estado" form="filtrosForm"
-            class="form-select form-select-sm">
-      <option value="">— Todos Estados —</option>
-      <?php while($e = $estadosResult->fetch_assoc()): ?>
-        <option value="<?= htmlspecialchars($e['Estado_Limpieza'])?>"
-          <?= $filter_estado === $e['Estado_Limpieza'] ? 'selected':''?>>
-          <?= htmlspecialchars($e['Estado_Limpieza']) ?>
-        </option>
-      <?php endwhile; ?>
-    </select>
-  </div>
+        <select name="variedad" form="filtrosForm" class="form-select form-select-sm" style="width:140px;">
+          <option value="">— Todas Variedades —</option>
+          <?php while($v = $variedadesResult->fetch_assoc()): ?>
+            <option value="<?= htmlspecialchars($v['Variedad'])?>" <?= $filter_variedad === $v['Variedad'] ? 'selected':''?>>
+              <?= htmlspecialchars($v['Variedad']) ?>
+            </option>
+          <?php endwhile; ?>
+        </select>
 
-  <button form="filtrosForm" type="submit"
-          class="btn-inicio btn btn-success btn-sm ms-auto">
-    Filtrar
-  </button>
-</nav>
+        <select name="responsable" form="filtrosForm" class="form-select form-select-sm" style="width:140px;">
+          <option value="">— Todos Responsables —</option>
+          <?php while($o = $responsablesResult->fetch_assoc()): ?>
+            <option value="<?= htmlspecialchars($o['Responsable'])?>" <?= $filter_responsable === $o['Responsable'] ? 'selected':''?>>
+              <?= htmlspecialchars($o['Responsable']) ?>
+            </option>
+          <?php endwhile; ?>
+        </select>
 
-<!-- Formulario oculto para filtros (déjalo donde estaba) -->
-<form id="filtrosForm" method="GET" class="d-none"></form>
+        <input type="date" name="fecha" form="filtrosForm" class="form-control form-control-sm" style="width:120px;" value="<?= htmlspecialchars($filter_fecha) ?>"/>
 
-    </header>
+        <button type="submit" form="filtrosForm" class="btn btn-success btn-sm">Filtrar</button>
+      </nav>
+    </div>
+  </header>
 
-    <!-- Formulario oculto para filtros -->
-    <form id="filtrosForm" method="GET" class="d-none"></form>
+  <!-- Formulario oculto para filtros -->
+  <form id="filtrosForm" method="GET" class="d-none"></form>
 
-    <main class="container mt-0">
-      <div class="table-responsive mb-4">
-        <table class="table table-striped table-sm align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>ID</th>
-              <th>Operador</th>
-              <th>Fecha</th>
-              <th>Hora</th>
-              <th>Área</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php while ($row = $result->fetch_assoc()): ?>
-            <tr>
-              <td data-label="ID"><?= $row['id'] ?></td>
-              <td data-label="Operador"><?= htmlspecialchars($row['operador']) ?></td>
-              <td data-label="Fecha"><?= htmlspecialchars($row['fecha']) ?></td>
-              <td data-label="Hora"><?= htmlspecialchars($row['hora']) ?></td>
-              <td data-label="Área"><?= htmlspecialchars($row['area']) ?></td>
-              <td data-label="Estado"><?= htmlspecialchars($row['estado']) ?></td>
-            </tr>
+  <main class="container-fluid mt-3">
+    <div class="table-responsive">
+      <table class="table table-bordered text-center">
+        <thead class="table-dark">
+          <tr>
+            <th>ID Lote</th>
+            <th>Variedad</th>
+            <th>Color</th>
+            <th>Fecha Ingreso</th>
+            <th>Cantidad Tuppers</th>
+            <th>Etapa</th>
+            <th>Subetapa ECAS</th>
+            <th>Responsable</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php if ($resultado->num_rows): ?>
+            <?php while ($row = $resultado->fetch_assoc()):
+              $clase = match($row['Etapa']) {
+                'ECAS'           => ($row['Subetapa_ECAS']==='Siembra' ? 'subetapa-siembra' : ($row['Subetapa_ECAS']==='División' ? 'subetapa-division' : 'etapa-ecas')),
+                'Multiplicación' => 'etapa-multiplicacion',
+                'Enraizamiento'  => 'etapa-enraizamiento',
+                default          => ''
+              };
+            ?>
+              <tr class="<?= $clase ?>">
+                <td><?= $row['ID_Lote'] ?></td>
+                <td><?= htmlspecialchars($row['Variedad']) ?></td>
+                <td><?= htmlspecialchars($row['Color'] ?? 'N/A') ?></td>
+                <td><?= htmlspecialchars($row['Fecha_Ingreso']) ?></td>
+                <td><?= $row['Tuppers_Existentes'] ?></td>
+                <td><?= htmlspecialchars($row['Etapa']) ?></td>
+                <td><?= htmlspecialchars($row['Subetapa_ECAS'] ?? '-') ?></td>
+                <td><?= htmlspecialchars($row['Responsable']) ?></td>
+                <td><?= htmlspecialchars($row['Estado_Tupper']) ?></td>
+              </tr>
             <?php endwhile; ?>
-          </tbody>
-        </table>
-      </div>
-    </main>
+          <?php else: ?>
+            <tr><td colspan="9">No se encontraron tuppers.</td></tr>
+          <?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+  </main>
 
-    <footer class="text-center py-3">&copy; 2025 PLANTAS AGRODEX</footer>
-  </div>
+  <footer class="text-center py-3">&copy; 2025 PLANTAS AGRODEX</footer>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<script>
+(function(){
   let modalShown = false,
       warningTimer,
       expireTimer;
 
-  // Función para mostrar el modal de aviso
   function showModal() {
     modalShown = true;
     const modalHtml = `
@@ -202,37 +252,36 @@ $estadosResult = $conn->query("SELECT DISTINCT Estado_Limpieza FROM registro_lim
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
+        if (data.status !== 'OK') {
           alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
   }
 
-  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
+  }
+
   function scheduleTimers() {
     const elapsed     = Date.now() - START_TS;
     const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
@@ -250,9 +299,16 @@ $estadosResult = $conn->query("SELECT DISTINCT Estado_Limpieza FROM registro_lim
     }, Math.max(expireAfter - elapsed, 0));
   }
 
-  // Inicia la lógica al cargar el script
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
   scheduleTimers();
 })();
-  </script>
+</script>
+  
 </body>
 </html>

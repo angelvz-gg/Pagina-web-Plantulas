@@ -8,6 +8,9 @@ error_reporting(E_ALL);
 require_once __DIR__ . '/../session_manager.php';
 require_once __DIR__ . '/../db.php';
 
+date_default_timezone_set('America/Mexico_City');
+$conn->query("SET time_zone = '-06:00'");
+
 if (!isset($_SESSION['ID_Operador'])) {
     header('Location: ../login.php?mensaje=Debe iniciar sesión');
     exit;
@@ -24,10 +27,9 @@ $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
 // Consultar asignaciones
-$sql_asignacion = "SELECT AL.ID, AL.ID_Variedad, AL.Fecha, V.Nombre_Variedad, AL.Rol, AL.Cantidad_Tuppers, L.ID_Lote, AL.Estado_Final
+$sql_asignacion = "SELECT AL.ID, AL.ID_Variedad, AL.Fecha, V.Nombre_Variedad, AL.Rol, AL.Cantidad_Tuppers, AL.Estado_Final
                    FROM asignacion_lavado AL
                    JOIN variedades V ON AL.ID_Variedad = V.ID_Variedad
-                   JOIN lotes L ON V.ID_Variedad = L.ID_Variedad
                    WHERE AL.ID_Operador = ? AND AL.Fecha = CURDATE()";
 $stmt_asignacion = $conn->prepare($sql_asignacion);
 $stmt_asignacion->bind_param("i", $ID_Operador);
@@ -37,29 +39,64 @@ $asignaciones = $result_asignacion->fetch_all(MYSQLI_ASSOC);
 
 // Avances registrados
 $avances_realizados = [];
-$sql_check_avances = "SELECT ID_Variedad, SUM(Tuppers_Lavados) AS Tuppers_Lavados FROM reporte_lavado_parcial WHERE ID_Operador = ? AND Fecha = CURDATE() GROUP BY ID_Variedad";
+$sql_check_avances = "SELECT ID_Asignacion, SUM(Tuppers_Lavados) AS Tuppers_Lavados FROM reporte_lavado_parcial WHERE ID_Operador = ? AND DATE(Fecha) = CURDATE() GROUP BY ID_Asignacion";
 $stmt_check = $conn->prepare($sql_check_avances);
 $stmt_check->bind_param("i", $ID_Operador);
 $stmt_check->execute();
 $res_check = $stmt_check->get_result();
 while ($row = $res_check->fetch_assoc()) {
-    $avances_realizados[$row['ID_Variedad']] = $row['Tuppers_Lavados'];
+    $avances_realizados[$row['ID_Asignacion']] = $row['Tuppers_Lavados'];
+}
+
+// Finales registrados
+$finales_realizados = [];
+$sql_check_finales = "SELECT ID_Asignacion, SUM(Tuppers_Lavados_Final) AS Tuppers_Final FROM reporte_lavado_final WHERE ID_Operador = ? AND DATE(Fecha) = CURDATE() GROUP BY ID_Asignacion";
+$stmt_finales = $conn->prepare($sql_check_finales);
+$stmt_finales->bind_param("i", $ID_Operador);
+$stmt_finales->execute();
+$res_finales = $stmt_finales->get_result();
+while ($row = $res_finales->fetch_assoc()) {
+   $finales_realizados[$row['ID_Asignacion']] = $row['Tuppers_Final'];
 }
 
 // Guardar avance o cierre
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["accion"])) {
     $accion = $_POST["accion"];
     $id_variedad = $_POST["id_variedad"];
-    $id_lote = $_POST["id_lote"];
     $id_asignacion = $_POST["id_asignacion"];
-    $fecha = date('Y-m-d');
+    $fecha_registro = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y-m-d H:i:s');
+
+    // Obtener tuppers asignados para esta asignación
+    $stmt_asignados = $conn->prepare("SELECT Cantidad_Tuppers FROM asignacion_lavado WHERE ID = ?");
+    $stmt_asignados->bind_param("i", $id_asignacion);
+    $stmt_asignados->execute();
+    $res_asignados = $stmt_asignados->get_result()->fetch_assoc();
+    $asignados = (int)$res_asignados['Cantidad_Tuppers'];
 
     if ($accion == "avance") {
-        $tuppers_lavados = $_POST["tuppers_lavados"];
+        $tuppers_lavados = (int)$_POST["tuppers_lavados"];
         $observaciones = $_POST["observaciones"] ?? null;
 
-        $stmt = $conn->prepare("INSERT INTO reporte_lavado_parcial (ID_Operador, ID_Variedad, Fecha, Tuppers_Lavados, Observaciones) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("iisis", $ID_Operador, $id_variedad, $fecha, $tuppers_lavados, $observaciones);
+        // Verificar que no haya otro avance
+$stmt_check_avance = $conn->prepare("SELECT COUNT(*) AS total FROM reporte_lavado_parcial WHERE ID_Operador = ? AND ID_Asignacion = ? AND DATE(Fecha) = CURDATE()");
+$stmt_check_avance->bind_param("ii", $ID_Operador, $id_asignacion);
+        $stmt_check_avance->execute();
+        $res_avance = $stmt_check_avance->get_result()->fetch_assoc();
+
+        if ($res_avance['total'] > 0) {
+            echo "<script>alert('❌ Ya registraste el avance para hoy. No puedes registrar otro.'); window.location.href='relacion_lavado.php';</script>";
+            exit();
+        }
+
+        // Validar cantidad
+        if ($tuppers_lavados < 1 || $tuppers_lavados > $asignados) {
+            echo "<script>alert('❌ La cantidad de tuppers lavados debe ser mayor a 0 y no puede exceder los tuppers asignados ($asignados).'); window.location.href='relacion_lavado.php';</script>";
+            exit();
+        }
+
+        // Insertar avance
+        $stmt = $conn->prepare("INSERT INTO reporte_lavado_parcial (ID_Operador, ID_Asignacion, ID_Variedad, Fecha, Tuppers_Lavados, Observaciones) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("iiisis", $ID_Operador, $id_asignacion, $id_variedad, $fecha_registro, $tuppers_lavados, $observaciones);
         $stmt->execute();
 
         echo "<script>alert('✅ Avance registrado correctamente.'); window.location.href='relacion_lavado.php';</script>";
@@ -67,13 +104,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["accion"])) {
     }
 
     if ($accion == "final") {
-        $tuppers_finales = $_POST["tuppers_finales"];
+        $tuppers_finales = (int)$_POST["tuppers_finales"];
         $observaciones_finales = $_POST["observaciones_finales"] ?? null;
 
-        $stmt = $conn->prepare("INSERT INTO reporte_lavado_final (ID_Operador, ID_Variedad, Fecha, Tuppers_Lavados_Final, Observaciones) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("iisis", $ID_Operador, $id_variedad, $fecha, $tuppers_finales, $observaciones_finales);
+        // Verificar que no haya otro final
+$stmt_check_final = $conn->prepare("SELECT COUNT(*) AS total FROM reporte_lavado_final WHERE ID_Operador = ? AND ID_Asignacion = ? AND DATE(Fecha) = CURDATE()");
+$stmt_check_final->bind_param("ii", $ID_Operador, $id_asignacion);
+        $stmt_check_final->execute();
+        $res_final = $stmt_check_final->get_result()->fetch_assoc();
+
+        if ($res_final['total'] > 0) {
+            echo "<script>alert('❌ Ya registraste el reporte final para hoy. No puedes registrar otro.'); window.location.href='relacion_lavado.php';</script>";
+            exit();
+        }
+
+        // Obtener avance registrado (si existe)
+$stmt_check_avance = $conn->prepare("SELECT Tuppers_Lavados FROM reporte_lavado_parcial WHERE ID_Operador = ? AND ID_Asignacion = ? AND DATE(Fecha) = CURDATE()");
+$stmt_check_avance->bind_param("ii", $ID_Operador, $id_asignacion);
+        $stmt_check_avance->execute();
+        $res_avance = $stmt_check_avance->get_result()->fetch_assoc();
+        $avance = (int)($res_avance['Tuppers_Lavados'] ?? 0);
+
+        $total_lavados = $avance + $tuppers_finales;
+
+        if ($total_lavados > $asignados) {
+            echo "<script>alert('❌ El total de tuppers lavados (avance + final) excede los $asignados tuppers asignados. Verifica los datos.'); window.location.href='relacion_lavado.php';</script>";
+            exit();
+        }
+
+        // Insertar final
+        $stmt = $conn->prepare("INSERT INTO reporte_lavado_final (ID_Operador, ID_Asignacion, ID_Variedad, Fecha, Tuppers_Lavados_Final, Observaciones) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("iiisis", $ID_Operador, $id_asignacion, $id_variedad, $fecha_registro, $tuppers_finales, $observaciones_finales);
         $stmt->execute();
 
+        // Marcar asignación como completada
         $stmt_update = $conn->prepare("UPDATE asignacion_lavado SET Estado_Final = 'Completada' WHERE ID = ?");
         $stmt_update->bind_param("i", $id_asignacion);
         $stmt_update->execute();
@@ -119,14 +183,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["accion"])) {
   </header>
 
   <main class="container mt-4">
-    <?php if (!empty($asignaciones)): ?>
-        <h3 class="mb-4">🧽 Mis Asignaciones de Hoy</h3>
-        <div class="carrusel-desinfecciones">
-          <?php foreach ($asignaciones as $asignacion): ?>
-            <?php
-              $avance = $avances_realizados[$asignacion['ID_Variedad']] ?? 0;
-              $restante = max(0, $asignacion['Cantidad_Tuppers'] - $avance);
-            ?>
+  <?php if (!empty($asignaciones)): ?>
+      <h3 class="mb-4">🧽 Mis Asignaciones de Hoy</h3>
+      <div class="carrusel-desinfecciones">
+        <?php foreach ($asignaciones as $asignacion): ?>
+          <?php
+          $avance = $avances_realizados[$asignacion['ID']] ?? 0;
+          $final = $finales_realizados[$asignacion['ID']] ?? 0;
+          $total_lavados = $avance + $final;
+          $restante = max(0, $asignacion['Cantidad_Tuppers'] - $total_lavados);
+          ?>
+
+          <?php if ($restante > 0): // Mostrar solo si hay tuppers restantes ?>
             <div class="tarjeta-desinf" onclick="mostrarFormulario(<?= $asignacion['ID'] ?>)" id="card-<?= $asignacion['ID'] ?>">
               <strong><?= htmlspecialchars($asignacion['Nombre_Variedad']) ?></strong><br>
               Tuppers asignados: <?= $asignacion['Cantidad_Tuppers'] ?><br>
@@ -135,18 +203,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["accion"])) {
               Rol: <?= $asignacion['Rol'] ?><br>
               Fecha: <?= $asignacion['Fecha'] ?>
             </div>
-          <?php endforeach; ?>
-        </div>
+          <?php endif; ?>
+        <?php endforeach; ?>
+      </div>
 
-        <?php foreach ($asignaciones as $asignacion): ?>
+      <?php foreach ($asignaciones as $asignacion): ?>
+        <?php
+        $avance = $avances_realizados[$asignacion['ID']] ?? 0;
+        $final = $finales_realizados[$asignacion['ID']] ?? 0;
+        $total_lavados = $avance + $final;
+        $restante = max(0, $asignacion['Cantidad_Tuppers'] - $total_lavados);
+        ?>
+        <?php if ($restante > 0): // Mostrar formulario solo si hay tuppers restantes ?>
           <form method="POST" id="formulario-<?= $asignacion['ID'] ?>" class="formulario-siembra mt-4" style="display:none;">
             <input type="hidden" name="id_variedad" value="<?= $asignacion['ID_Variedad'] ?>">
-            <input type="hidden" name="id_lote" value="<?= $asignacion['ID_Lote'] ?>">
             <input type="hidden" name="id_asignacion" value="<?= $asignacion['ID'] ?>">
 
             <h4 class="text-center mb-3">🌱 <?= htmlspecialchars($asignacion['Nombre_Variedad']) ?></h4>
 
-            <?php if (($avances_realizados[$asignacion['ID_Variedad']] ?? 0) == 0 && !$asignacion['Estado_Final']): ?>
+            <?php if (($avance ?? 0) == 0 && !$asignacion['Estado_Final']): ?>
               <input type="hidden" name="accion" value="avance">
               <label>🧼 Tuppers clasificados hasta ahora:</label>
               <input type="number" name="tuppers_lavados" min="0" max="<?= $asignacion['Cantidad_Tuppers'] ?>" required>
@@ -168,11 +243,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["accion"])) {
             </div>
             <?php endif; ?>
           </form>
-        <?php endforeach; ?>
-    <?php else: ?>
-      <div class="alert alert-warning text-center">⚠️ No tienes asignaciones activas hoy.</div>
-    <?php endif; ?>
-  </main>
+        <?php endif; ?>
+      <?php endforeach; ?>
+  <?php else: ?>
+    <div class="alert alert-warning text-center">
+  ⚠️ No tienes asignaciones de lavado registradas para el día de hoy. Si crees que es un error, contacta al responsable de producción.
+</div>
+  <?php endif; ?>
+</main>
 
   <footer >
     <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
@@ -188,15 +266,13 @@ function mostrarFormulario(id) {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<script>
+(function(){
   let modalShown = false,
       warningTimer,
       expireTimer;
 
-  // Función para mostrar el modal de aviso
   function showModal() {
     modalShown = true;
     const modalHtml = `
@@ -207,37 +283,36 @@ function mostrarFormulario(id) {
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
+        if (data.status !== 'OK') {
           alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
   }
 
-  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
+  }
+
   function scheduleTimers() {
     const elapsed     = Date.now() - START_TS;
     const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
@@ -255,9 +330,16 @@ function mostrarFormulario(id) {
     }, Math.max(expireAfter - elapsed, 0));
   }
 
-  // Inicia la lógica al cargar el script
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
   scheduleTimers();
 })();
-  </script>
+</script>
+
 </body>
 </html>

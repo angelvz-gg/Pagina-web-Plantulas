@@ -103,17 +103,18 @@ $nowTs           = time();
           <a href="distribucion_trabajo.php" onclick="guardarScroll('card-distribucion')">Organizar tareas</a>
         </div>
 
+        <div class="card" id="card-ver-asignaciones">
+          <h2>📝 Acciones para ordenes de clasificación</h2>
+          <p>Consulta y administra asignaciones pasadas y activas para clasficación.</p>
+          <a href="verificar_asignaciones.php" onclick="guardarScroll('card-ver-asignaciones')">Ver asignaciones</a>
+        </div>
+        
         <div class="card" id="card-ordenes-lavado">
           <h2>📦 Estatus de ordenes para clasificación </h2>
           <p>Consulta y administra las órdenes enviadas para clasificación de plantas.</p>
           <a href="panel_ordenes_lavado.php" onclick="guardarScroll('card-ordenes-lavado')">Revisar estado de órdenes</a>
         </div>
 
-        <div class="card" id="card-ver-asignaciones">
-          <h2>📝 Acciones para ordenes de clasificación</h2>
-          <p>Consulta y administra asignaciones pasadas y activas para clasficación.</p>
-          <a href="verificar_asignaciones.php" onclick="guardarScroll('card-ver-asignaciones')">Ver asignaciones</a>
-        </div>
 <!--
         <div class="card" id="card-rendimiento">
           <h2>👷 Control de Rendimiento</h2>
@@ -151,15 +152,13 @@ $nowTs           = time();
     });
   </script>
   
- <!-- Modal de advertencia de sesión -->
- <script>
- (function(){
-  // Estado y referencias a los temporizadores
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<script>
+(function(){
   let modalShown = false,
       warningTimer,
       expireTimer;
 
-  // Función para mostrar el modal de aviso
   function showModal() {
     modalShown = true;
     const modalHtml = `
@@ -170,37 +169,36 @@ $nowTs           = time();
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document
-      .getElementById('keepalive-btn')
-      .addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  // Función para llamar a keepalive.php y, si es OK, reiniciar los timers
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          // Quitar el modal
-          const modal = document.getElementById('session-warning');
-          if (modal) modal.remove();
-
-          // Reiniciar tiempo de inicio
-          START_TS   = Date.now();
-          modalShown = false;
-
-          // Reprogramar los timers
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
-        } else {
+        if (data.status !== 'OK') {
           alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
   }
 
-  // Configura los timeouts para mostrar el aviso y para la expiración real
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
+  }
+
   function scheduleTimers() {
     const elapsed     = Date.now() - START_TS;
     const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
@@ -218,9 +216,16 @@ $nowTs           = time();
     }, Math.max(expireAfter - elapsed, 0));
   }
 
-  // Inicia la lógica al cargar el script
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
   scheduleTimers();
 })();
-  </script>
+</script>
+
 </body>
 </html>

@@ -30,36 +30,63 @@ $mensaje = '';
 
 // Procesar formulario
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["asignar_variedad"])) {
-    $id_diseccion      = intval($_POST['id_diseccion']);
-    $codigo_variedad   = $_POST['codigo_variedad'];
-    $nombre_variedad   = $_POST['nombre_variedad'];
-    $brotes_asignados  = intval($_POST['brotes_asignados']);
-    $disponibles       = intval($_POST['brotes_disponibles']);
-    $operador_asignado = intval($_POST['operador_asignado']);
-    $observaciones_raw = $_POST['observaciones'] ?? '';
-    $observaciones     = htmlspecialchars(strip_tags(trim($observaciones_raw)), ENT_QUOTES, 'UTF-8');
+    $id_diseccion        = intval($_POST['id_diseccion']);
+    $codigo_variedad     = $_POST['codigo_variedad'];
+    $nombre_variedad     = $_POST['nombre_variedad'];
+    $brotes_asignados    = intval($_POST['brotes_asignados']);
+    $disponibles         = intval($_POST['brotes_disponibles']);
+    $tuppers_asignados   = intval($_POST['tuppers_asignados']);
+    $tuppers_disponibles = intval($_POST['tuppers_disponibles']);
+    $operador_asignado   = intval($_POST['operador_asignado']);
+    $observaciones_raw   = $_POST['observaciones'] ?? '';
+    $observaciones       = htmlspecialchars(strip_tags(trim($observaciones_raw)), ENT_QUOTES, 'UTF-8');
 
     if ($brotes_asignados < 1) {
         $mensaje = "❌ La cantidad de brotes debe ser mínimo 1.";
     } elseif ($brotes_asignados > $disponibles) {
         $mensaje = "❌ No puedes asignar más brotes de los disponibles: $disponibles.";
+    } elseif ($tuppers_asignados < 1) {
+        $mensaje = "❌ La cantidad de tuppers debe ser mínimo 1.";
+    } elseif ($tuppers_asignados > $tuppers_disponibles) {
+        $mensaje = "❌ No puedes asignar más tuppers de los disponibles: $tuppers_disponibles.";
+    } elseif ($tuppers_disponibles === 1 && $brotes_asignados !== $disponibles) {
+        $mensaje = "⚠️ Solo queda 1 tupper disponible. Debes asignar los $disponibles brotes restantes en esta asignación.";
     } else {
+
+$estado = 'Asignado'; // define el estado como variable
+$fecha_registro = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y-m-d H:i:s');
+
 $sql = "INSERT INTO asignaciones_multiplicacion 
-          (ID_Diseccion, Codigo_Variedad, Nombre_Variedad, Brotes_Asignados,
-           Fecha_Registro, Operador_Asignado, Operador_Que_Asigna, Estado, Observaciones)
-        VALUES (?, ?, ?, ?, NOW(), ?, ?, 'Asignado', ?)";
+        (ID_Diseccion, Codigo_Variedad, Nombre_Variedad, Brotes_Asignados, Tuppers_Asignados,
+         Operador_Asignado, Operador_Que_Asigna, Estado, Observaciones, Fecha_Registro)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("issiiis",
+$stmt->bind_param("issiiiisss",
     $id_diseccion,
     $codigo_variedad,
     $nombre_variedad,
     $brotes_asignados,
+    $tuppers_asignados,
     $operador_asignado,
     $ID_Operador,
-    $observaciones
+    $estado,
+    $observaciones,
+    $fecha_registro
 );
 
+
+
         if ($stmt->execute()) {
+            // Descontar brotes y tuppers disponibles
+            $update = $conn->prepare("UPDATE diseccion_hojas_ecas 
+                                      SET 
+                                        Brotes_Disponibles = Brotes_Disponibles - ?, 
+                                        Tuppers_Disponibles = Tuppers_Disponibles - ? 
+                                      WHERE ID_Diseccion = ?");
+            $update->bind_param("iii", $brotes_asignados, $tuppers_asignados, $id_diseccion);
+            $update->execute();
+
             echo "<script>alert('✅ Asignación registrada correctamente.'); window.location.href='envio_multiplicacion.php';</script>";
             exit;
         } else {
@@ -68,6 +95,7 @@ $stmt->bind_param("issiiis",
     }
 }
 
+
 // Consulta de variedades con brotes
 $min_brotes_multiplicacion = 80;
 
@@ -75,7 +103,8 @@ $sql = "
     SELECT 
         V.Codigo_Variedad,
         V.Nombre_Variedad,
-        (SUM(DH.Brotes_Generados) - IFNULL(SUM(AM.Brotes_Asignados), 0)) AS Total_Brotes_Disponibles,
+        SUM(DH.Brotes_Disponibles) AS Total_Brotes_Disponibles,
+        SUM(DH.Tuppers_Disponibles) AS Total_Tuppers_Disponibles,
         MAX(DH.Fecha_Diseccion) AS Ultima_Fecha,
         MAX(DH.ID_Diseccion) AS ID_Diseccion,
         O.Nombre AS Nombre_Operador,
@@ -84,12 +113,12 @@ $sql = "
     FROM diseccion_hojas_ecas DH
     JOIN siembra_ecas S ON DH.ID_Siembra = S.ID_Siembra
     JOIN variedades V ON S.ID_Variedad = V.ID_Variedad
-    LEFT JOIN asignaciones_multiplicacion AM ON DH.ID_Diseccion = AM.ID_Diseccion
     LEFT JOIN operadores O ON DH.Operador_Responsable = O.ID_Operador
     GROUP BY V.ID_Variedad
     HAVING Total_Brotes_Disponibles >= ?
     ORDER BY Total_Brotes_Disponibles DESC
 ";
+
 
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $min_brotes_multiplicacion);
@@ -163,6 +192,12 @@ if ($res_operadores) {
           </div>
 
           <div class="mb-3">
+            <label>Tuppers a asignar:</labe>
+            <input type="number" name="tuppers_asignados" id="tuppers_asignados" class="form-control" required min="1">
+          </div>
+            <input type="hidden" name="tuppers_disponibles" id="tuppers_disponibles">
+
+          <div class="mb-3">
             <label>Fecha de asignación:</label>
             <input type="text" name="fecha_asignacion" class="form-control" value="<?= date('Y-m-d') ?>" readonly>
           </div>
@@ -195,6 +230,7 @@ if ($res_operadores) {
           <tr>
             <th>Código Variedad</th>
             <th>Nombre Variedad</th>
+            <th>Tuppers Disponibles</th>
             <th>Brotes Disponibles</th>
             <th>Fecha de Última Disección</th>
             <th>Responsable</th>
@@ -206,12 +242,13 @@ if ($res_operadores) {
             <tr>
               <td><?= htmlspecialchars($v['Codigo_Variedad']) ?></td>
               <td><?= htmlspecialchars($v['Nombre_Variedad']) ?></td>
+              <td><strong><?= $v['Total_Tuppers_Disponibles'] ?></strong></td>
               <td><strong><?= $v['Total_Brotes_Disponibles'] ?></strong></td>
               <td><?= htmlspecialchars($v['Ultima_Fecha']) ?></td>
               <td><?= htmlspecialchars($v['Nombre_Operador'] . " " . $v['ApellidoP_Operador'] . " " . $v['ApellidoM_Operador']) ?></td>
               <td>
                 <button class="btn btn-primary btn-sm"
-                        onclick="mostrarFormulario('<?= $v['ID_Diseccion'] ?>', '<?= $v['Codigo_Variedad'] ?>', '<?= $v['Nombre_Variedad'] ?>', '<?= $v['Total_Brotes_Disponibles'] ?>')">
+                        onclick="mostrarFormulario('<?= $v['ID_Diseccion'] ?>', '<?= $v['Codigo_Variedad'] ?>', '<?= $v['Nombre_Variedad'] ?>', '<?= $v['Total_Brotes_Disponibles'] ?>' ,'<?= $v['Total_Tuppers_Disponibles'] ?>')">
                   Asignar
                 </button>
               </td>
@@ -232,20 +269,23 @@ if ($res_operadores) {
 </div>
 
 <script>
-function mostrarFormulario(id, cod, nom, disponibles) {
+function mostrarFormulario(id, cod, nom, brotes, tuppers) {
   document.getElementById('formulario-asignacion').style.display = 'block';
   document.getElementById('id_diseccion').value = id;
   document.getElementById('codigo_variedad').value = cod;
   document.getElementById('nombre_variedad').value = nom;
   document.getElementById('variedad_mostrada').value = cod + ' - ' + nom;
-  document.getElementById('brotes_disponibles').value = disponibles;
+  document.getElementById('brotes_disponibles').value = brotes;
   document.getElementById('brotes_asignados').value = '';
-  document.getElementById('brotes_asignados').max = disponibles;
+  document.getElementById('brotes_asignados').max = brotes;
+  document.getElementById('tuppers_disponibles').value = tuppers;
+  document.getElementById('tuppers_asignados').value = '';
+  document.getElementById('tuppers_asignados').max = tuppers;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 </script>
 
-<!-- Modal de advertencia de sesión -->
+<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
 <script>
 (function(){
   let modalShown = false,
@@ -262,41 +302,63 @@ function mostrarFormulario(id, cod, nom, disponibles) {
         </div>
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document.getElementById('keepalive-btn').addEventListener('click', keepSessionAlive);
+    document.getElementById('keepalive-btn').addEventListener('click', () => {
+      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+    });
   }
 
-  function keepSessionAlive() {
+  function cerrarModalYReiniciar() {
+    // 🔥 Cerrar modal inmediatamente
+    const modal = document.getElementById('session-warning');
+    if (modal) modal.remove();
+    reiniciarTimers(); // Reinicia el temporizador visual
+
+    // 🔄 Enviar ping a la base de datos en segundo plano
     fetch('../keepalive.php', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        if (data.status === 'OK') {
-          document.getElementById('session-warning')?.remove();
-          START_TS   = Date.now();
-          modalShown = false;
-          clearTimeout(warningTimer);
-          clearTimeout(expireTimer);
-          scheduleTimers();
+        if (data.status !== 'OK') {
+          alert('No se pudo extender la sesión');
         }
       })
-      .catch(() => alert('Error al mantener viva la sesión'));
+      .catch(() => {}); // Silenciar errores de red
+  }
+
+  function reiniciarTimers() {
+    START_TS   = Date.now();
+    modalShown = false;
+    clearTimeout(warningTimer);
+    clearTimeout(expireTimer);
+    scheduleTimers();
   }
 
   function scheduleTimers() {
-    const elapsed = Date.now() - START_TS;
-    const warnAfter = SESSION_LIFETIME - WARNING_OFFSET;
+    const elapsed     = Date.now() - START_TS;
+    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
     const expireAfter = SESSION_LIFETIME;
 
     warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
-    expireTimer  = setTimeout(() => {
+
+    expireTimer = setTimeout(() => {
       if (!modalShown) {
         showModal();
       } else {
-        window.location.href = '/plantulas/login.php?mensaje=' + encodeURIComponent('Sesión caducada por inactividad');
+        window.location.href = '/plantulas/login.php?mensaje='
+          + encodeURIComponent('Sesión caducada por inactividad');
       }
     }, Math.max(expireAfter - elapsed, 0));
   }
+
+  ['click', 'keydown'].forEach(event => {
+    document.addEventListener(event, () => {
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+    });
+  });
+
   scheduleTimers();
 })();
 </script>
+
 </body>
 </html>
