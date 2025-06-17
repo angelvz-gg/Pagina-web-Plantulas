@@ -138,21 +138,22 @@ while ($row = $resultado->fetch_assoc()) {
             <th>Responsable</th>
           </tr>
         </thead>
-        <tbody>
-          <?php foreach ($historial as $row): ?>
-          <tr>
-            <td class="<?= $row['color_class'] ?>"><?= $row['ID_Dilucion'] ?></td>
-            <td class="<?= $row['color_class'] ?>"><?= htmlspecialchars($row['Codigo_Medio']) ?></td>
-            <td class="<?= $row['color_class'] ?>"><?= $row['Fecha_Preparacion'] ?></td>
-            <td class="<?= $row['color_class'] ?>"><?= number_format($row['Cantidad_MedioMadre'], 2) ?> L</td>
-            <td class="<?= $row['color_class'] ?>"><?= number_format($row['Volumen_Final'], 2) ?> L</td>
-            <td class="<?= $row['color_class'] ?>"><?= $row['Tuppers_Llenos'] ?></td>
-            <td class="<?= $row['color_class'] ?>"><?= number_format($row['Cantidad_Original'], 2) ?> L</td>
-            <td class="<?= $row['color_class'] ?>"><?= number_format($row['Cantidad_Disponible'], 2) ?> L</td>
-            <td class="<?= $row['color_class'] ?>"><?= htmlspecialchars($row['Nombre']) ?></td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
+<tbody>
+  <?php foreach ($historial as $row): ?>
+  <tr>
+    <td class="<?= $row['color_class'] ?>" data-label="ID Dilución"><?= $row['ID_Dilucion'] ?></td>
+    <td class="<?= $row['color_class'] ?>" data-label="Código del Medio"><?= htmlspecialchars($row['Codigo_Medio']) ?></td>
+    <td class="<?= $row['color_class'] ?>" data-label="Fecha"><?= $row['Fecha_Preparacion'] ?></td>
+    <td class="<?= $row['color_class'] ?>" data-label="Litros Usados"><?= number_format($row['Cantidad_MedioMadre'], 2) ?> L</td>
+    <td class="<?= $row['color_class'] ?>" data-label="Volumen Final"><?= number_format($row['Volumen_Final'], 2) ?> L</td>
+    <td class="<?= $row['color_class'] ?>" data-label="Tuppers Llenados"><?= $row['Tuppers_Llenos'] ?></td>
+    <td class="<?= $row['color_class'] ?>" data-label="Cantidad Original"><?= number_format($row['Cantidad_Original'], 2) ?> L</td>
+    <td class="<?= $row['color_class'] ?>" data-label="Cantidad Disponible"><?= number_format($row['Cantidad_Disponible'], 2) ?> L</td>
+    <td class="<?= $row['color_class'] ?>" data-label="Responsable"><?= htmlspecialchars($row['Nombre']) ?></td>
+  </tr>
+  <?php endforeach; ?>
+</tbody>
+
       </table>
     </div>
   </main>

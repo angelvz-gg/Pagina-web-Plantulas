@@ -87,7 +87,8 @@ body.scrollable .table-responsive {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 90vh;         /* usa toda la altura de la ventana */
+    height: auto; /* ✅ Evita problemas en tabletas con teclado */
+    min-height: 100vh;       
   }
 
   .login-page .login-card {
@@ -177,11 +178,8 @@ body.scrollable .table-responsive {
     overflow: visible !important;
   }
   .login-page main.login-container {
-    /* Máximo 90% de la altura de viewport, para no overflow */
     max-height: 90vh;
-    overflow: visible;             /* quita cualquier scroll interno */
-    
-    /* Ancho responsive: 90% de la ventana, pero sin pasarse de 420px */
+    overflow: visible;
     width: 90vw;
     max-width: 420px;
     margin: 0 auto;
@@ -317,6 +315,16 @@ body.scrollable .table-responsive {
     background-color: white;
   }
   
+body > .contenedor-pagina {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+body > .contenedor-pagina > main {
+  flex-grow: 1;
+}
+
   /* Para dashboards: scroll en body, no en main */
   .contenedor-pagina.panel-admin {
     display: block !important;
@@ -390,6 +398,8 @@ main {
     transition: transform 0.2s ease, background-color 0.3s ease;
     font-size: 13px;
     display: inline-block;
+      min-width: 80px;       /* ← asegura que no se achiquen demasiado */
+  white-space: nowrap;   /* ← evita que el texto haga salto de línea */
   }
   
   button:hover,
@@ -438,7 +448,37 @@ main {
   .form-anular {
     display: inline;
   }
-  
+
+form.form-anular-hardreset {
+  all: unset;
+  display: inline;
+}
+
+form.form-anular-hardreset .btn-hardreset {
+  all: unset;
+  display: inline;
+  cursor: pointer;
+}
+
+
+.btn-reset {
+  all: unset;
+  background-color: #dc3545;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  display: inline-block;
+  transition: background-color 0.3s ease;
+    line-height: 1;
+  box-sizing: border-box;
+}
+.btn-reset:hover {
+  background-color: #c82333;
+}
+
 /* =========================
    BOTONES EN REPORTES PRODUCCIÓN
    ========================= */
@@ -736,6 +776,17 @@ main {
     padding: 10px;
     text-align: center;
   }
+
+  .table td .btn-anular {
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 13px;
+  line-height: 1;
+}
+.table td form {
+  margin: 0;
+  display: inline;
+}
   
   .table thead {
     background-color: #45814d;
@@ -797,7 +848,24 @@ main {
     white-space: nowrap;  /* evita que el texto salte de línea */
 }
 
-  
+.btn-limpiar {
+  background-color: #adb5bd; /* gris suave */
+  color: white;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-weight: bold;
+  transition: background-color 0.2s ease;
+}
+
+.btn-limpiar:hover {
+  background-color: #6c757d; /* gris oscuro */
+}
+
+.disabled-date {
+  background-color: #e9ecef !important;
+  cursor: not-allowed;
+}
+
   /* =========================
      ESTILO DE TARJETAS / CARD
      ========================= */
@@ -926,8 +994,231 @@ main {
       box-sizing: border-box;
     }
   }
+
+    /* =========================
+     INICIO DE MEDIA QUERIES PARA TAB A9
+     ========================= */
+@media (min-width: 600px) and (max-width: 900px) {
+  .login-page .login-card {
+    padding: 2rem 1rem 1.5rem !important;
+    background-size: 64px !important; /* logo más pequeño */
+    width: 100%;
+    max-width: 440px;
+  }
+
+  .login-page .login-card > form {
+    padding: 1.25rem;
+  }
+
+  .login-page .login-title {
+    margin-top: 40px;
+    font-size: 1.4rem;
+  }
+
+  .login-page .btn-login {
+    font-size: 0.95rem;
+    padding: 0.65rem;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 768px) {
+  .tabla-asignaciones td,
+  .tabla-asignaciones th {
+    padding: 0.25rem 0.4rem;
+    font-size: 0.8rem;
+  }
+
+  .tabla-asignaciones {
+    font-size: 0.8rem;
+  }
+
+  .tabla-asignaciones tr {
+    line-height: 1.1;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 900px) {
+  .login-page .login-card {
+    max-height: unset;
+    overflow-y: auto;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 992px) {
+  .card.card-formulario {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 992px) {
+  .card-formulario {
+      min-width: 250px;
+  flex-grow: 1;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  .card-formulario .btn {
+    white-space: nowrap !important;
+    text-align: center;
+    padding: 0.5rem 0.75rem !important;
+    font-size: 1rem !important;
+  }
+}
+
+@media (max-width: 768px) and (orientation: portrait) {
+  .tabla-asignaciones thead {
+    display: none;
+  }
+
+  .tabla-asignaciones tbody {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* dos tarjetas por fila */
+    gap: 12px;
+  }
+
+  .tabla-asignaciones tr {
+    display: block;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1rem;
+  }
+
+  .tabla-asignaciones td {
+    display: flex;
+    justify-content: start;
+    align-items: baseline;
+    padding: 0.25rem 0;
+    border: none;
+    font-size: 0.85rem;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  .tabla-asignaciones td:last-child {
+    border-bottom: none;
+  }
+
+  .tabla-asignaciones td::before {
+    content: attr(data-label) ": ";
+    font-weight: bold;
+    flex-shrink: 0;
+    width: 120px;
+    color: #495057;
+    margin-right: 0.5rem;
+  }
+}
+
+/* Corrige visualmente el autocompletado en tablets modo horizontal */
+@media (orientation: landscape) and (max-width: 1400px) {
+  .ui-autocomplete {
+    max-height: 200px !important;
+    overflow-y: auto !important;
+    z-index: 99999 !important;
+    position: absolute !important;
+  }
+}
+
+.ui-autocomplete {
+  background: white;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+  max-width: 90vw;
+  z-index: 9999;
+  overflow-y: auto;
+  max-height: 250px;
+}
+
+/* Diseño para tablas en modo vertical */
+@media (max-width: 800px) and (orientation: portrait) {
+  .table-responsive tbody {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 2 columnas */
+    gap: 12px;
+  }
+
+  .table-responsive .table {
+    min-width: unset;
+  }
+
+  .table-responsive .table tr {
+    display: block;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    padding: 8px;
+  }
+
+  .table-responsive .table td {
+    display: flex;
+    justify-content: space-between;
+    border: none;
+    padding: 6px 0;
+  }
+
+  .table-responsive .table td::before {
+    content: attr(data-label);
+    font-weight: bold;
+    flex: 1;
+    color: #45814d;
+    padding-right: 10px;
+  }
+
+  .table-responsive .table thead {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) and (orientation: portrait) {
+  .tabla-asignaciones {
+    display: block;
+  }
+
+  .tabla-asignaciones thead {
+    display: none;
+  }
+
+  .tabla-asignaciones tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .tabla-asignaciones tr {
+    display: flex;
+    flex-direction: column;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1rem;
+  }
+
+  .tabla-asignaciones td {
+    display: flex;
+    justify-content: start;
+    align-items: baseline;
+    padding: 0.25rem 0;
+    border: none;
+    font-size: 0.9rem;
+  }
+
+  .tabla-asignaciones td::before {
+    content: attr(data-label);
+    font-weight: bold;
+    width: 130px;
+    flex-shrink: 0;
+    color: #495057;
+    margin-right: 0.5rem;
+  }
+}
+
+
+/* =========================FIN DE MEDIA QUERIES PARA TAB A9=========================================================================== */
   
-  @media (min-width: 576px) {
+@media (min-width: 576px) {
     form:not(.form-doble-columna):not(.form-boton):not(.form-inline) {
       max-width: 600px;
     }
@@ -956,7 +1247,7 @@ main {
       justify-content: space-between;
       padding: 0.5rem 0;
       border: none;
-      border-bottom: 1px solid #eee;
+      writing-mode: horizontal-tb !important;
     }
     .table td:last-child {
       border-bottom: 0;
@@ -974,6 +1265,13 @@ main {
     .table-responsive .table {
       min-width: unset;   /* quita la mínima anchura forzada */
     }
+      .table-responsive .table tr {
+    border: none !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    padding: 12px;
+  }
   }
   
   @media (min-width: 992px) {
@@ -1044,6 +1342,22 @@ main {
   }
   .filter-toolbar {
     gap: 0.25rem;
+  }
+}
+@media (max-width: 768px) {
+  .carrusel-desinfecciones {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .tarjeta-desinf {
+    width: 100% !important;
+    font-size: 0.95rem;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    cursor: pointer;
   }
 }
 

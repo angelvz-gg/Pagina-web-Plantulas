@@ -89,29 +89,38 @@ $nowTs           = time();
 -->
 
       <!-- 🔷 GESTIÓN OPERATIVA -->
-      <h3 style="margin-left: 2rem; margin-top: 2rem;">🔧 Gestión Operativa</h3>
+     <!-- <h3 style="margin-left: 2rem; margin-top: 2rem;">🔧 Gestión Operativa</h3>-->
       <section class="dashboard-grid">
+        <div class="card" data-card-id="historial-lavado">
+          <h2>📈 Reportes Parciales de Lavado de planta</h2>
+          <p>Visualiza los reportes de media jornada de todos los operadores en el área de lavado.</p>
+          <a href="historial_lavado_parcial.php"
+             onclick="rememberCard('historial-lavado')">
+            Ver Historial
+          </a>
+        </div>
+
         <div class="card" id="card-vista-tuppers">
-          <h2>📋 Vista General de Tuppers</h2>
+          <h2>📋 Inventario de Tuppers</h2>
           <p>Consulta todos los tuppers, sus estados y su trazabilidad completa.</p>
           <a href="vista_general_tuppers.php" onclick="guardarScroll('card-vista-tuppers')">Ir a Vista</a>
         </div>
 
         <div class="card" id="card-distribucion">
-          <h2>🗂 Asignación para orden de cajas</h2>
-          <p>Organiza el trabajo del personal.</p>
+          <h2>🗂 Asignación de tuppers para lavado de planta</h2>
+          <p>Asigna material vegetativo para lavado de planta a las operadoras.</p>
           <a href="distribucion_trabajo.php" onclick="guardarScroll('card-distribucion')">Organizar tareas</a>
         </div>
 
         <div class="card" id="card-ver-asignaciones">
-          <h2>📝 Acciones para ordenes de clasificación</h2>
-          <p>Consulta y administra asignaciones pasadas y activas para clasficación.</p>
+          <h2>📝 Registro de asignaciones para lavado</h2>
+          <p>Consulta y administra las asignaciones pasadas y activas para lavado.</p>
           <a href="verificar_asignaciones.php" onclick="guardarScroll('card-ver-asignaciones')">Ver asignaciones</a>
         </div>
         
         <div class="card" id="card-ordenes-lavado">
-          <h2>📦 Estatus de ordenes para clasificación </h2>
-          <p>Consulta y administra las órdenes enviadas para clasificación de plantas.</p>
+          <h2>📦 Estatus de ordenes de clasificación en cajas negras</h2>
+          <p>Consulta y administra las órdenes.</p>
           <a href="panel_ordenes_lavado.php" onclick="guardarScroll('card-ordenes-lavado')">Revisar estado de órdenes</a>
         </div>
 

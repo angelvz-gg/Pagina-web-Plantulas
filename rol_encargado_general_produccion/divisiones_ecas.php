@@ -53,30 +53,33 @@ $sql = "
       S.ID_Siembra,
       V.Codigo_Variedad,
       V.Nombre_Variedad,
-      S.Tuppers_Llenos      AS Tuppers_Sembrados,
+      S.Tuppers_Llenos AS Tuppers_Sembrados,
+S.Tuppers_Llenos
+  - IFNULL((
+      SELECT SUM(D.Tuppers_Desocupados)
+      FROM division_ecas D
+      WHERE D.ID_Siembra = S.ID_Siembra
+    ), 0) AS Tuppers_Disponibles,
       S.Cantidad_Sembrada
         - IFNULL((
-            SELECT SUM(D.Cantidad_Dividida + COALESCE(D.Brotes_Contaminados,0))
+            SELECT SUM(D.Cantidad_Dividida + COALESCE(D.Brotes_Contaminados, 0))
               FROM division_ecas D
              WHERE D.ID_Siembra = S.ID_Siembra
-          ),0)            AS Disponibles,
-      COALESCE((
-        SELECT MAX(Generacion)
-          FROM division_ecas D
-         WHERE D.ID_Siembra = S.ID_Siembra
-      ),0)                AS Ultima_Generacion,
+          ), 0) AS Disponibles,
       S.Cantidad_Sembrada,
-      S.Fecha_Siembra
+      S.Fecha_Siembra,
+      DE.Origen_Explantes
     FROM siembra_ecas S
     JOIN variedades V ON V.ID_Variedad = S.ID_Variedad
+    JOIN desinfeccion_explantes DE ON S.ID_Desinfeccion = DE.ID_Desinfeccion
     WHERE S.ID_Desinfeccion IS NOT NULL
       AND (
         S.Cantidad_Sembrada
         - IFNULL((
-            SELECT SUM(D.Cantidad_Dividida + COALESCE(D.Brotes_Contaminados,0))
+            SELECT SUM(D.Cantidad_Dividida + COALESCE(D.Brotes_Contaminados, 0))
               FROM division_ecas D
              WHERE D.ID_Siembra = S.ID_Siembra
-          ),0)
+          ), 0)
       ) > 0
     ORDER BY S.Fecha_Siembra DESC
 ";
@@ -125,11 +128,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
         $mensaje = "⚠️ El total de brotes debe estar entre 1 y 100.";
     }
 
-    // ✅ Paso 7: tasa multiplicación entre 1.00 y 50.00, 2 decimales
-    elseif ($tasa < 1 || $tasa > 50 || !preg_match('/^\d+(\.\d{1,2})?$/', $tasa)) {
-        $mensaje = "⚠️ La tasa de multiplicación debe estar entre 1.00 y 50.00 con hasta 2 decimales.";
-    }
-
     // ✅ Paso 8: Validar medio nutritivo
     else {
         $stmt = $conn->prepare("
@@ -146,43 +144,60 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
         }
     }
 
+$sql_origen = "
+    SELECT DE.Origen_Explantes
+    FROM siembra_ecas S
+    JOIN desinfeccion_explantes DE ON S.ID_Desinfeccion = DE.ID_Desinfeccion
+    WHERE S.ID_Siembra = ?
+";
+$stmt_origen = $conn->prepare($sql_origen);
+$stmt_origen->bind_param("i", $id_siembra);
+$stmt_origen->execute();
+$origen_resultado = $stmt_origen->get_result()->fetch_assoc();
+$origen_explantes = strtoupper(trim($origen_resultado['Origen_Explantes'] ?? ''));
+
+
     // ✅ Si no hay errores, continuar con el insert
     if (empty($mensaje)) {
         $ins = $conn->prepare("
-            INSERT INTO division_ecas
-              (ID_Siembra, Fecha_Division, Cantidad_Dividida,
-               Tuppers_Llenos, Tuppers_Desocupados, Tuppers_Disponibles,
-               Medio_Nuevo, Generacion, Observaciones, Operador_Responsable,
-               Brotes_Totales, Tasa_Multiplicacion, Brotes_Contaminados)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO division_ecas
+  (ID_Siembra, Fecha_Division, Origen_Explantes, Cantidad_Dividida,
+  Tuppers_Llenos, Tuppers_Desocupados, Tuppers_Disponibles,
+  Medio_Nuevo, Observaciones, Operador_Responsable,
+  Brotes_Totales, Brotes_Contaminados)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $ins->bind_param(
-            "isiiiisisiidi",
-            $id_siembra,
-            $fecha,
-            $cantidad_div,
-            $tuppers_llenos,
-            $tuppers_vacios,
-            $tuppers_llenos,
-            $medio,
-            $gen,
-            $obs,
-            $ID_Operador,
-            $brotes_totales,
-            $tasa,
-            $brotes_cont
-        );
-        if ($ins->execute()) {
-            $id_div = $conn->insert_id;
+ "issiiiissiii",
+  $id_siembra,
+  $fecha,
+  $origen_explantes,
+  $cantidad_div,
+  $tuppers_llenos,
+  $tuppers_vacios,
+  $tuppers_llenos,  // Tuppers_Disponibles = tuppers llenos
+  $medio,
+  $obs,
+  $ID_Operador,
+  $brotes_totales,
+  $brotes_cont
+);
 
-            // Actualizar brotes disponibles
-            $upd = $conn->prepare("
-                UPDATE siembra_ecas
-                   SET Brotes_Disponibles = Brotes_Disponibles - ?
-                 WHERE ID_Siembra = ?
-            ");
-            $upd->bind_param("ii", $cantidad_div, $id_siembra);
-            $upd->execute();
+        if ($ins->execute()) {
+          $id_div = $conn->insert_id;
+
+          // Sumar los brotes divididos y contaminados para restarlos de los disponibles
+          $total_utilizados = $cantidad_div + $brotes_cont;
+    
+          // Actualizar brotes disponibles correctamente
+          $upd = $conn->prepare("
+          UPDATE siembra_ecas
+          SET Brotes_Disponibles = Brotes_Disponibles - ?
+          WHERE ID_Siembra = ?
+          ");
+          $upd->bind_param("ii", $total_utilizados, $id_siembra);
+          $upd->execute();
+
 
             // Registrar pérdidas por contaminación
             if ($brotes_cont > 0) {
@@ -254,45 +269,41 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_division"])) 
         <div class="tarjeta-desinf"
              data-id="<?= $s['ID_Siembra'] ?>"
              data-variedad="<?= htmlspecialchars("{$s['Codigo_Variedad']} - {$s['Nombre_Variedad']}") ?>"
-             data-generacion="<?= $s['Ultima_Generacion']+1 ?>"
              data-disponibles="<?= $s['Disponibles'] ?>"
              data-tuppers-iniciales="<?= $s['Tuppers_Sembrados'] ?>">
           <strong><?= htmlspecialchars("{$s['Codigo_Variedad']} - {$s['Nombre_Variedad']}") ?></strong><br>
-          Sembrados: <?= $s['Cantidad_Sembrada'] ?><br>
-          Disponibles: <?= $s['Disponibles'] ?><br>
-          Tuppers iniciales: <?= $s['Tuppers_Sembrados'] ?><br>
-          Última gen: <?= $s['Ultima_Generacion'] ?><br>
-          Fecha: <?= date("d/m/Y",strtotime($s['Fecha_Siembra'])) ?>
+          <strong>Origen: <?= htmlspecialchars($s['Origen_Explantes'] ?? '-') ?><br></strong>
+          Brotes Sembrados: <?= $s['Cantidad_Sembrada'] ?><br>
+          No. Tuppers Iniciales: <?= $s['Tuppers_Sembrados'] ?><br>
+          🧬Brotes Disponibles: <?= $s['Disponibles'] ?><br>
+          📦Tuppers Disponibles: <?= $s['Tuppers_Disponibles'] ?><br>
+          Fecha de Siembra: <?= date("d/m/Y",strtotime($s['Fecha_Siembra'])) ?>
         </div>
       <?php endforeach; ?>
     </div>
 
     <form method="POST" id="formulario-division" class="form-doble-columna" style="display:none;">
       <input type="hidden" name="id_siembra" id="id_siembra">
-      <input type="hidden" name="generacion" id="generacion">
       <input type="hidden" name="brotes_disponibles" id="brotes_disponibles">
       <input type="hidden" name="tuppers_iniciales" id="tuppers_iniciales">
 
       <p><strong>Variedad:</strong> <span id="nombre_variedad"></span></p>
-      <p>Disponibles: <span id="span_disponibles"></span></p>
+      <p>Brotes Disponibles: <span id="span_disponibles"></span></p>
 
-      <label>🔢 Cantidad dividida:</label>
+      <label>🔢 Brotes Iniciales:</label>
       <input type="number" name="cantidad" id="cantidad" class="form-control" min="1" required>
+
+      <label>💥 Brotes contaminados:</label>
+      <input type="number" name="brotes_contaminados" class="form-control" min="0">
+
+      <label>🌿 Brotes Obtenidos:</label>
+      <input type="number" name="brotes_totales" class="form-control" min="1" required>
 
       <label>📦 Tuppers llenos:</label>
       <input type="number" name="tuppers_llenos" id="tuppers_llenos" class="form-control" min="0" required>
 
       <label>📦 Tuppers desocupados:</label>
       <input type="number" name="tuppers_desocupados" id="tuppers_desocupados" class="form-control" min="1" required>
-
-      <label>💥 Brotes contaminados:</label>
-      <input type="number" name="brotes_contaminados" class="form-control" min="0">
-
-      <label>🌿 Brotes totales:</label>
-      <input type="number" name="brotes_totales" class="form-control" min="1" required>
-
-      <label>📈 Tasa multiplicación:</label>
-      <input type="number" name="tasa_multiplicacion" step="0.01" class="form-control" min="0" required>
 
       <label>🧪 Medio nutritivo:</label>
       <input type="text" name="medio" id="medio_nutritivo" class="form-control" required>
@@ -315,7 +326,6 @@ $(function(){
     const $t = $(this);
     tuppersInit = +$t.data("tuppers-iniciales");
     $("#id_siembra").val($t.data("id"));
-    $("#generacion").val($t.data("generacion"));
     $("#brotes_disponibles").val($t.data("disponibles"));
     $("#tuppers_iniciales").val($t.data("tuppers-iniciales"));
     $("#nombre_variedad").text($t.data("variedad"));

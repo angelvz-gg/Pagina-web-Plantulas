@@ -23,14 +23,49 @@ $sessionLifetime = 60 * 3;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
-// Obtener órdenes
-$ordenes_panel = $conn->query("
-    SELECT ol.ID_Orden, v.Nombre_Variedad, v.Especie, ol.Fecha_Lavado, ol.Cantidad_Lavada, ol.Estado
-    FROM orden_tuppers_lavado ol
-    INNER JOIN lotes l ON ol.ID_Lote = l.ID_Lote
-    INNER JOIN variedades v ON l.ID_Variedad = v.ID_Variedad
-    ORDER BY ol.Fecha_Creacion DESC
-");
+// Captura de filtros desde el formulario
+$fechaDesde = $_GET['fecha_desde'] ?? '';
+$fechaHasta = $_GET['fecha_hasta'] ?? '';
+$estado     = $_GET['estado'] ?? '';
+
+
+$sql = "
+  SELECT ol.ID_Orden, v.Nombre_Variedad, v.Especie, ol.Fecha_Lavado, ol.Cantidad_Lavada, ol.Estado
+  FROM orden_tuppers_lavado ol
+  INNER JOIN lotes l ON ol.ID_Lote = l.ID_Lote
+  INNER JOIN variedades v ON l.ID_Variedad = v.ID_Variedad
+  WHERE 1=1
+";
+
+$params = [];
+$types  = '';
+
+if (!empty($fechaDesde)) {
+  $sql .= " AND ol.Fecha_Lavado >= ?";
+  $params[] = $fechaDesde;
+  $types   .= 's';
+}
+
+if (!empty($fechaHasta)) {
+  $sql .= " AND ol.Fecha_Lavado <= ?";
+  $params[] = $fechaHasta;
+  $types   .= 's';
+}
+
+if (!empty($estado)) {
+  $sql .= " AND ol.Estado = ?";
+  $params[] = $estado;
+  $types   .= 's';
+}
+
+$sql .= " ORDER BY ol.Fecha_Creacion DESC";
+
+$stmt = $conn->prepare($sql);
+if ($params) {
+  $stmt->bind_param($types, ...$params);
+}
+$stmt->execute();
+$ordenes_panel = $stmt->get_result();
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -71,7 +106,7 @@ $ordenes_panel = $conn->query("
         </nav>
       </div>
 
-<nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
+<nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2 mb-3" style="overflow-x:auto;">
   <div class="d-flex flex-column" style="min-width:120px;">
     <label for="filtro-desde" class="small mb-1">Desde</label>
     <input id="filtro-desde" type="date" name="fecha_desde" form="filtrosForm"
@@ -103,17 +138,18 @@ $ordenes_panel = $conn->query("
           class="btn-inicio btn btn-success btn-sm ms-auto">
     Filtrar
   </button>
+  <button type="button" onclick="limpiarFiltros()" class="btn btn-outline-secondary btn-sm ms-2">
+  Limpiar filtros
+</button>
 </nav>
-
 <form id="filtrosForm" method="GET" class="d-none"></form>
-
     </header>
 
     <main class="container mt-4">
       <div class="card shadow-sm">
         <div class="card-body">
           <div class="table-responsive">
-            <table class="table table-bordered table-hover text-center">
+            <table class="table table-bordered table-hover text-center align-middle text-nowrap">
               <thead class="table-light">
                 <tr>
                   <th>ID Orden</th>
@@ -128,12 +164,12 @@ $ordenes_panel = $conn->query("
                 <?php if ($ordenes_panel->num_rows > 0): ?>
                   <?php while ($orden = $ordenes_panel->fetch_assoc()): ?>
                     <tr>
-                      <td><?= $orden['ID_Orden'] ?></td>
-                      <td><?= $orden['Nombre_Variedad'] ?></td>
-                      <td><?= $orden['Especie'] ?></td>
-                      <td><?= $orden['Fecha_Lavado'] ?></td>
-                      <td><?= $orden['Cantidad_Lavada'] ?></td>
-                      <td>
+<td data-label="ID Orden"><?= $orden['ID_Orden'] ?></td>
+<td data-label="Variedad"><?= $orden['Nombre_Variedad'] ?></td>
+<td data-label="Especie"><?= $orden['Especie'] ?></td>
+<td data-label="Fecha de clasificación"><?= $orden['Fecha_Lavado'] ?></td>
+<td data-label="Cantidad de Tuppers"><?= $orden['Cantidad_Lavada'] ?></td>
+<td data-label="Estado">
                         <?php if ($orden['Estado'] == 'Pendiente'): ?>
                           <span class="badge bg-warning text-dark">Pendiente</span>
                         <?php elseif ($orden['Estado'] == 'Asignado'): ?>
@@ -166,6 +202,12 @@ $ordenes_panel = $conn->query("
       <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
     </footer>
   </div>
+
+  <script>
+function limpiarFiltros() {
+  window.location.href = 'panel_ordenes_lavado.php';
+}
+</script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 

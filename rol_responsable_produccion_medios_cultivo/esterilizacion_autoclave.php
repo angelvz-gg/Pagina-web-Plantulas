@@ -28,36 +28,42 @@ $mensaje = $_GET['mensaje'] ?? '';
 $procesoSeleccionado = null;
 
 // AJAX: info de dilución + medio
-if (isset($_POST['ajax_dilucion_info'])) {
-    if (ob_get_level()) ob_end_clean();
-    $stmt = $conn->prepare("
-        SELECT 
-          d.Tuppers_Llenos,
-          m.Codigo_Medio AS Medio,
-          COALESCE(SUM(ea.Tuppers_Esterilizados),0) AS usados
-        FROM dilucion_llenado_tuppers d
-        LEFT JOIN medios_nutritivos_madre m 
-          ON d.ID_MedioNM = m.ID_MedioNM
-        LEFT JOIN esterilizacion_autoclave ea 
-          ON d.ID_Dilucion = ea.ID_Dilucion
-        WHERE d.ID_Dilucion = ?
-        GROUP BY d.ID_Dilucion, m.Codigo_Medio
+if (isset($_POST['ajax_material_info'])) {
+    $idm = intval($_POST['ajax_material_info']);
+    
+    // Obtener disponibles reales
+    $stmt1 = $conn->prepare("
+        SELECT GREATEST(cantidad - en_uso, 0)
+          - COALESCE((
+            SELECT SUM(cantidad) 
+            FROM movimientos_materiales 
+            WHERE id_material = ? 
+              AND tipo_movimiento IN ('asignacion','esterilizacion')
+          ), 0) AS Disponibles,
+          en_uso
+        FROM inventario_materiales 
+        WHERE id_material = ?
     ");
-    $stmt->bind_param("s", $_POST['ajax_dilucion_info']);
-    $stmt->execute();
-    $r = $stmt->get_result()->fetch_assoc();
-    if ($r) {
-        $data = [
-            'Tuppers_Llenos' => (int)$r['Tuppers_Llenos'],
-            'Medio'          => $r['Medio'],
-            'Usados'         => (int)$r['usados'],
-        ];
-    } else {
-        $data = ['Tuppers_Llenos'=>0,'Medio'=>'—','Usados'=>0];
-    }
-    $data['Disponibles'] = $data['Tuppers_Llenos'] - $data['Usados'];
+    $stmt1->bind_param('ii', $idm, $idm);
+    $stmt1->execute();
+    $row = $stmt1->get_result()->fetch_assoc();
+    $disp = max((int)$row['Disponibles'], 0);
+
+    // Obtener usados desde tabla de esterilización
+    $stmt2 = $conn->prepare("
+        SELECT COALESCE(SUM(Tuppers_Esterilizados),0) AS Usados 
+        FROM esterilizacion_autoclave 
+        WHERE id_material = ?
+    ");
+    $stmt2->bind_param('i', $idm);
+    $stmt2->execute();
+    $used = (int)$stmt2->get_result()->fetch_assoc()['Usados'];
+
     header('Content-Type: application/json');
-    echo json_encode($data);
+    echo json_encode([
+        'Disponibles' => $disp,
+        'Usados'      => $used
+    ]);
     exit();
 }
 
@@ -564,46 +570,30 @@ $finalizados = $conn->query("
   </div>
   <div class="card-body d-flex flex-wrap gap-4">
     <?php
-    $sql = "
-      WITH asignados AS (
-        SELECT id_material, SUM(cantidad) AS total_asig
-        FROM movimientos_materiales
-        WHERE tipo_movimiento='asignacion'
-        GROUP BY id_material
-      ), ester AS (
-        SELECT id_material, SUM(cantidad) AS total_est
-        FROM movimientos_materiales
-        WHERE tipo_movimiento='esterilizacion'
-        GROUP BY id_material
-      ), materiales_disponibles AS (
-        SELECT 
-          im.id_material AS id,
-          m.nombre            AS descripcion,
-          GREATEST(
-            im.cantidad - im.en_uso
-            - COALESCE(asignados.total_asig,0)
-            - COALESCE(ester.total_est,0),
-          0) AS disponible
-        FROM inventario_materiales im
-        JOIN materiales m ON m.id_material = im.id_material
-        LEFT JOIN asignados ON asignados.id_material = im.id_material
-        LEFT JOIN ester     ON ester.id_material     = im.id_material
+$sql = "
+  SELECT 
+    m.id_material AS id,
+    m.nombre AS descripcion,
+    GREATEST(
+      COALESCE(inv.total, 0) - COALESCE(inv.en_uso, 0) - COALESCE(est.esterilizados, 0),
+      0
+    ) AS disponible
+  FROM materiales m
+  LEFT JOIN (
+    SELECT id_material, SUM(cantidad) AS total, SUM(en_uso) AS en_uso
+    FROM inventario_materiales
+    GROUP BY id_material
+  ) inv ON m.id_material = inv.id_material
+  LEFT JOIN (
+    SELECT id_material, SUM(cantidad) AS esterilizados
+    FROM movimientos_materiales
+    WHERE tipo_movimiento = 'esterilizacion'
+    GROUP BY id_material
+  ) est ON m.id_material = est.id_material
+  HAVING disponible > 0
+  ORDER BY m.nombre
+";
 
-        UNION ALL
-
-        SELECT
-          p.ID_Entidad      AS id,
-          CONCAT('Contaminado #',p.ID_Perdida) AS descripcion,
-          p.Tuppers_Perdidos               AS disponible
-        FROM perdidas_laboratorio p
-        WHERE p.Tipo_Entidad='esterilizacion_autoclave'
-          AND p.Tuppers_Perdidos>0
-      )
-      SELECT *
-      FROM materiales_disponibles
-      WHERE disponible > 0
-      ORDER BY descripcion
-    ";
     $artRes = $conn->query($sql);
 
     while($art = $artRes->fetch_assoc()):
@@ -670,47 +660,42 @@ $finalizados = $conn->query("
         <tbody>
           <?php foreach($procesos as $p): ?>
             <tr>
-              <td><?= $p['ID'] ?></td>
-              <td>
-                <ul class="list-unstyled mb-0">
-                  <?php
-                  // Por cada lote dentro del paquete, contamos sus tuppers
-                  $stmtCnt = $conn->prepare("
-                    SELECT COALESCE(SUM(Tuppers_Esterilizados),0) AS cnt
-                    FROM esterilizacion_autoclave
-                    WHERE id_paquete = ?
-                      AND ID_Dilucion = ?
-                  ");
-                  foreach (explode(', ', $p['Lotes']) as $lote):
-                    $stmtCnt->bind_param("is", $p['ID'], $lote);
-                    $stmtCnt->execute();
-                    $cnt = $stmtCnt->get_result()->fetch_assoc()['cnt'];
-                  ?>
-                    <li>
-                      <strong><?= htmlspecialchars($lote) ?></strong>:
-                      <?= $cnt ?> tuppers
-                    </li>
-                  <?php endforeach; ?>
-                </ul>
-              </td>
-              <td>
-                <small>
-                  Vacíos: <?= $p['TotalVacios'] ?><br>
-                  Tapas: <?= $p['TotalTapas'] ?>
-                </small>
-              </td>
-              <td>
-                <?= $p['TotalContaminados'] ?>
-              </td>
-              <td><?= $p['FechaInicio'] ?></td>
-              <td class="text-wrap"><?= htmlspecialchars($p['Articulos']) ?></td>
-              <td>
-                <a href="?abrir_modal_finalizar=<?= $p['ID'] ?>"
-                   class="btn btn-sm btn-success">
-                  Finalizar
-                </a>
-              </td>
-            </tr>
+  <td data-label="ID"><?= $p['ID'] ?></td>
+  <td data-label="Lotes">
+    <ul class="list-unstyled mb-0">
+      <?php
+      $stmtCnt = $conn->prepare("
+        SELECT COALESCE(SUM(Tuppers_Esterilizados),0) AS cnt
+        FROM esterilizacion_autoclave
+        WHERE id_paquete = ?
+          AND ID_Dilucion = ?
+      ");
+      foreach (explode(', ', $p['Lotes']) as $lote):
+        $stmtCnt->bind_param("is", $p['ID'], $lote);
+        $stmtCnt->execute();
+        $cnt = $stmtCnt->get_result()->fetch_assoc()['cnt'];
+      ?>
+        <li>
+          <strong><?= htmlspecialchars($lote) ?></strong>: <?= $cnt ?> tuppers
+        </li>
+      <?php endforeach; ?>
+    </ul>
+  </td>
+  <td data-label="Resumen">
+    <small>
+      Vacíos: <?= $p['TotalVacios'] ?><br>
+      Tapas: <?= $p['TotalTapas'] ?>
+    </small>
+  </td>
+  <td data-label="Contaminados"><?= $p['TotalContaminados'] ?></td>
+  <td data-label="Fecha de Inicio"><?= $p['FechaInicio'] ?></td>
+  <td data-label="Artículos" class="text-wrap"><?= htmlspecialchars($p['Articulos']) ?></td>
+  <td data-label="Acción">
+    <a href="?abrir_modal_finalizar=<?= $p['ID'] ?>" class="btn btn-sm btn-success">
+      Finalizar
+    </a>
+  </td>
+</tr>
           <?php endforeach; ?>
         </tbody>
       </table>
@@ -751,45 +736,44 @@ $finalizados = $conn->query("
             ");
             ?>
             <?php foreach ($finalizados as $p): ?>
-              <tr>
-                <td><?= $p['ID'] ?></td>
-                <td>
-                  <ul class="list-unstyled mb-0">
-    <?php 
-    // Si no hay lotes, mostramos directamente el total de tuppers (contaminados u otro tipo)
-    if (trim((string)$p['Lotes']) === ''): ?>
-      <li>
-        <strong>Total</strong>: <?= $p['TotalTuppers'] ?> tuppers
-      </li>
-    <?php 
-    else:
-      // Si sí hay lotes, iteramos como antes
-      foreach (explode(', ', $p['Lotes']) as $lote):
-        $stmtCntF->bind_param("is", $p['ID'], $lote);
-        $stmtCntF->execute();
-        $cntF = $stmtCntF->get_result()->fetch_assoc()['cnt'];
-    ?>
-      <li>
-        <strong><?= htmlspecialchars($lote) ?></strong>: <?= $cntF ?> tuppers
-      </li>
-    <?php 
-      endforeach;
-    endif;
-    ?>
-  </ul>
-</td>
-                <td>
-                  <small>
-                    Vacíos: <?= $p['TotalVacios'] ?><br>
-                    Tapas: <?= $p['TotalTapas'] ?>
-                  </small>
-                </td>
-                <td><?= $p['FechaInicio'] ?></td>
-                <td><?= $p['FechaFin'] ?></td>
-                <td class="text-wrap"><?= htmlspecialchars($p['Articulos']) ?></td>
-                <td><?= htmlspecialchars($p['Resultado']) ?></td>
-                <td><?= nl2br(htmlspecialchars($p['Observaciones'])) ?></td>
-              </tr>
+<tr>
+  <td data-label="ID"><?= $p['ID'] ?></td>
+  <td data-label="Lotes">
+    <ul class="list-unstyled mb-0">
+      <?php 
+      if (trim((string)$p['Lotes']) === ''): ?>
+        <li>
+          <strong>Total</strong>: <?= $p['TotalTuppers'] ?> tuppers
+        </li>
+      <?php 
+      else:
+        foreach (explode(', ', $p['Lotes']) as $lote):
+          $stmtCntF->bind_param("is", $p['ID'], $lote);
+          $stmtCntF->execute();
+          $cntF = $stmtCntF->get_result()->fetch_assoc()['cnt'];
+      ?>
+        <li>
+          <strong><?= htmlspecialchars($lote) ?></strong>: <?= $cntF ?> tuppers
+        </li>
+      <?php 
+        endforeach;
+      endif;
+      ?>
+    </ul>
+  </td>
+  <td data-label="Resumen">
+    <small>
+      Vacíos: <?= $p['TotalVacios'] ?><br>
+      Tapas: <?= $p['TotalTapas'] ?>
+    </small>
+  </td>
+  <td data-label="Inicio"><?= $p['FechaInicio'] ?></td>
+  <td data-label="Final"><?= $p['FechaFin'] ?></td>
+  <td data-label="Artículos" class="text-wrap"><?= htmlspecialchars($p['Articulos']) ?></td>
+  <td data-label="Resultado"><?= htmlspecialchars($p['Resultado']) ?></td>
+  <td data-label="Observaciones"><?= nl2br(htmlspecialchars($p['Observaciones'])) ?></td>
+</tr>
+
             <?php endforeach; ?>
           <?php endif; ?>
         </tbody>

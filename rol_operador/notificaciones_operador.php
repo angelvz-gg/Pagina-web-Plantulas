@@ -80,47 +80,48 @@ $result_e = $stmt_e->get_result();
         </nav>
       </div>
   </header>
-  <main>
-    <div class="container mt-4">
+<main class="container mt-4">
       <h3>Tienes notificaciones de rechazo pendientes</h3>
       <?php if($result_m->num_rows == 0 && $result_e->num_rows == 0): ?>
         <div class="alert alert-info">No tienes notificaciones de rechazo.</div>
       <?php else: ?>
-        <table class="table table-bordered">
-          <thead>
-            <tr>
-              <th>Tipo</th>
-              <th>Variedad</th>
-              <th>Fecha de Siembra</th>
-              <th>Observaciones</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php while($row = $result_m->fetch_assoc()): ?>
-            <tr>
-              <td>Multiplicación</td>
-              <td><?= $row['Codigo_Variedad'] . " - " . $row['Nombre_Variedad'] ?></td>
-              <td><?= $row['Fecha_Siembra'] ?></td>
-              <td><?= $row['Observaciones_Revision'] ?></td>
-              <td>
-                <a href="corregir_reporte.php?tipo=multiplicacion&id=<?= $row['ID_Multiplicacion'] ?>" class="btn btn-warning btn-sm">Corregir</a>
-              </td>
-            </tr>
-            <?php endwhile; ?>
-            <?php while($row = $result_e->fetch_assoc()): ?>
-            <tr>
-              <td>Enraizamiento</td>
-              <td><?= $row['Codigo_Variedad'] . " - " . $row['Nombre_Variedad'] ?></td>
-              <td><?= $row['Fecha_Siembra'] ?></td>
-              <td><?= $row['Observaciones_Revision'] ?></td>
-              <td>
-                <a href="corregir_reporte.php?tipo=enraizamiento&id=<?= $row['ID_Enraizamiento'] ?>" class="btn btn-warning btn-sm">Corregir</a>
-              </td>
-            </tr>
-            <?php endwhile; ?>
-          </tbody>
-        </table>
+<div class="table-responsive">
+  <table class="table tabla-asignaciones table-bordered table-hover table-striped">
+    <thead>
+      <tr>
+        <th class="text-center align-middle p-1">Tipo</th>
+        <th class="text-center align-middle p-1">Variedad</th>
+        <th class="text-center align-middle p-1">Fecha de Siembra</th>
+        <th class="text-center align-middle p-1">Observaciones</th>
+        <th class="text-center align-middle p-1">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php while($row = $result_m->fetch_assoc()): ?>
+<tr class="text-center align-middle">
+  <td data-label="Tipo">Multiplicación</td>
+  <td class="text-center align-middle" data-label="Variedad"><?= $row['Codigo_Variedad'] . " - " . $row['Nombre_Variedad'] ?></td>
+  <td class="text-center align-middle" data-label="Fecha de Siembra"><?= $row['Fecha_Siembra'] ?></td>
+  <td class="text-break small text-center align-middle" data-label="Observaciones"><?= htmlspecialchars($row['Observaciones_Revision']) ?></td>
+  <td class="text-center align-middle" data-label="Acciones">
+    <a href="corregir_reporte.php?tipo=multiplicacion&id=<?= $row['ID_Multiplicacion'] ?>" class="btn btn-warning btn-sm w-100">Corregir</a>
+  </td>
+</tr>
+      <?php endwhile; ?>
+      <?php while($row = $result_e->fetch_assoc()): ?>
+<tr class="text-center align-middle">
+  <td data-label="Tipo">Enraizamiento</td>
+  <td class="text-center align-middle" data-label="Variedad"><?= $row['Codigo_Variedad'] . " - " . $row['Nombre_Variedad'] ?></td>
+  <td class="text-center align-middle" data-label="Fecha de Siembra"><?= $row['Fecha_Siembra'] ?></td>
+  <td class="text-break small text-center align-middle" data-label="Observaciones"><?= htmlspecialchars($row['Observaciones_Revision']) ?></td>
+  <td class="text-center align-middle" data-label="Acciones">
+    <a href="corregir_reporte.php?tipo=enraizamiento&id=<?= $row['ID_Enraizamiento'] ?>" class="btn btn-warning btn-sm w-100">Corregir</a>
+  </td>
+</tr>
+      <?php endwhile; ?>
+    </tbody>
+  </table>
+</div>
       <?php endif; ?>
     </div>
   </main>

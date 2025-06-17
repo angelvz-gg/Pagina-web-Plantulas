@@ -55,7 +55,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $codigo_medio = trim($_POST['codigo_medio']);
     $fecha        = date('Y-m-d'); // Fecha automática
-    $cantidad     = (float) $_POST['cantidad_preparada'];
+    $cantidad = (float) str_replace(',', '.', $_POST['cantidad_preparada']);
     $operador     = $ID_Operador;
 
     // Validar cantidad
@@ -181,14 +181,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <div class="col-md-4">
     <label for="cantidad_preparada" class="form-label">Cantidad Preparada (L)</label>
     <input
-      type="number"
-      id="cantidad_preparada"
-      name="cantidad_preparada"
-      class="form-control"
-      min="1"
-      max="100"
-      step="0.1"
-      required
+  type="text"
+  id="cantidad_preparada"
+  name="cantidad_preparada"
+  class="form-control"
+  pattern="^(100(\.0{1,2})?|[1-9]?[0-9](\.\d{1,2})?)$"
+  title="Solo se permite punto como separador decimal. Ej: 2.3, 11.11, 100.00"
+  required
     >
   </div>
 </div>
@@ -204,6 +203,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
     </footer>
   </div>
+
+<script>
+document.getElementById('cantidad_preparada').addEventListener('input', function () {
+  // Reemplazar comas por puntos automáticamente
+  this.value = this.value.replace(',', '.');
+
+  // Eliminar cualquier carácter que no sea dígito o punto
+  this.value = this.value.replace(/[^0-9.]/g, '');
+});
+</script>
+
 
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>

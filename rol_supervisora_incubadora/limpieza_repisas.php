@@ -99,52 +99,50 @@ $estadosResult = $conn->query("SELECT DISTINCT Estado_Limpieza FROM registro_lim
     </nav>
   </div>
 
-  <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
-    <div class="d-flex flex-column" style="min-width:120px;">
-      <label for="filtro-fecha" class="small mb-1">Fecha</label>
-      <input id="filtro-fecha" type="date" name="fecha" form="filtrosForm"
-             class="form-control form-control-sm"
-             value="<?= htmlspecialchars($filter_fecha) ?>">
-    </div>
+<nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2">
+  <div class="d-flex flex-column" style="min-width:120px;">
+    <label for="filtro-fecha" class="small mb-1">Fecha</label>
+    <input id="filtro-fecha" type="date" name="fecha" form="filtrosForm"
+           class="form-control form-control-sm"
+           value="<?= htmlspecialchars($filter_fecha) ?>">
+  </div>
 
-    <div class="d-flex flex-column" style="min-width:140px;">
-      <label for="filtro-area" class="small mb-1">Área</label>
-      <select id="filtro-area" name="area" form="filtrosForm"
-              class="form-select form-select-sm">
-        <option value="">— Todas Áreas —</option>
-        <?php while($a = $areasResult->fetch_assoc()): ?>
-          <option value="<?= htmlspecialchars($a['Area'])?>"
-            <?= $filter_area === $a['Area'] ? 'selected':''?>>
-            <?= htmlspecialchars($a['Area']) ?>
-          </option>
-        <?php endwhile; ?>
-      </select>
-    </div>
+  <div class="d-flex flex-column" style="min-width:140px;">
+    <label for="filtro-area" class="small mb-1">Área</label>
+    <select id="filtro-area" name="area" form="filtrosForm"
+            class="form-select form-select-sm">
+      <option value="">— Todas Áreas —</option>
+      <?php while($a = $areasResult->fetch_assoc()): ?>
+        <option value="<?= htmlspecialchars($a['Area'])?>"
+          <?= $filter_area === $a['Area'] ? 'selected':''?>>
+          <?= htmlspecialchars($a['Area']) ?>
+        </option>
+      <?php endwhile; ?>
+    </select>
+  </div>
 
-    <div class="d-flex flex-column" style="min-width:140px;">
-      <label for="filtro-estado" class="small mb-1">Estado</label>
-      <select id="filtro-estado" name="estado" form="filtrosForm"
-              class="form-select form-select-sm">
-        <option value="">— Todos Estados —</option>
-        <?php while($e = $estadosResult->fetch_assoc()): ?>
-          <option value="<?= htmlspecialchars($e['Estado_Limpieza'])?>"
-            <?= $filter_estado === $e['Estado_Limpieza'] ? 'selected':''?>>
-            <?= htmlspecialchars($e['Estado_Limpieza']) ?>
-          </option>
-        <?php endwhile; ?>
-      </select>
-    </div>
+  <div class="d-flex flex-column" style="min-width:140px;">
+    <label for="filtro-estado" class="small mb-1">Estado</label>
+    <select id="filtro-estado" name="estado" form="filtrosForm"
+            class="form-select form-select-sm">
+      <option value="">— Todos Estados —</option>
+      <?php while($e = $estadosResult->fetch_assoc()): ?>
+        <option value="<?= htmlspecialchars($e['Estado_Limpieza'])?>"
+          <?= $filter_estado === $e['Estado_Limpieza'] ? 'selected':''?>>
+          <?= htmlspecialchars($e['Estado_Limpieza']) ?>
+        </option>
+      <?php endwhile; ?>
+    </select>
+  </div>
 
-    <button form="filtrosForm" type="submit"
-            class="btn-inicio btn btn-success btn-sm ms-auto">
-      Filtrar
-    </button>
-  </nav>
+  <button form="filtrosForm" type="submit"
+          class="btn-inicio btn btn-success btn-sm ms-auto">
+    Filtrar
+  </button>
+  <a href="limpieza_repisas.php" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+</nav>
+
 </header>
-
-
-    <!-- Formulario oculto para filtros -->
-    <form id="filtrosForm" method="GET" class="d-none"></form>
 
     <main class="container mt-4">
       <div class="table-responsive mb-4">

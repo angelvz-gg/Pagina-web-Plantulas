@@ -210,34 +210,24 @@ $resultado = $stmt->get_result();
     <h3 class="mb-4 text-center">📦 Órdenes Asignadas para Preparación</h3>
 
     <?php if ($resultado->num_rows > 0): ?>
-        <table class="table table-bordered table-hover table-striped">
-            <thead class="table-dark">
-                <tr>
-                    <th>Fecha de Lavado</th>
-                    <th>Variedad</th>
-                    <th>Código</th>
-                    <th>Especie</th>
-                    <th>Cantidad Asignada</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php while ($orden = $resultado->fetch_assoc()): ?>
-                    <tr>
-                        <td><?= htmlspecialchars($orden['Fecha_Lavado']) ?></td>
-                        <td><?= htmlspecialchars($orden['Nombre_Variedad']) ?></td>
-                        <td><?= htmlspecialchars($orden['Codigo_Variedad']) ?></td>
-                        <td><?= htmlspecialchars($orden['Especie']) ?></td>
-                        <td><?= htmlspecialchars($orden['Cantidad_Lavada']) ?></td>
-                        <td>
-                            <button class="btn btn-primary btn-sm" onclick="prepararCaja(<?= $orden['ID_Orden'] ?>, '<?= htmlspecialchars($orden['Nombre_Variedad']) ?>', <?= $orden['Cantidad_Lavada'] ?>)">
-                                Preparar Caja
-                            </button>
-                        </td>
-                    </tr>
-                <?php endwhile; ?>
-            </tbody>
-        </table>
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+  <?php while ($orden = $resultado->fetch_assoc()): ?>
+    <div class="col">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title mb-2"><?= htmlspecialchars($orden['Nombre_Variedad']) ?></h5>
+          <p class="mb-1"><strong>Fecha de Lavado:</strong> <?= htmlspecialchars($orden['Fecha_Lavado']) ?></p>
+          <p class="mb-1"><strong>Código:</strong> <?= htmlspecialchars($orden['Codigo_Variedad']) ?></p>
+          <p class="mb-1"><strong>Especie:</strong> <?= htmlspecialchars($orden['Especie']) ?></p>
+          <p class="mb-2"><strong>Cantidad Asignada:</strong> <?= htmlspecialchars($orden['Cantidad_Lavada']) ?></p>
+          <button class="btn btn-primary btn-sm w-100" onclick="prepararCaja(<?= $orden['ID_Orden'] ?>, '<?= htmlspecialchars($orden['Nombre_Variedad']) ?>', <?= $orden['Cantidad_Lavada'] ?>)">
+            Preparar Caja
+          </button>
+        </div>
+      </div>
+    </div>
+  <?php endwhile; ?>
+</div>
 
         <div id="formularioPreparacion" style="display: none;" class="mt-5 section">
             <h4 class="text-center mb-4">📦 Preparar Caja para: <span id="variedadSeleccionada"></span></h4>

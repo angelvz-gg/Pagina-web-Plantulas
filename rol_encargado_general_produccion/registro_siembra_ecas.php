@@ -56,6 +56,7 @@ $sql_des = "
         D.ID_Desinfeccion,
         D.ID_Variedad,
         D.FechaHr_Desinfeccion,
+            D.Origen_Explantes,
         D.Explantes_Desinfectados,
         V.Codigo_Variedad,
         V.Nombre_Variedad,
@@ -82,15 +83,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_siembra"])) {
     $medio           = $_POST["medio"];
     $cantidad        = (int)$_POST["cantidad"];
     $tuppers_llenos  = (int)$_POST["tuppers_llenos"];
-    $observaciones   = $_POST["observaciones"] ?? '';
+    $tuppers_disponibles = $tuppers_llenos;
+$observaciones = isset($_POST["observaciones"]) ? trim($_POST["observaciones"]) : '';
+if ($observaciones === '0' || $observaciones === 0) {
+    $observaciones = '';
+}
+$observaciones = htmlspecialchars(strip_tags($observaciones), ENT_QUOTES, 'UTF-8');
+
 
 //Validación para que no se inserten brotes menores a 1
 if ($cantidad < 1) {
-    $mensaje = "⚠️ La cantidad de brotes a sembrar debe ser mayor a 0.";
+    $mensaje = "⚠️ La cantidad de brotes a sembrar debe ser mayor a 1.";
 }
 
-
-    // 1. Validación: tuppers no deben exceder a cantidad
+    // 1. Validación: tuppers no deben exceder a cantidad disponible
     if ($tuppers_llenos > $cantidad) {
         $mensaje = "❌ Los tuppers llenos no pueden exceder la cantidad de explantes.";
     }
@@ -171,28 +177,37 @@ if ($cantidad < 1) {
 if (empty($mensaje)) {
     $brotes_disponibles = $cantidad;
 
-    $sql_siembra = "
-        INSERT INTO siembra_ecas
-          (ID_Desinfeccion, ID_Variedad, Fecha_Siembra, Medio_Nutritivo,
-           Cantidad_Sembrada, Tuppers_Llenos, Brotes_Disponibles, Observaciones,
-           Operador_Responsable, ID_Lote)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ";
+$sql_origen = "SELECT Origen_Explantes FROM desinfeccion_explantes WHERE ID_Desinfeccion = ?";
+$stmt_origen = $conn->prepare($sql_origen);
+$stmt_origen->bind_param("i", $id_desinfeccion);
+$stmt_origen->execute();
+$result_origen = $stmt_origen->get_result()->fetch_assoc();
+$origen_explantes = strtoupper(trim($result_origen['Origen_Explantes'] ?? ''));
+
+$sql_siembra = "
+    INSERT INTO siembra_ecas
+    (ID_Desinfeccion, ID_Variedad, Fecha_Siembra, Origen_Explantes, Medio_Nutritivo,
+    Cantidad_Sembrada, Tuppers_Llenos, Tuppers_Disponibles, Brotes_Disponibles, Observaciones,
+    Operador_Responsable, ID_Lote)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+";
 
     $stmt_siembra = $conn->prepare($sql_siembra);
     $stmt_siembra->bind_param(
-        "iissiiisii", // ← CORRECTO: 10 variables, tipos exactos
-        $id_desinfeccion,
-        $id_variedad,
-        $fecha_siembra,
-        $medio,
-        $cantidad,
-        $tuppers_llenos,
-        $brotes_disponibles,
-        $observaciones,
-        $ID_Operador,
-        $id_lote
-    );
+   "iissiiiissii",
+    $id_desinfeccion,
+    $id_variedad,
+    $fecha_siembra,
+    $origen_explantes,
+    $medio,
+    $cantidad,
+    $tuppers_llenos,
+    $tuppers_disponibles, 
+    $brotes_disponibles,
+    $observaciones,
+    $ID_Operador,
+    $id_lote
+);
 
     if ($stmt_siembra->execute()) {
         header("Location: registro_siembra_ecas.php?success=1");
@@ -259,8 +274,9 @@ if (empty($mensaje)) {
              data-variedad-nombre="<?= htmlspecialchars($d['Codigo_Variedad'] . ' - ' . $d['Nombre_Variedad']) ?>"
              data-explantes="<?= $disponibles ?>">
           <strong><?= htmlspecialchars($d['Codigo_Variedad'] . ' - ' . $d['Nombre_Variedad']) ?></strong><br>
-          Disponibles: <?= $disponibles ?><br>
-          Fecha:
+          <strong>Origen: <?= htmlspecialchars($d['Origen_Explantes'] ?? '-') ?><br></strong>
+          Explantes Disponibles: <?= $disponibles ?><br>
+          Fecha de desinfección:
           <?php 
             if (!empty($d['FechaHr_Desinfeccion'])) {
                 echo date("d/m/Y", strtotime($d['FechaHr_Desinfeccion']));

@@ -27,12 +27,13 @@ $nowTs           = time();
 // Parámetros de búsqueda
 $fecha_desde = $_GET['fecha_desde'] ?? '';
 $fecha_hasta = $_GET['fecha_hasta'] ?? '';
+$fecha_exacta = $_GET['fecha_exacta'] ?? '';
 $busqueda_variedad = $_GET['busqueda_variedad'] ?? '';
 
 // Consulta base
-$sql = "SELECT D.ID_Desinfeccion, D.ID_Variedad, D.Explantes_Iniciales, D.Explantes_Desinfectados,
-               D.FechaHr_Desinfeccion, D.HrFn_Desinfeccion, D.Estado_Desinfeccion,
-               O.Nombre, O.Apellido_P, O.Apellido_M,
+$sql = "SELECT D.ID_Desinfeccion, D.ID_Variedad, D.Origen_Explantes, D.Explantes_Iniciales,
+               D.Explantes_Desinfectados, D.FechaHr_Desinfeccion, D.HrFn_Desinfeccion, 
+               D.Estado_Desinfeccion, O.Nombre, O.Apellido_P, O.Apellido_M,
                V.Codigo_Variedad, V.Nombre_Variedad
         FROM desinfeccion_explantes D
         LEFT JOIN operadores O ON D.Operador_Responsable = O.ID_Operador
@@ -51,6 +52,11 @@ if (!empty($fecha_desde)) {
 if (!empty($fecha_hasta)) {
     $sql .= " AND D.FechaHr_Desinfeccion <= ?";
     $params[] = $fecha_hasta . " 23:59:59";
+    $types .= "s";
+}
+if (!empty($fecha_exacta)) {
+    $sql .= " AND DATE(D.FechaHr_Desinfeccion) = ?";
+    $params[] = $fecha_exacta;
     $types .= "s";
 }
 if (!empty($busqueda_variedad)) {
@@ -87,7 +93,7 @@ $result = $stmt->get_result();
   </script>
 </head>
 <body>
-<div class="contenedorpagina">
+<div class="contenedor-pagina">
 
   <header>
     <div class="encabezado">
@@ -112,30 +118,35 @@ $result = $stmt->get_result();
 <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
   <div class="d-flex flex-column" style="min-width:120px;">
     <label for="filtro-fecha-desde" class="small mb-1">Desde</label>
-    <input id="filtro-fecha-desde" type="date" name="fecha_desde" form="filtrosForm"
-           class="form-control form-control-sm"
+    <input id="filtro-fecha-desde" type="date" class="form-control form-control-sm"
            value="<?= htmlspecialchars($fecha_desde) ?>">
   </div>
 
   <div class="d-flex flex-column" style="min-width:120px;">
     <label for="filtro-fecha-hasta" class="small mb-1">Hasta</label>
-    <input id="filtro-fecha-hasta" type="date" name="fecha_hasta" form="filtrosForm"
-           class="form-control form-control-sm"
+    <input id="filtro-fecha-hasta" type="date" class="form-control form-control-sm"
            value="<?= htmlspecialchars($fecha_hasta) ?>">
+  </div>
+
+  <div class="d-flex flex-column" style="min-width:120px;">
+    <label for="fecha_exacta" class="small mb-1">Fecha Exacta</label>
+    <input id="fecha_exacta" type="date" class="form-control form-control-sm"
+           value="<?= htmlspecialchars($_GET['fecha_exacta'] ?? '') ?>">
   </div>
 
   <div class="d-flex flex-column" style="min-width:140px;">
     <label for="filtro-variedad" class="small mb-1">Variedad</label>
-    <input id="filtro-variedad" type="text" name="busqueda_variedad" form="filtrosForm"
-           class="form-control form-control-sm"
+    <input id="filtro-variedad" type="text" class="form-control form-control-sm"
            placeholder="Nombre o Código"
            value="<?= htmlspecialchars($busqueda_variedad) ?>">
   </div>
 
-  <button form="filtrosForm" type="submit"
-          class="btn-inicio btn btn-success btn-sm ms-auto">
+  <button onclick="aplicarFiltros()" class="btn-inicio btn btn-success btn-sm ms-auto">
     Filtrar
   </button>
+  <button onclick="limpiarFiltros()" type="button" class="btn btn-limpiar btn-sm ms-2">
+  Limpiar filtros
+</button>
 </nav>
   </header>
 
@@ -148,29 +159,41 @@ $result = $stmt->get_result();
             <th>ID</th>
             <th>Código Variedad</th>
             <th>Nombre Variedad</th>
-            <th>Explantes Iniciales</th>
-            <th>Desinfectados</th>
+            <th>Origen de los Explantes</th>
+            <th>Cantidad de Explantes Iniciales</th>
+            <th>Cantidad de Explantes Desinfectados</th>
             <th>Inicio</th>
             <th>Fin</th>
             <th>Estado</th>
             <th>Responsable</th>
           </tr>
         </thead>
+
         <tbody>
+        <?php if ($result->num_rows > 0): ?>
           <?php while ($row = $result->fetch_assoc()) { ?>
             <tr>
-              <td><?= $row['ID_Desinfeccion'] ?></td>
-              <td><?= $row['Codigo_Variedad'] ?? '-' ?></td>
-              <td><?= $row['Nombre_Variedad'] ?? '-' ?></td>
-              <td><?= $row['Explantes_Iniciales'] ?></td>
-              <td><?= $row['Explantes_Desinfectados'] ?? '-' ?></td>
-              <td><?= $row['FechaHr_Desinfeccion'] ?></td>
-              <td><?= $row['HrFn_Desinfeccion'] ?? '-' ?></td>
-              <td><?= $row['Estado_Desinfeccion'] ?></td>
-              <td><?= $row['Nombre'] . ' ' . $row['Apellido_P'] . ' ' . $row['Apellido_M'] ?></td>
+              <td data-label="ID"><?= $row['ID_Desinfeccion'] ?></td>
+              <td data-label="Código Variedad"><?= $row['Codigo_Variedad'] ?? '-' ?></td>
+              <td data-label="Nombre Variedad"><?= $row['Nombre_Variedad'] ?? '-' ?></td>
+              <td data-label="Origen"><?= htmlspecialchars($row['Origen_Explantes'] ?? '-') ?></td>
+              <td data-label="Explantes Iniciales"><?= $row['Explantes_Iniciales'] ?></td>
+              <td data-label="Explantes Desinfectados"><?= $row['Explantes_Desinfectados'] ?? '-' ?></td>
+              <td data-label="Inicio"><?= $row['FechaHr_Desinfeccion'] ?></td>
+              <td data-label="Fin"><?= $row['HrFn_Desinfeccion'] ?? '-' ?></td>
+              <td data-label="Estado"><?= $row['Estado_Desinfeccion'] ?></td>
+              <td data-label="Responsable"><?= $row['Nombre'] . ' ' . $row['Apellido_P'] . ' ' . $row['Apellido_M'] ?></td>
             </tr>
-          <?php } ?>
+            <?php } ?>
+            <?php else: ?>
+              <tr>
+              <td colspan="9" class="text-center text-muted py-3">
+              No se encontraron registros con los filtros seleccionados.
+            </td>
+          </tr>
+          <?php endif; ?>
         </tbody>
+
       </table>
     </div>
   </main>
@@ -181,10 +204,67 @@ $result = $stmt->get_result();
 </div>
 
 <script>
-  function toggleFiltros() {
-    const filtros = document.getElementById("filtros");
-    filtros.style.display = filtros.style.display === "none" ? "block" : "none";
+function aplicarFiltros() {
+  const desde = document.getElementById('filtro-fecha-desde').value;
+  const hasta = document.getElementById('filtro-fecha-hasta').value;
+  const exacta = document.getElementById('fecha_exacta').value;
+  const variedad = document.getElementById('filtro-variedad').value;
+
+  const params = new URLSearchParams();
+
+  if (desde) params.append('fecha_desde', desde);
+  if (hasta) params.append('fecha_hasta', hasta);
+  if (exacta) params.append('fecha_exacta', exacta);
+  if (variedad) params.append('busqueda_variedad', variedad);
+
+  window.location.href = 'historial_desinfeccion_explantes.php?' + params.toString();
+}
+</script>
+
+<script>
+function limpiarFiltros() {
+  // Recarga sin parámetros
+  window.location.href = 'historial_desinfeccion_explantes.php';
+}
+</script>
+
+<script>
+function aplicarRestriccionFechas() {
+  const desde  = document.getElementById('filtro-fecha-desde');
+  const hasta  = document.getElementById('filtro-fecha-hasta');
+  const exacta = document.getElementById('fecha_exacta');
+
+  // Si se llena fecha exacta, deshabilitar desde/hasta
+  if (exacta.value) {
+    desde.disabled = true;
+    hasta.disabled = true;
+    desde.classList.add('disabled-date');
+    hasta.classList.add('disabled-date');
+  } else {
+    desde.disabled = false;
+    hasta.disabled = false;
+    desde.classList.remove('disabled-date');
+    hasta.classList.remove('disabled-date');
   }
+
+  // Si se llena desde o hasta, deshabilitar fecha exacta
+  if (desde.value || hasta.value) {
+    exacta.disabled = true;
+    exacta.classList.add('disabled-date');
+  } else if (!exacta.value) {
+    exacta.disabled = false;
+    exacta.classList.remove('disabled-date');
+  }
+}
+
+// Detectar cambios en todos los campos
+['filtro-fecha-desde', 'filtro-fecha-hasta', 'fecha_exacta'].forEach(id => {
+  const campo = document.getElementById(id);
+  campo.addEventListener('input', aplicarRestriccionFechas);
+});
+
+// Ejecutar al cargar (por si vienen prellenados)
+window.addEventListener('DOMContentLoaded', aplicarRestriccionFechas);
 </script>
 
 <!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->

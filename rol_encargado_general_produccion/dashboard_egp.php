@@ -83,8 +83,8 @@ $nowTs           = time();
           </a>
         </div>
         <div class="card" data-card-id="historial-desinfeccion">
-          <h2>📄 Historial de Desinfección</h2>
-          <p>Consulta todas las desinfecciones registradas por los operadores.</p>
+          <h2>📄 Historial de Desinfecciones</h2>
+          <p>Consulta todas las desinfecciones registradas.</p>
           <a href="historial_desinfeccion_explantes.php"
              onclick="rememberCard('historial-desinfeccion')">
             Ver Historial
@@ -100,15 +100,15 @@ $nowTs           = time();
         </div>
         <div class="card card-ecas" data-card-id="divisiones">
           <h2>✂️ Divisiones de Explantes</h2>
-          <p>Registra las divisiones hechas en ECAS y su generación correspondiente.</p>
+          <p>Registra las divisiones hechas en ECAS.</p>
           <a href="divisiones_ecas.php"
              onclick="rememberCard('divisiones')">
             Registrar División
           </a>
         </div>
         <div class="card card-ecas" data-card-id="evaluacion">
-          <h2>🧪 Evaluación de Desarrollo</h2>
-          <p>Clasifica los explantes: vivos, hinchados, con brote, infectados o muertos.</p>
+          <h2>🧪 Registro de contaminación</h2>
+          <p>Registra los explantes que se encontraron perdidos</p>
           <a href="evaluacion_ecas.php"
              onclick="rememberCard('evaluacion')">
             Evaluar Desarrollo
@@ -123,7 +123,7 @@ $nowTs           = time();
           </a>
         </div>
         <div class="card card-ecas" data-card-id="envio-multiplicacion">
-          <h2>📤 Envío a Multiplicación</h2>
+          <h2>📤 Envío de explantes a Multiplicación</h2>
           <p>Finaliza el proceso ECAS enviando brotes listos a multiplicación.</p>
           <a href="envio_multiplicacion.php"
              onclick="rememberCard('envio-multiplicacion')">
@@ -142,11 +142,11 @@ $nowTs           = time();
   -->
       </section>
 
-      <h3 class="mt-5 mb-3">🔧 Funciones Generales</h3>
+      <h3 class="mt-5 mb-3">🔧 Tareas Generales</h3>
       <section class="dashboard-grid">
         <div class="card" data-card-id="reportes-produccion">
-          <h2>🔬 Reportes de Producción</h2>
-          <p>Consulta y revisa los reportes diarios de producción.</p>
+          <h2>🔬 Reportes de Siembra</h2>
+          <p>Consulta y revisa los reportes de Siembra.</p>
           <a href="reportes_produccion.php"
              onclick="rememberCard('reportes-produccion')">
             Ver Reportes
@@ -154,7 +154,7 @@ $nowTs           = time();
         </div>
         <div class="card" data-card-id="preparacion-soluciones">
           <h2>🧪 Preparación de Soluciones Madre</h2>
-          <p>Supervisa y controla la preparación de soluciones madre en el laboratorio.</p>
+          <p>Registra la preparación de soluciones madre.</p>
           <a href="preparacion_soluciones.php"
              onclick="rememberCard('preparacion-soluciones')">
             Ir a Preparación
@@ -162,7 +162,7 @@ $nowTs           = time();
         </div>
         <div class="card" data-card-id="inventario-soluciones">
           <h2>📈 Inventario de Soluciones Madre</h2>
-          <p>Consulta la cantidad restante de cada solución madre.</p>
+          <p>Consulta la cantidad que hay de cada solución madre.</p>
           <a href="inventario_soluciones_madre.php"
              onclick="rememberCard('inventario-soluciones')">
             Ver Inventario
@@ -174,14 +174,6 @@ $nowTs           = time();
           <a href="rol_limpieza.php"
              onclick="rememberCard('rol-limpieza')">
             Crear Rol de Limpieza
-          </a>
-        </div>
-        <div class="card" data-card-id="historial-lavado">
-          <h2>📈 Historial de Clasificación Parcial</h2>
-          <p>Visualiza los reportes de avance de todos los operadores.</p>
-          <a href="historial_lavado_parcial.php"
-             onclick="rememberCard('historial-lavado')">
-            Ver Historial
           </a>
         </div>
       </section>

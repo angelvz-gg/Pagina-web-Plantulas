@@ -357,7 +357,7 @@ $asigs = $conn->query("
   <div class="card-header bg-secondary text-white">Últimas Asignaciones</div>
   <div class="card-body p-0">
     <div class="table-responsive">
-      <table class="table table-striped table-hover table-sm mb-0">
+      <table class="table tabla-asignaciones table-striped table-hover table-sm mb-0">
         <thead class="table-dark">
   <tr>
     <th>Fecha & Hora</th>
@@ -369,10 +369,10 @@ $asigs = $conn->query("
 <tbody>
   <?php while ($a = $asigs->fetch_assoc()): ?>
     <tr>
-      <td><?= htmlspecialchars($a['fecha_entrega']) ?></td>
-      <td><?= htmlspecialchars($a['quien_asigna']) ?></td>
-      <td><?= htmlspecialchars($a['quien_recibe']) ?></td>
-      <td><?= $a['materiales'] ?></td>
+      <td data-label="Fecha & Hora"><?= htmlspecialchars($a['fecha_entrega']) ?></td>
+<td data-label="Quien Asigna"><?= htmlspecialchars($a['quien_asigna']) ?></td>
+<td data-label="Quien Recibe"><?= htmlspecialchars($a['quien_recibe']) ?></td>
+<td data-label="Materiales"><?= $a['materiales'] ?></td>
     </tr>
   <?php endwhile; ?>
 </tbody>

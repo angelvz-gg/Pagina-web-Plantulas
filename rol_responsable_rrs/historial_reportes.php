@@ -126,30 +126,36 @@ $hist_enr = $conn->query($sql_enr);
         </nav>
       </div>
 
-      <!-- Filtros compactos -->
-      <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
-        <div class="d-flex flex-column" style="min-width:160px;">
-          <label for="filtro-operador" class="small mb-1">Operador</label>
-          <input id="filtro-operador" type="text" name="operador" form="filtrosForm"
-                class="form-control form-control-sm"
-                placeholder="Operador…" value="<?= htmlspecialchars($filterOp) ?>">
-        </div>
+<!-- Filtros compactos -->
+<nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
+  <div class="d-flex flex-column" style="min-width:160px;">
+    <label for="filtro-operador" class="small mb-1">Operador</label>
+    <input id="filtro-operador" type="text" name="operador" form="filtrosForm"
+          class="form-control form-control-sm"
+          placeholder="Operador…" value="<?= htmlspecialchars($filterOp) ?>">
+  </div>
 
-        <div class="d-flex flex-column" style="min-width:140px;">
-          <label for="filtro-estado" class="small mb-1">Estado</label>
-          <select id="filtro-estado" name="estado" form="filtrosForm"
-                  class="form-select form-select-sm">
-            <option value="">— Todos —</option>
-            <option value="Pendiente"   <?= $filterEstado==='Pendiente'   ? 'selected':''?>>Pendiente</option>
-            <option value="Consolidado" <?= $filterEstado==='Consolidado' ? 'selected':''?>>Consolidado</option>
-          </select>
-        </div>
+  <div class="d-flex flex-column" style="min-width:140px;">
+    <label for="filtro-estado" class="small mb-1">Estado</label>
+    <select id="filtro-estado" name="estado" form="filtrosForm"
+            class="form-select form-select-sm">
+      <option value="">— Todos —</option>
+      <option value="Pendiente"   <?= $filterEstado==='Pendiente'   ? 'selected':''?>>Pendiente</option>
+      <option value="Consolidado" <?= $filterEstado==='Consolidado' ? 'selected':''?>>Consolidado</option>
+    </select>
+  </div>
 
-        <button form="filtrosForm" type="submit"
-                class="btn-inicio btn btn-success btn-sm ms-auto">
-          Filtrar
-        </button>
-      </nav>
+  <button form="filtrosForm" type="submit"
+          class="btn-inicio btn btn-success btn-sm ms-auto">
+    Filtrar
+  </button>
+
+  <a href="historial_reportes.php"
+     class="btn btn-outline-secondary btn-sm">
+    Limpiar filtros
+  </a>
+</nav>
+</nav>
 
       <form id="filtrosForm" method="GET" class="d-none"></form>
     </header>

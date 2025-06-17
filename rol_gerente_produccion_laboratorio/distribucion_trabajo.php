@@ -164,14 +164,14 @@ $cajas = $conn->query("
     let START_TS          = <?= $nowTs           * 1000 ?>;
   </script>
 </head>
-<body>
-  <div class="contenedor-pagina">
+<body class="d-flex flex-column min-vh-100">
+  <div class="flex-grow-1">
     <header>
-      <div class="encabezado d-flex align-items-center">
+      <div class="encabezado d-flex flex-column flex-md-row align-items-center text-center text-md-start">
         <a class="navbar-brand me-3" href="#">
           <img src="../logoplantulas.png" alt="Logo" width="130" height="124">
         </a>
-        <h2>Distribución de Trabajo - Clasificación de Plantas</h2>
+        <h2>Distribución de Trabajo - Lavado de Plantas</h2>
       </div>
       <div class="barra-navegacion">
         <nav class="navbar bg-body-tertiary">
@@ -192,7 +192,7 @@ $cajas = $conn->query("
         <h3 class="text-center mb-4">📋 Cajas Disponibles para Clasificación</h3>
         <?php if ($cajas->num_rows > 0): ?>
           <div class="table-responsive">
-            <table class="table table-bordered table-hover table-striped">
+            <table class="table table-bordered table-hover table-striped align-middle">
               <thead class="table-dark">
                 <tr>
                   <th>ID Caja</th>
@@ -207,13 +207,13 @@ $cajas = $conn->query("
               <tbody>
                 <?php while ($caja = $cajas->fetch_assoc()): ?>
                   <tr>
-                    <td><?= $caja['ID_Preparacion'] ?></td>
-                    <td><?= htmlspecialchars($caja['Codigo_Variedad']) ?></td>
-                    <td><?= htmlspecialchars($caja['Nombre_Variedad']) ?></td>
-                    <td><?= $caja['Tuppers_Buenos'] ?></td>
-                    <td><?= htmlspecialchars($caja['Fecha_Ingreso']) ?></td>
-                    <td><?= htmlspecialchars($caja['Etapa_Origen']) ?></td>
-                    <td><?= htmlspecialchars($caja['Responsable']) ?></td>
+                    <td data-label="ID Caja"><?= $caja['ID_Preparacion'] ?></td>
+<td data-label="Código Variedad"><?= htmlspecialchars($caja['Codigo_Variedad']) ?></td>
+<td data-label="Nombre Variedad"><?= htmlspecialchars($caja['Nombre_Variedad']) ?></td>
+<td data-label="Tuppers Buenos"><?= $caja['Tuppers_Buenos'] ?></td>
+<td data-label="Fecha Ingreso"><?= htmlspecialchars($caja['Fecha_Ingreso']) ?></td>
+<td data-label="Etapa Origen"><?= htmlspecialchars($caja['Etapa_Origen']) ?></td>
+<td data-label="Responsable"><?= htmlspecialchars($caja['Responsable']) ?></td>
                   </tr>
                 <?php endwhile; ?>
               </tbody>
@@ -284,9 +284,9 @@ $cajas = $conn->query("
             <label class="form-label">Cantidad de Tuppers:</label>
             <input type="number" name="cantidad" id="cantidad-input" class="form-control" min="1" max="" required>
           </div>
-          <div class="col-12 text-center">
-            <button type="submit" class="save-button">Registrar Asignación</button>
-          </div>
+          <div class="col-12 d-flex justify-content-center">
+  <button type="submit" class="btn btn-success">Registrar Asignación</button>
+</div>
         </form>
       </div>
     </main>

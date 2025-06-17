@@ -106,36 +106,6 @@ if ($type === 'excel') {
     exit;
 }
 
-// PDF inline
-if ($type === 'pdf') {
-    $dompdf = new Dompdf();
-    $html  = '<h2 style="text-align:center;">Reportes Consolidados</h2>'
-           . '<table border="1" cellpadding="5" cellspacing="0" width="100%">'
-           . '<thead><tr style="background:#45814d;color:white;">'
-           . '<th>Etapa</th><th>ID</th>'
-           . '<th>Operador Original</th><th>Consolidado Por</th>'
-           . '<th>Variedad</th><th>Color</th>'
-           . '<th>Fecha de Siembra</th><th>Cantidad</th>'
-           . '</tr></thead><tbody>';
-    while ($row = $result->fetch_assoc()) {
-        $html .= '<tr>'
-               . '<td>'.$row['Etapa'].'</td>'
-               . '<td>'.$row['ID'].'</td>'
-               . '<td>'.htmlspecialchars($row['Operador_Original']).'</td>'
-               . '<td>'.htmlspecialchars($row['Operador_Consolida']).'</td>'
-               . '<td>'.htmlspecialchars($row['Variedad']).'</td>'
-               . '<td>'.htmlspecialchars($row['Color']).'</td>'
-               . '<td>'.$row['Fecha'].'</td>'
-               . '<td>'.$row['Cantidad'].'</td>'
-               . '</tr>';
-    }
-    $html .= '</tbody></table>';
-    $dompdf->loadHtml($html);
-    $dompdf->setPaper('A4','landscape');
-    $dompdf->render();
-    $dompdf->stream("reportes_consolidados.pdf", ["Attachment" => false]);
-    exit;
-}
 
 // Obtener operadores para filtro
 $opsSql = "
@@ -158,7 +128,31 @@ $opsResult = $conn->query($opsSql);
   <title>Exportar Reportes Consolidados</title>
   <link rel="stylesheet" href="../style.css?v=<?=time()?>"/>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <script>
+ <style>
+@media screen and (max-width: 768px) {
+  table.table thead { display: none; }
+  table.table tbody tr {
+    display: block;
+    margin-bottom: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    background-color: #f9f9f9;
+  }
+  table.table tbody td {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    border: none;
+  }
+  table.table tbody td::before {
+    content: attr(data-label);
+    font-weight: bold;
+  }
+}
+</style>
+
+ <script>
     const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
     const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
     let START_TS         = <?= $nowTs           * 1000 ?>;
@@ -174,7 +168,7 @@ $opsResult = $conn->query($opsSql);
         <div>
           <h2>Exportar Reportes Consolidados</h2>
           <p class="mb-0">Filtra antes de ver o descargar.</p>
-        </div>
+   </div>
       </div>
 
       <div class="barra-navegacion">
@@ -189,44 +183,49 @@ $opsResult = $conn->query($opsSql);
         </nav>
       </div>
 
-      <nav class="filter-toolbar d-flex flex-wrap align-items-center mb-2">
-        <div class="me-3 d-flex flex-column">
-          <label for="filtro-operador" class="small mb-0">Operador</label>
-          <select id="filtro-operador" name="operador" form="filtrosForm"
-                  class="form-select form-select-sm" style="min-width:120px;">
-            <option value="">— Todos —</option>
-            <?php while($o = $opsResult->fetch_assoc()): ?>
-              <option value="<?= htmlspecialchars($o['Operador'])?>"
-                <?= $o['Operador'] === $operador ? 'selected' : ''?>>
-                <?= htmlspecialchars($o['Operador'])?>
-              </option>
-            <?php endwhile; ?>
-          </select>
-        </div>
+<nav class="filter-toolbar row gx-2 gy-2 align-items-end mb-3">
+  <div class="col-12 col-sm-5 col-md-auto">
+    <label for="filtro-operador" class="form-label small">Operador</label>
+    <select id="filtro-operador" name="operador" form="filtrosForm"
+            class="form-select form-select-sm">
+      <option value="">— Todos —</option>
+      <?php while($o = $opsResult->fetch_assoc()): ?>
+        <option value="<?= htmlspecialchars($o['Operador'])?>"
+          <?= $o['Operador'] === $operador ? 'selected' : ''?>>
+          <?= htmlspecialchars($o['Operador'])?>
+        </option>
+      <?php endwhile; ?>
+    </select>
+  </div>
 
-        <div class="me-3 d-flex flex-column">
-          <label for="filtro-desde" class="small mb-0">Desde</label>
-          <input id="filtro-desde" form="filtrosForm" type="date" name="desde"
-                 class="form-control form-control-sm" style="max-width:120px;"
-                 value="<?= $fechaDesde ?>">
-        </div>
+  <div class="col-4 col-md-auto" style="min-width:100px;">
+    <label for="filtro-desde" class="form-label small">Desde</label>
+    <input id="filtro-desde" form="filtrosForm" type="date" name="desde"
+           class="form-control form-control-sm"
+           value="<?= $fechaDesde ?>">
+  </div>
 
-        <div class="me-3 d-flex flex-column">
-          <label for="filtro-hasta" class="small mb-0">Hasta</label>
-          <input id="filtro-hasta" form="filtrosForm" type="date" name="hasta"
-                 class="form-control form-control-sm" style="max-width:120px;"
-                 value="<?= $fechaHasta ?>">
-        </div>
+  <div class="col-4 col-md-auto" style="min-width:100px;">
+    <label for="filtro-hasta" class="form-label small">Hasta</label>
+    <input id="filtro-hasta" form="filtrosForm" type="date" name="hasta"
+           class="form-control form-control-sm"
+           value="<?= $fechaHasta ?>">
+  </div>
 
-        <button form="filtrosForm" type="submit"
-                class="btn-inicio btn btn-success btn-sm ms-auto">
-          Aplicar filtros
-        </button>
-      </nav>
+  <div class="col-12 col-sm-auto d-flex gap-2">
+    <button form="filtrosForm" type="submit"
+            class="btn btn-success btn-sm">
+      Aplicar filtros
+    </button>
+<a href="exportar_reportes.php" class="btn btn-outline-secondary btn-sm">
+  Limpiar filtros
+</a>
+  </div>
+</nav>
 
     </header>
 
-    <main class="container-fluid mt-3">
+    <main class="container-fluid mt-3 flex-grow-1">
       <form id="filtrosForm" method="GET" class="d-none"></form>
 
       <div class="table-responsive mb-4">
@@ -244,14 +243,15 @@ $opsResult = $conn->query($opsSql);
             $preview = $conn->query($sql);
             while($r = $preview->fetch_assoc()): ?>
               <tr>
-                <td><?= $r['Etapa'] ?></td>
-                <td><?= $r['ID'] ?></td>
-                <td><?= htmlspecialchars($r['Operador_Original']) ?></td>
-                <td><?= htmlspecialchars($r['Operador_Consolida']) ?></td>
-                <td><?= htmlspecialchars($r['Variedad']) ?></td>
-                <td><?= htmlspecialchars($r['Color']) ?></td>
-                <td><?= $r['Fecha'] ?></td>
-                <td><?= $r['Cantidad'] ?></td>
+<td data-label="Etapa"><?= $r['Etapa'] ?></td>
+<td data-label="ID"><?= $r['ID'] ?></td>
+<td data-label="Operador Original"><?= htmlspecialchars($r['Operador_Original']) ?></td>
+<td data-label="Consolidado Por"><?= htmlspecialchars($r['Operador_Consolida']) ?></td>
+<td data-label="Variedad"><?= htmlspecialchars($r['Variedad']) ?></td>
+<td data-label="Color"><?= htmlspecialchars($r['Color']) ?></td>
+<td data-label="Fecha de Siembra"><?= $r['Fecha'] ?></td>
+<td data-label="Cantidad"><?= $r['Cantidad'] ?></td>
+
               </tr>
             <?php endwhile; ?>
           </tbody>
@@ -268,21 +268,46 @@ $opsResult = $conn->query($opsSql);
            class="btn btn-success me-2 btn-sm">
           📊 Descargar Excel
         </a>
-        <a href="?<?= http_build_query([
-              'operador'=>$operador,
-              'desde'=>$fechaDesde,
-              'hasta'=>$fechaHasta,
-              'type'=>'pdf'
-            ]) ?>"
-           target="_blank"
-           class="btn btn-danger btn-sm">
-          📄 Ver/Imprimir PDF
-        </a>
-      </div>
+
+<a id="btn-pdf"   href="reporte_pdf.php?<?= http_build_query(['operador'=>$operador, 'desde'=>$fechaDesde, 'hasta'=>$fechaHasta]) ?>" target="_blank" class="btn btn-danger btn-sm" style="display:none">
+  📄 Ver/Imprimir PDF
+</a>
+<a id="btn-vista" href="reporte_vista.php?<?= http_build_query(['operador'=>$operador, 'desde'=>$fechaDesde, 'hasta'=>$fechaHasta]) ?>" target="_blank" class="btn btn-primary btn-sm" style="display:none">
+  👁️ Ver versión imprimible
+</a>
+</div>
+
     </main>
 
     <footer class="text-center py-3">&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</footer>
   </div>
+
+<script>
+document.getElementById('btn-limpiar').addEventListener('click', function () {
+  document.getElementById('filtro-operador').value = '';
+  document.getElementById('filtro-desde').value = '';
+  document.getElementById('filtro-hasta').value = '';
+  document.getElementById('filtrosForm').submit();
+});
+</script>
+
+<script>
+(function() {
+  const btnPDF   = document.getElementById('btn-pdf');
+  const btnVista = document.getElementById('btn-vista');
+
+  // Detectar userAgent de KioWare o navegadores sin PDF embebido
+  const ua = navigator.userAgent.toLowerCase();
+  const isKioWare = ua.includes('kioware') || ua.includes('android') || !('application/pdf' in navigator.mimeTypes);
+
+  // Mostrar solo el botón correspondiente
+  if (isKioWare) {
+    btnVista.style.display = 'inline-block';
+  } else {
+    btnPDF.style.display = 'inline-block';
+  }
+})();
+</script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 

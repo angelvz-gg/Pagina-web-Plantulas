@@ -153,7 +153,7 @@ $conn->query("SET time_zone = '-06:00'");
   <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <title>Verificación de Reportes de Producción</title>
+    <title>Verificación de Reportes de Siembra</title>
     <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
     <script>
@@ -168,7 +168,7 @@ $conn->query("SET time_zone = '-06:00'");
     <header>
       <div class="encabezado">
         <a class="navbar-brand"><img src="../logoplantulas.png" alt="Logo" width="130" height="124" /></a>
-        <h2>Verificación de Reportes de Producción</h2>
+        <h2>Verificación de Reportes de Siembra</h2>
       </div>
 
       <div class="barra-navegacion">
@@ -188,76 +188,79 @@ $conn->query("SET time_zone = '-06:00'");
       <div class="form-container">
         <div class="form-center">
           <h2>Reportes Pendientes de Verificación</h2>
+          <div class="table-responsive">
           <table class="table table-bordered">
             <thead>
               <tr>
                 <th>Operador</th>
-                <th>Variedad</th>
-                <th>Cantidad</th>
+                <th>Variedad Trabajada</th>
+                <th>Cantidad de Brotes Totales</th>
                 <th>Fecha de Siembra</th>
                 <th>Tasa de Multiplicación</th>
                 <th>Tuppers Llenos</th>
                 <th>Tuppers Vacíos</th>
-                <th>Estado</th>
+                <th>Estado del Reporte</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-            <?php while ($row = $result_multiplicacion->fetch_assoc()): ?>
-              <tr>
-                <td><?= $row['Nombre_Operador'] ?></td>
-                <td><?= $row['Codigo_Variedad'] . " - " . $row['Nombre_Variedad'] ?></td>
-                <td><?= $row['Cantidad_Dividida'] ?></td>
-                <td><?= $row['Fecha_Siembra'] ?></td>
-                <td><?= $row['Tasa_Multiplicacion'] ?></td>
-                <td><?= $row['Tuppers_Llenos'] ?></td>
-                <td><?= $row['Tuppers_Desocupados'] ?></td>
-                <td><?= $row['Estado_Revision'] ?></td>
-                <td>
-                  <div class="botones-contenedor">
-                    <form method="POST" class="form-boton">
-                      <input type="hidden" name="tipo" value="multiplicacion">
-                      <input type="hidden" name="id" value="<?= $row['ID_Multiplicacion'] ?>">
-                      <input type="hidden" name="accion" value="verificar">
-                      <button type="submit" class="save-button verificar">✔ Verificar</button>
-                    </form>
-                    <button type="button" class="save-button incorrecto" 
-                            data-tipo="multiplicacion" 
-                            data-id="<?= $row['ID_Multiplicacion'] ?>" 
-                            onclick="mostrarRechazoModal(this)">✖ Incorrecto</button>
-                  </div>
-                </td>
-              </tr>
-            <?php endwhile; ?>
+              <?php while ($row = $result_multiplicacion->fetch_assoc()): ?>
+  <tr>
+    <td data-label="Operador"><?= $row['Nombre_Operador'] ?></td>
+    <td data-label="Variedad"><?= $row['Codigo_Variedad'] . " - " . $row['Nombre_Variedad'] ?></td>
+    <td data-label="Cantidad"><?= $row['Cantidad_Dividida'] ?></td>
+    <td data-label="Fecha"><?= $row['Fecha_Siembra'] ?></td>
+    <td data-label="Tasa"><?= $row['Tasa_Multiplicacion'] ?></td>
+    <td data-label="Tuppers llenos"><?= $row['Tuppers_Llenos'] ?></td>
+    <td data-label="Tuppers vacíos"><?= $row['Tuppers_Desocupados'] ?></td>
+    <td data-label="Estado"><?= $row['Estado_Revision'] ?></td>
+    <td data-label="Acción">
+      <div class="botones-contenedor">
+        <form method="POST" class="form-boton">
+          <input type="hidden" name="tipo" value="multiplicacion">
+          <input type="hidden" name="id" value="<?= $row['ID_Multiplicacion'] ?>">
+          <input type="hidden" name="accion" value="verificar">
+          <button type="submit" class="save-button verificar">✔ Verificar</button>
+        </form>
+        <button type="button" class="save-button incorrecto" 
+                data-tipo="multiplicacion" 
+                data-id="<?= $row['ID_Multiplicacion'] ?>" 
+                onclick="mostrarRechazoModal(this)">✖ Incorrecto</button>
+      </div>
+    </td>
+  </tr>
+<?php endwhile; ?>
 
-            <?php while ($row = $result_enraizamiento->fetch_assoc()): ?>
-              <tr>
-                <td><?= $row['Nombre_Operador'] ?></td>
-                <td><?= $row['Codigo_Variedad'] . " - " . $row['Nombre_Variedad'] ?></td>
-                <td><?= $row['Cantidad_Dividida'] ?></td>
-                <td><?= $row['Fecha_Siembra'] ?></td>
-                <td><?= $row['Tasa_Multiplicacion'] ?></td>
-                <td><?= $row['Tuppers_Llenos'] ?></td>
-                <td><?= $row['Tuppers_Desocupados'] ?></td>
-                <td><?= $row['Estado_Revision'] ?></td>
-                <td>
-                  <div class="botones-contenedor">
-                    <form method="POST" class="form-boton">
-                      <input type="hidden" name="tipo" value="enraizamiento">
-                      <input type="hidden" name="id" value="<?= $row['ID_Enraizamiento'] ?>">
-                      <input type="hidden" name="accion" value="verificar">
-                      <button type="submit" class="save-button verificar">✔ Verificar</button>
-                    </form>
-                    <button type="button" class="save-button incorrecto" 
-                            data-tipo="enraizamiento" 
-                            data-id="<?= $row['ID_Enraizamiento'] ?>" 
-                            onclick="mostrarRechazoModal(this)">✖ Incorrecto</button>
-                  </div>
-                </td>
-              </tr>
-            <?php endwhile; ?>
+<?php while ($row = $result_enraizamiento->fetch_assoc()): ?>
+  <tr>
+    <td data-label="Operador"><?= $row['Nombre_Operador'] ?></td>
+    <td data-label="Variedad"><?= $row['Codigo_Variedad'] . " - " . $row['Nombre_Variedad'] ?></td>
+    <td data-label="Cantidad"><?= $row['Cantidad_Dividida'] ?></td>
+    <td data-label="Fecha"><?= $row['Fecha_Siembra'] ?></td>
+    <td data-label="Tasa"><?= $row['Tasa_Multiplicacion'] ?></td>
+    <td data-label="Tuppers llenos"><?= $row['Tuppers_Llenos'] ?></td>
+    <td data-label="Tuppers vacíos"><?= $row['Tuppers_Desocupados'] ?></td>
+    <td data-label="Estado"><?= $row['Estado_Revision'] ?></td>
+    <td data-label="Acción">
+      <div class="botones-contenedor">
+        <form method="POST" class="form-boton">
+          <input type="hidden" name="tipo" value="enraizamiento">
+          <input type="hidden" name="id" value="<?= $row['ID_Enraizamiento'] ?>">
+          <input type="hidden" name="accion" value="verificar">
+          <button type="submit" class="save-button verificar">✔ Verificar</button>
+        </form>
+        <button type="button" class="save-button incorrecto" 
+                data-tipo="enraizamiento" 
+                data-id="<?= $row['ID_Enraizamiento'] ?>" 
+                onclick="mostrarRechazoModal(this)">✖ Incorrecto</button>
+      </div>
+    </td>
+  </tr>
+<?php endwhile; ?>
+
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </main>
@@ -285,7 +288,7 @@ $conn->query("SET time_zone = '-06:00'");
     <label class="form-label">¿Qué es lo que se encuentra incorrecto?</label>
     <div class="form-check">
       <input class="form-check-input" type="checkbox" name="campos_rechazados[]" value="Variedad" id="rechazo_variedad">
-      <label class="form-check-label" for="rechazo_variedad">Variedad</label>
+      <label class="form-check-label" for="rechazo_variedad">Variedad Trabajada</label>
     </div>
     <div class="form-check">
       <input class="form-check-input" type="checkbox" name="campos_rechazados[]" value="Tasa_Multiplicacion" id="rechazo_tasa">
@@ -293,20 +296,20 @@ $conn->query("SET time_zone = '-06:00'");
     </div>
     <div class="form-check">
       <input class="form-check-input" type="checkbox" name="campos_rechazados[]" value="Cantidad_Dividida" id="rechazo_cantidad">
-      <label class="form-check-label" for="rechazo_cantidad">Cantidad dividida</label>
+      <label class="form-check-label" for="rechazo_cantidad">Cantidad de brotes totales</label>
     </div>
     <div class="form-check">
       <input class="form-check-input" type="checkbox" name="campos_rechazados[]" value="Tuppers_Llenos" id="rechazo_llenos">
-      <label class="form-check-label" for="rechazo_llenos">Tuppers llenos</label>
+      <label class="form-check-label" for="rechazo_llenos">Cantidad de Tuppers llenos</label>
     </div>
     <div class="form-check">
       <input class="form-check-input" type="checkbox" name="campos_rechazados[]" value="Tuppers_Desocupados" id="rechazo_vacios">
-      <label class="form-check-label" for="rechazo_vacios">Tuppers vacíos</label>
+      <label class="form-check-label" for="rechazo_vacios">Cantidad de Tuppers vacíos</label>
     </div>
   </div>
 
             <div class="mb-3">
-              <label for="observacion" class="form-label">Motivo del rechazo</label>
+              <label for="observacion" class="form-label">Describa el motivo del rechazo</label>
               <textarea name="observacion" id="observacion" class="form-control" placeholder="Motivo del rechazo" required></textarea>
             </div>
           </div>

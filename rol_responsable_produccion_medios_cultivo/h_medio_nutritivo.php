@@ -128,16 +128,16 @@ if (isset($_POST['guardar_registro'])) {
             <th>Estado</th>
           </tr>
         </thead>
-        <tbody>
-          <?php foreach ($medios as $medio): ?>
-          <tr data-id="<?= $medio['ID_MedioNM'] ?>">
-            <td><?= $medio['ID_MedioNM'] ?></td>
-            <td><?= htmlspecialchars($medio['Codigo_Medio']) ?></td>
-            <td><?= number_format((float) str_replace(',', '', $medio['Cantidad_Disponible']), 2) ?></td>
-            <td><?= htmlspecialchars($medio['Estado']) ?></td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
+<tbody>
+  <?php foreach ($medios as $medio): ?>
+  <tr data-id="<?= $medio['ID_MedioNM'] ?>">
+    <td data-label="ID Medio"><?= $medio['ID_MedioNM'] ?></td>
+    <td data-label="Código del Medio"><?= htmlspecialchars($medio['Codigo_Medio']) ?></td>
+    <td data-label="Cantidad Disponible (L)"><?= number_format((float) str_replace(',', '', $medio['Cantidad_Disponible']), 2) ?></td>
+    <td data-label="Estado"><?= htmlspecialchars($medio['Estado']) ?></td>
+  </tr>
+  <?php endforeach; ?>
+</tbody>
       </table>
     </div>
 

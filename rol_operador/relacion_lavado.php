@@ -223,16 +223,29 @@ $stmt_check_avance->bind_param("ii", $ID_Operador, $id_asignacion);
 
             <?php if (($avance ?? 0) == 0 && !$asignacion['Estado_Final']): ?>
               <input type="hidden" name="accion" value="avance">
-              <label>🧼 Tuppers clasificados hasta ahora:</label>
-              <input type="number" name="tuppers_lavados" min="0" max="<?= $asignacion['Cantidad_Tuppers'] ?>" required>
-              <label>📝 Observaciones:</label>
-              <textarea name="observaciones" rows="3"></textarea>
+              <div class="mb-2">
+  <label class="form-label small">🧼 Tuppers clasificados hasta ahora:</label>
+  <input type="number" name="tuppers_lavados" min="0" max="<?= $asignacion['Cantidad_Tuppers'] ?>"
+         class="form-control form-control-sm" required>
+</div>
+
+<div class="mb-3">
+  <label class="form-label small">📝 Observaciones:</label>
+  <textarea name="observaciones" class="form-control form-control-sm" rows="3"></textarea>
+</div>
             <?php elseif (!$asignacion['Estado_Final']): ?>
               <input type="hidden" name="accion" value="final">
-              <label>✅ Tuppers clasificados al final:</label>
-              <input type="number" name="tuppers_finales" min="0" max="<?= $restante ?>" required>
-              <label>📝 Observaciones Finales:</label>
-              <textarea name="observaciones_finales" rows="3"></textarea>
+              <div class="mb-2">
+  <label class="form-label small">✅ Tuppers clasificados al final:</label>
+  <input type="number" name="tuppers_finales" min="0" max="<?= $restante ?>"
+         class="form-control form-control-sm" required>
+</div>
+
+<div class="mb-3">
+  <label class="form-label small">📝 Observaciones Finales:</label>
+  <textarea name="observaciones_finales" class="form-control form-control-sm" rows="3"></textarea>
+</div>
+
             <?php else: ?>
               <div class="alert alert-success text-center">Esta asignación está completada ✅</div>
             <?php endif; ?>

@@ -265,16 +265,16 @@ $result = $conn->query("
               </thead>
               <tbody>
                 <?php while ($row = $result->fetch_assoc()): ?>
-                <tr>
-                  <td><?= htmlspecialchars($row['fecha_hora_registro']) ?></td>
-                  <td><?= htmlspecialchars($row['turno']) ?></td>
-                  <td><?= htmlspecialchars($row['temperatura_inferior']) ?></td>
-                  <td><?= htmlspecialchars($row['temperatura_media']) ?></td>
-                  <td><?= htmlspecialchars($row['temperatura_superior']) ?></td>
-                  <td><?= htmlspecialchars($row['humedad_superior']) ?></td>
-                  <td><?= htmlspecialchars($row['humedad_inferior']) ?></td>
-                  <td><?= htmlspecialchars($row['operador']) ?></td>
-                </tr>
+<tr>
+  <td data-label="Fecha y Hora"><?= htmlspecialchars($row['fecha_hora_registro']) ?></td>
+  <td data-label="Turno"><?= htmlspecialchars($row['turno']) ?></td>
+  <td data-label="Inf. (°C)"><?= htmlspecialchars($row['temperatura_inferior']) ?></td>
+  <td data-label="Med. (°C)"><?= htmlspecialchars($row['temperatura_media']) ?></td>
+  <td data-label="Sup. (°C)"><?= htmlspecialchars($row['temperatura_superior']) ?></td>
+  <td data-label="Hum. Sup. (%)"><?= htmlspecialchars($row['humedad_superior']) ?></td>
+  <td data-label="Hum. Inf. (%)"><?= htmlspecialchars($row['humedad_inferior']) ?></td>
+  <td data-label="Registrado por"><?= htmlspecialchars($row['operador']) ?></td>
+</tr>
                 <?php endwhile; ?>
               </tbody>
             </table>

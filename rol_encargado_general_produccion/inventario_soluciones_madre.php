@@ -118,7 +118,7 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
           </div>
         </nav>
       </div>
-
+<form method="GET" id="filtrosForm">
       <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
   <div class="d-flex flex-column" style="min-width:140px;">
     <label for="filtro-codigo" class="small mb-1">Código Medio</label>
@@ -165,11 +165,15 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
     </select>
   </div>
 
-  <button form="filtrosForm" type="submit"
-          class="btn-inicio btn btn-success btn-sm ms-auto">
-    Filtrar
-  </button>
+<button onclick="aplicarFiltros()" class="btn-inicio btn btn-success btn-sm ms-auto">
+  Filtrar
+</button>
+<button onclick="limpiarFiltros()" type="button" class="btn btn-limpiar btn-sm ms-2">
+  Limpiar filtros
+</button>
+
 </nav>
+</form>
     </header>
 
     <main class="flex-fill" style="flex:1; padding: 20px;">
@@ -179,6 +183,7 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
         </div>
 
         <!-- Tabla -->
+    <div class="table-responsive"> 
         <table class="table mt-4">
           <thead>
             <tr>
@@ -194,20 +199,25 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
             <?php if ($result && $result->num_rows > 0): ?>
              <?php while ($row = $result->fetch_assoc()): ?>
                 <?php
-                 $preparada = (int)$row['Cantidad_Preparada'];
-                  $disponible = is_null($row['Cantidad_Disponible']) ? $preparada : (int)$row['Cantidad_Disponible'];
+                $preparada = number_format((float)$row['Cantidad_Preparada'], 2);
+$disponible = is_null($row['Cantidad_Disponible']) 
+              ? $preparada 
+              : number_format((float)$row['Cantidad_Disponible'], 2);
+$cantidadUsada = number_format((float)$preparada - (float)$disponible, 2);
+
                  $cantidadUsada = max(0, $preparada - $disponible);
                 ?>
-           <tr>
-            <td><?= htmlspecialchars($row['Codigo_Medio']) ?></td>
-            <td><?= htmlspecialchars($row['Fecha_Preparacion']) ?></td>
-            <td><?= $preparada ?></td>
-            <td>
-              <?= $cantidadUsada > 0 ? $cantidadUsada : '<span style="color: gray;">— Aún no se ha usado —</span>' ?>
-            </td>
-            <td><?= $disponible ?></td>
-            <td><?= $row['Estado'] ?></td>
-          </tr>
+                <tr>
+  <td data-label="Código del Medio"><?= htmlspecialchars($row['Codigo_Medio']) ?></td>
+  <td data-label="Fecha de Preparación"><?= htmlspecialchars($row['Fecha_Preparacion']) ?></td>
+  <td data-label="Cantidad Inicial (L)"><?= $preparada ?> L</td>
+<td data-label="Cantidad Usada (L)">
+  <?= $cantidadUsada > 0 ? $cantidadUsada . ' L' : '<span style="color: gray;">— Aún no se ha usado —</span>' ?>
+</td>
+<td data-label="Cantidad Restante (L)"><?= $disponible ?> L</td>
+  <td data-label="Estado"><?= $row['Estado'] ?></td>
+</tr>
+
         <?php endwhile; ?>
         <?php else: ?>
                 <tr><td colspan="6">No hay registros que coincidan con los filtros.</td></tr>
@@ -215,6 +225,7 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
         </tbody>
 
         </table>
+        </div>
     </main>
 
     <footer class="text-center mt-5">
@@ -222,15 +233,28 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
     </footer>
   </div>
 
-  <script>
-    function toggleFiltros() {
-      const filtros = document.getElementById("filtros-contenedor");
-      const boton = document.getElementById("toggleBtn");
-      const visible = filtros.style.display === "block";
-      filtros.style.display = visible ? "none" : "block";
-      boton.innerHTML = visible ? "🔍 Mostrar filtros" : "❌ Ocultar filtros";
-    }
-  </script>
+<script>
+function aplicarFiltros() {
+  const codigo   = document.getElementById('filtro-codigo').value;
+  const desde    = document.getElementById('filtro-desde').value;
+  const hasta    = document.getElementById('filtro-hasta').value;
+  const cantidad = document.getElementById('filtro-cantidad').value;
+  const estado   = document.getElementById('filtro-estado').value;
+
+  const params = new URLSearchParams();
+  if (codigo)   params.append('codigo_medio', codigo);
+  if (desde)    params.append('fecha_desde', desde);
+  if (hasta)    params.append('fecha_hasta', hasta);
+  if (cantidad) params.append('cantidad_minima', cantidad);
+  if (estado)   params.append('estado', estado);
+
+  window.location.href = 'inventario_soluciones_madre.php?' + params.toString();
+}
+
+function limpiarFiltros() {
+  window.location.href = 'inventario_soluciones_madre.php';
+}
+</script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 

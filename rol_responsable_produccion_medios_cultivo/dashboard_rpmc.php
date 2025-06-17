@@ -67,11 +67,13 @@ $nowTs           = time();
 
   <main>
     <section class="dashboard-grid">
+      <!---
       <div class="card">
         <h2>🔍 Chequeo de Ósmosis Inversa</h2>
         <p>Revisa y mantén el sistema de ósmosis inversa en óptimas condiciones para la producción.</p>
         <a href="chequeo_osmosis.php">Ver detalles</a>
       </div>
+      -->
 
       <div class="card">
         <h2>🔥 🛡️ Esterilización en Autoclave</h2>

@@ -22,6 +22,13 @@ if ((int) $_SESSION['Rol'] !== 5) {
     exit;
 }
 
+// Obtener áreas ya asignadas como "Pendiente"
+$areas_asignadas = [];
+$res = $conn->query("SELECT Area FROM registro_limpieza WHERE Estado_Limpieza = 'Pendiente' AND DATE(Fecha) = CURDATE()");
+while ($fila = $res->fetch_assoc()) {
+    $areas_asignadas[] = $fila['Area'];
+}
+
 // 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
 $sessionLifetime = 60 * 3;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
@@ -58,7 +65,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $id_operador = $_POST['id_operador'];
   $fecha = date('Y-m-d H:i:s');
   $hora_registro = date('Y-m-d H:i:s');
-  $area = $_POST['area'];
+  $areas = isset($_POST['area']) && is_array($_POST['area']) ? $_POST['area'] : [];
   $estado = 'Pendiente';
 
   // Validar que el operador existe, está activo y tiene el rol correcto
@@ -72,16 +79,38 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   if ($existe == 0) {
       echo "<script>alert('El operador seleccionado no existe, no está activo o no es operador.');</script>";
   } else {
-     $stmt = $conn->prepare("INSERT INTO registro_limpieza (ID_Operador, ID_Asignador, Fecha, Area, Estado_Limpieza) VALUES (?, ?, ?, ?, ?)");
-$stmt->bind_param("iisss", $id_operador, $ID_Operador, $fecha, $area, $estado);
+$inserts = 0;
+foreach ($areas as $area) {
+    // Validar si el área ya fue asignada
+    $verificar = $conn->prepare("SELECT COUNT(*) FROM registro_limpieza WHERE Area = ? AND Estado_Limpieza = 'Pendiente' AND DATE(Fecha) = CURDATE()");
+    $verificar->bind_param("s", $area);
+    $verificar->execute();
+    $verificar->bind_result($ya_asignada);
+    $verificar->fetch();
+    $verificar->close();
 
+    if ($ya_asignada == 0) {
+        $stmt = $conn->prepare("INSERT INTO registro_limpieza (ID_Operador, ID_Asignador, Fecha, Area, Estado_Limpieza) VALUES (?, ?, ?, ?, ?)");
+        $stmt->bind_param("iisss", $id_operador, $ID_Operador, $fecha, $area, $estado);
+        if ($stmt->execute()) {
+            $inserts++;
+        }
+    }
+}
 
-      if ($stmt->execute()) {
-          echo "<script>alert('Limpieza asignada exitosamente.'); window.location.href='rol_limpieza.php';</script>";
-          exit;
-      } else {
-          echo "<script>alert('Error al asignar limpieza.');</script>";
-      }
+$total = count($areas);
+$rechazadas = $total - $inserts;
+
+if ($inserts > 0) {
+    $msg = "Se asignaron $inserts área(s) correctamente.";
+    if ($rechazadas > 0) {
+        $msg .= " $rechazadas ya estaban asignadas hoy.";
+    }
+    echo "<script>alert('$msg'); window.location.href='rol_limpieza.php';</script>";
+    exit;
+} else {
+    echo "<script>alert('❌ Todas las áreas seleccionadas ya estaban asignadas hoy. Intenta con otras.');</script>";
+}
   }
 }
 ?>
@@ -137,10 +166,33 @@ $stmt->bind_param("iisss", $id_operador, $ID_Operador, $fecha, $area, $estado);
           <label for="fecha_de_asignacion">📅 Fecha de Asignación:</label>
           <input type="date" id="fecha_de_asignacion" name="fecha_de_asignacion" class="form-control" required readonly value="<?= date('Y-m-d') ?>">
 
-          <label for="menuarea">🧽 Área a limpiar:</label>
-          <select id="menuarea" name="area" required>
-            <option value="">-- Seleccione un área --</option>
-          </select>
+          <label>🧽 Áreas a limpiar:</label>
+<div class="form-check">
+<?php
+$areas_disponibles = [
+  "1. Área común",
+  "2. Baños",
+  "3. Zona de secado de tupper",
+  "4. Zona de almacenamiento de tupper",
+  "5. Zona de tupper vacío",
+  "6. Zona de cajas vacías y osmocis",
+  "7. Incubador",
+  "8. Zona de zapatos",
+  "9. Área de preparación de medios",
+  "10. Área de reactivos",
+  "11. Siembras etapa 2",
+  "12. Siembras etapa 3"
+];
+
+foreach ($areas_disponibles as $index => $area) {
+    $disabled = in_array($area, $areas_asignadas) ? 'disabled' : '';
+    echo "<div class='form-check'>
+            <input class='form-check-input' type='checkbox' name='area[]' id='area_$index' value='$area' $disabled>
+            <label class='form-check-label' for='area_$index'>$area</label>
+          </div>";
+}
+?>
+</div>
 
           <button type="submit" class="mt-3">✅ Asignar Limpieza</button>
         </form>
@@ -174,35 +226,6 @@ $(function () {
     $(this).autocomplete("search", "");
   });
 });
-
-
-    // Cargar lista de áreas
-    const datosarea = {
-      areas: [
-        "1. Área común",
-        "2. Baños",
-        "3. Zona de secado de tupper",
-        "4. Zona de almacenamiento de tupper",
-        "5. Zona de tupper vacío",
-        "6. Zona de cajas vacías y osmocis",
-        "7. Incubador",
-        "8. Zona de zapatos",
-        "9. Área de preparación de medios",
-        "10. Área de reactivos",
-        "11. Siembras etapa 2",
-        "12. Siembras etapa 3"
-      ]
-    };
-
-    document.addEventListener("DOMContentLoaded", function () {
-      const menuarea = document.getElementById("menuarea");
-      datosarea.areas.forEach(area => {
-        const option = document.createElement("option");
-        option.value = area;
-        option.textContent = area;
-        menuarea.appendChild(option);
-      });
-    });
   </script>
 
 <!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->

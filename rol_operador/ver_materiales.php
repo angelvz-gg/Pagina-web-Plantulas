@@ -85,22 +85,24 @@ $resultado = $stmt->get_result();
     <h3 class="mb-4 text-center">📋 Materiales asignados para hoy, día: <?= date('d-m-Y') ?></h3>
 
     <?php if ($resultado->num_rows > 0): ?>
-        <table class="table table-bordered table-hover table-striped">
-            <thead class="table-dark">
-                <tr>
-                    <th>Nombre del Material</th>
-                    <th>Cantidad Asignada</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php while ($material = $resultado->fetch_assoc()): ?>
-                    <tr>
-                        <td><?= htmlspecialchars($material['Nombre_Material']) ?></td>
-                        <td><?= (int)$material['Cantidad_Asignada'] ?></td>
-                    </tr>
-                <?php endwhile; ?>
-            </tbody>
-        </table>
+      <div class="table-responsive">
+  <table class="table table-striped table-sm align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Nombre del Material</th>
+        <th>Cantidad Asignada</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php while ($material = $resultado->fetch_assoc()): ?>
+        <tr class="align-middle text-nowrap">
+          <td data-label="Nombre del Material"><?= htmlspecialchars($material['Nombre_Material']) ?></td>
+          <td data-label="Cantidad Asignada"><?= (int)$material['Cantidad_Asignada'] ?></td>
+        </tr>
+      <?php endwhile; ?>
+    </tbody>
+  </table>
+</div>
     <?php else: ?>
         <div class="alert alert-warning text-center">
             <strong>🔔 No tienes materiales asignados para el dia de Hoy.</strong>

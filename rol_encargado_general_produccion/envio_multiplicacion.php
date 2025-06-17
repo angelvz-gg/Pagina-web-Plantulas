@@ -107,6 +107,7 @@ $sql = "
         SUM(DH.Tuppers_Disponibles) AS Total_Tuppers_Disponibles,
         MAX(DH.Fecha_Diseccion) AS Ultima_Fecha,
         MAX(DH.ID_Diseccion) AS ID_Diseccion,
+        COALESCE(DH.Origen_Explantes, 'Sin información') AS Origen,
         O.Nombre AS Nombre_Operador,
         O.Apellido_P AS ApellidoP_Operador,
         O.Apellido_M AS ApellidoM_Operador
@@ -224,12 +225,13 @@ if ($res_operadores) {
       <div class="alert alert-success">
         Variedades con más de <?= $min_brotes_multiplicacion ?> brotes disponibles para enviar a multiplicación:
       </div>
-
+<div class="table-responsive">
       <table class="table table-bordered">
         <thead>
           <tr>
             <th>Código Variedad</th>
             <th>Nombre Variedad</th>
+            <th>Origen</th>
             <th>Tuppers Disponibles</th>
             <th>Brotes Disponibles</th>
             <th>Fecha de Última Disección</th>
@@ -240,22 +242,24 @@ if ($res_operadores) {
         <tbody>
           <?php foreach ($variedades as $v): ?>
             <tr>
-              <td><?= htmlspecialchars($v['Codigo_Variedad']) ?></td>
-              <td><?= htmlspecialchars($v['Nombre_Variedad']) ?></td>
-              <td><strong><?= $v['Total_Tuppers_Disponibles'] ?></strong></td>
-              <td><strong><?= $v['Total_Brotes_Disponibles'] ?></strong></td>
-              <td><?= htmlspecialchars($v['Ultima_Fecha']) ?></td>
-              <td><?= htmlspecialchars($v['Nombre_Operador'] . " " . $v['ApellidoP_Operador'] . " " . $v['ApellidoM_Operador']) ?></td>
-              <td>
-                <button class="btn btn-primary btn-sm"
-                        onclick="mostrarFormulario('<?= $v['ID_Diseccion'] ?>', '<?= $v['Codigo_Variedad'] ?>', '<?= $v['Nombre_Variedad'] ?>', '<?= $v['Total_Brotes_Disponibles'] ?>' ,'<?= $v['Total_Tuppers_Disponibles'] ?>')">
-                  Asignar
-                </button>
-              </td>
-            </tr>
+            <td data-label="Código Variedad"><?= htmlspecialchars($v['Codigo_Variedad']) ?></td>
+            <td data-label="Nombre Variedad"><?= htmlspecialchars($v['Nombre_Variedad']) ?></td>
+            <td data-label="Origen"><?= htmlspecialchars($v['Origen']) ?></td>
+            <td data-label="Tuppers Disponibles"><strong><?= $v['Total_Tuppers_Disponibles'] ?></strong></td>
+            <td data-label="Brotes Disponibles"><strong><?= $v['Total_Brotes_Disponibles'] ?></strong></td>
+            <td data-label="Fecha de Última Disección"><?= htmlspecialchars($v['Ultima_Fecha']) ?></td>
+            <td data-label="Responsable"><?= htmlspecialchars($v['Nombre_Operador'] . " " . $v['ApellidoP_Operador'] . " " . $v['ApellidoM_Operador']) ?></td> 
+            <td data-label="Acción">
+            <button class="btn btn-primary btn-sm"
+            onclick="mostrarFormulario('<?= $v['ID_Diseccion'] ?>', '<?= $v['Codigo_Variedad'] ?>', '<?= $v['Nombre_Variedad'] ?>', '<?= $v['Total_Brotes_Disponibles'] ?>' ,'<?= $v['Total_Tuppers_Disponibles'] ?>')">
+            Asignar
+          </button>
+        </td>
+      </tr>
           <?php endforeach; ?>
         </tbody>
       </table>
+      </div>
     <?php else: ?>
       <div class="alert alert-warning">
         No hay variedades con suficientes brotes disponibles para enviar a multiplicación.

@@ -53,7 +53,7 @@ $nowTs           = time();
   </script>
 </head>
 <body>
-  <div class="contenedor-pagina">
+  <div class="contenedor-pagina panel-admin">
     <header>
       <div class="encabezado d-flex align-items-center">
         <a class="navbar-brand me-3" href="#">
@@ -75,7 +75,7 @@ $nowTs           = time();
       </div>
     </header>
 
-    <main class="container mt-4">
+    <main>
       <section class="dashboard-grid">
         <div class="card" data-card-id="inventario_materiales">
           <h2>📦 Inventario de Materiales</h2>
@@ -121,13 +121,13 @@ $nowTs           = time();
             <a href="organizacion_material_lavado.php">Ir a Registros</a>
         </div>
 
-        <div class="card" id="card-limpieza-incubador">
+        <div class="card card-ecas" data-card-id="card-limpieza-incubador">
             <h2>🧽 Registrar Limpieza de Incubador</h2>
             <p>Registrar repisas limpias por anaquel en el incubador.</p>
             <a href="limpieza_incubador.php">Ir al Registro</a>
         </div>
 
-        <div class="card" id="card-historial-desinfeccion">
+        <div class="card card-ecas" data-card-id="card-historial-desinfeccion">
             <h2>🧼 Historial de Limpieza</h2>
             <p>Accede al historial de la limpieza.</p>
             <a href="limpieza_repisas.php">Ver Historial</a>

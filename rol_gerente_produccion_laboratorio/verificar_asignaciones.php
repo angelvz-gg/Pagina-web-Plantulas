@@ -143,48 +143,48 @@ $resultado = $stmt->get_result();
     </nav>
   </div>
 
-  <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
-    <div class="d-flex flex-column" style="min-width:140px;">
-      <label for="filtro-operador" class="small mb-1">Operador</label>
-      <input id="filtro-operador" type="text" name="operador" form="filtrosForm"
-             class="form-control form-control-sm"
-             placeholder="Operador…" value="<?= htmlspecialchars($operador) ?>">
-    </div>
+<nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2 mb-3" style="overflow-x:auto;">
+  <div class="d-flex flex-column" style="min-width:140px;">
+    <label for="filtro-operador" class="small mb-1">Operador</label>
+    <input id="filtro-operador" type="text" name="operador" form="filtrosForm"
+           class="form-control form-control-sm"
+           placeholder="Operador…" value="<?= htmlspecialchars($operador) ?>">
+  </div>
 
-    <div class="d-flex flex-column" style="min-width:140px;">
-      <label for="filtro-variedad" class="small mb-1">Variedad</label>
-      <input id="filtro-variedad" type="text" name="variedad" form="filtrosForm"
-             class="form-control form-control-sm"
-             placeholder="Variedad…" value="<?= htmlspecialchars($variedad) ?>">
-    </div>
+  <div class="d-flex flex-column" style="min-width:140px;">
+    <label for="filtro-variedad" class="small mb-1">Variedad</label>
+    <input id="filtro-variedad" type="text" name="variedad" form="filtrosForm"
+           class="form-control form-control-sm"
+           placeholder="Variedad…" value="<?= htmlspecialchars($variedad) ?>">
+  </div>
 
-    <div class="d-flex flex-column" style="min-width:120px;">
-      <label for="filtro-estado" class="small mb-1">Estado</label>
-      <select id="filtro-estado" name="estado" form="filtrosForm"
-              class="form-select form-select-sm">
-        <option value="">— Todos —</option>
-        <option value="Completada" <?= $estado==='Completada' ? 'selected':''?>>✅ Completada</option>
-        <option value="Incompleta" <?= $estado==='Incompleta' ? 'selected':''?>>⚠️ Incompleta</option>
-        <option value="Sin Cierre" <?= $estado==='Sin Cierre' ? 'selected':''?>>⏳ Sin Cierre</option>
-      </select>
-    </div>
+  <div class="d-flex flex-column" style="min-width:140px;">
+    <label for="filtro-estado" class="small mb-1">Estado</label>
+    <select id="filtro-estado" name="estado" form="filtrosForm" class="form-select form-select-sm">
+      <option value="">— Todos —</option>
+      <option value="Completada" <?= $estado==='Completada' ? 'selected':''?>>✅ Completada</option>
+      <option value="Incompleta" <?= $estado==='Incompleta' ? 'selected':''?>>⚠️ Incompleta</option>
+      <option value="Sin Cierre" <?= $estado==='Sin Cierre' ? 'selected':''?>>⏳ Sin Cierre</option>
+    </select>
+  </div>
 
-    <div class="d-flex flex-column" style="min-width:120px;">
-      <label for="filtro-fecha" class="small mb-1">Fecha</label>
-      <input id="filtro-fecha" type="date" name="fecha" form="filtrosForm"
-             class="form-control form-control-sm"
-             value="<?= htmlspecialchars($fecha) ?>">
-    </div>
+  <div class="d-flex flex-column" style="min-width:140px;">
+    <label for="filtro-fecha" class="small mb-1">Fecha</label>
+    <input id="filtro-fecha" type="date" name="fecha" form="filtrosForm"
+           class="form-control form-control-sm"
+           value="<?= htmlspecialchars($fecha) ?>">
+  </div>
 
-    <button form="filtrosForm" type="submit"
-            class="btn-inicio btn btn-success btn-sm ms-auto">
-      Filtrar
-    </button>
-  </nav>
+  <button form="filtrosForm" type="submit" class="btn-inicio btn btn-success btn-sm ms-auto">Filtrar</button>
+  <button type="button" onclick="limpiarFiltros()" class="btn btn-limpiar btn-sm ms-2">Limpiar filtros</button>
+</nav>
+<form id="filtrosForm" method="GET" class="d-none"></form>
+
 </header>
 
-    <main class="container mt-4">
-        <table class="table table-bordered table-hover table-striped mt-4">
+<main class="container mt-4">
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover table-striped align-middle text-nowrap">
             <thead class="table-dark">
                 <tr>
                     <th>Fecha</th>
@@ -199,35 +199,46 @@ $resultado = $stmt->get_result();
             <tbody>
                 <?php while ($fila = $resultado->fetch_assoc()) : ?>
                     <tr>
-                        <td><?= htmlspecialchars($fila['Fecha']) ?></td>
-                        <td><?= htmlspecialchars($fila['Operador']) ?></td>
-                        <td><?= htmlspecialchars($fila['Variedad']) ?></td>
-                        <td><?= htmlspecialchars($fila['Rol']) ?></td>
-                        <td><?= htmlspecialchars($fila['Cantidad_Tuppers']) ?></td>
-                        <td>
-                            <?php 
-                                if ($fila['Estado_Final'] === 'Completada') {
-                                    echo '✅ Completada';
-                                } elseif ($fila['Estado_Final'] === 'Incompleta') {
-                                    echo '⚠️ Incompleta';
-                                } else {
-                                    echo '⏳ Sin Cierre';
-                                }
-                            ?>
-                        </td>
-                        <td>
-                            <a href="verificar_asignaciones.php?eliminar=<?= $fila['ID'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('¿Seguro que deseas eliminar esta asignación?')">🗑️ Eliminar</a>
-                        </td>
-                    </tr>
+  <td data-label="Fecha"><?= htmlspecialchars($fila['Fecha']) ?></td>
+  <td data-label="Operador"><?= htmlspecialchars($fila['Operador']) ?></td>
+  <td data-label="Variedad"><?= htmlspecialchars($fila['Variedad']) ?></td>
+  <td data-label="Rol"><?= htmlspecialchars($fila['Rol']) ?></td>
+  <td data-label="Cantidad de Tuppers"><?= htmlspecialchars($fila['Cantidad_Tuppers']) ?></td>
+  <td data-label="Estado Final">
+    <?php 
+      if ($fila['Estado_Final'] === 'Completada') {
+          echo '✅ Completada';
+      } elseif ($fila['Estado_Final'] === 'Incompleta') {
+          echo '⚠️ Incompleta';
+      } else {
+          echo '⏳ Sin Cierre';
+      }
+    ?>
+  </td>
+  <td data-label="Acciones">
+    <a href="verificar_asignaciones.php?eliminar=<?= $fila['ID'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('¿Seguro que deseas eliminar esta asignación?')">🗑️ Eliminar</a>
+  </td>
+</tr>
                 <?php endwhile; ?>
             </tbody>
         </table>
+        </div>
     </main>
 
     <footer class="text-center mt-4 mb-3">
         <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
     </footer>
 </div>
+
+<script>
+function limpiarFiltros() {
+  document.getElementById('filtro-operador').value = '';
+  document.getElementById('filtro-variedad').value = '';
+  document.getElementById('filtro-estado').selectedIndex = 0;
+  document.getElementById('filtro-fecha').value = '';
+  document.getElementById('filtrosForm').submit();
+}
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 

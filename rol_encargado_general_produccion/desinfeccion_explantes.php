@@ -81,6 +81,7 @@ if (isset($_POST['iniciar'])) {
     $id_variedad         = (int) $_POST['id_variedad'];
     $explantes_iniciales = (int) $_POST['explantes_iniciales'];
     //$fecha_inicio        = $_POST['fecha_inicio'];
+   $origen_explantes = strtoupper(htmlspecialchars(trim($_POST['origen_explantes'])));
 
     // Validar cantidad mínima y máxima de explantes aceptados
     if ($explantes_iniciales < 1 || $explantes_iniciales > 60) {
@@ -92,15 +93,17 @@ if (isset($_POST['iniciar'])) {
         $stmt_check->bind_param("i", $id_variedad);
         $stmt_check->execute();
         $resultado_check = $stmt_check->get_result()->fetch_assoc();
+        $fecha_inicio = date('Y-m-d H:i:s');
 
         if ($resultado_check['existe'] == 0) {
             $mensaje = "❌ Error: La variedad seleccionada no existe.";
         } else {
-            $sql_insert = "INSERT INTO desinfeccion_explantes
-            (ID_Variedad, Explantes_Iniciales, FechaHr_Desinfeccion, Estado_Desinfeccion, Operador_Responsable)
-            VALUES (?, ?, NOW(), 'En proceso', ?)";
-            $stmt = $conn->prepare($sql_insert);
-            $stmt->bind_param("iii", $id_variedad, $explantes_iniciales, $ID_Operador);
+          $sql_insert = "INSERT INTO desinfeccion_explantes
+          (ID_Variedad, Explantes_Iniciales, FechaHr_Desinfeccion, Estado_Desinfeccion, Origen_Explantes, Operador_Responsable)
+          VALUES (?, ?, ?, 'En proceso', ?, ?)";
+        
+        $stmt = $conn->prepare($sql_insert);
+        $stmt->bind_param("iisss", $id_variedad, $explantes_iniciales, $fecha_inicio, $origen_explantes, $ID_Operador);
 
             if ($stmt->execute()) {
                 header("Location: desinfeccion_explantes.php");
@@ -127,6 +130,7 @@ if (isset($_POST['finalizar'])) {
     $stmt_ini->execute();
     $res_ini = $stmt_ini->get_result();
     $row_ini = $res_ini->fetch_assoc();
+    $fecha_fin = date('Y-m-d H:i:s'); 
 
     if ($row_ini) {
         $iniciales = (int) $row_ini['Explantes_Iniciales'];
@@ -135,10 +139,10 @@ if (isset($_POST['finalizar'])) {
             $mensaje = "⚠️ Los explantes desinfectados no pueden ser mayores que los iniciales.";
         } else {
             $sql_finalizar = "UPDATE desinfeccion_explantes
-                              SET Explantes_Desinfectados = ?, HrFn_Desinfeccion = NOW(), Estado_Desinfeccion = ?
+                              SET Explantes_Desinfectados = ?, HrFn_Desinfeccion = ?, Estado_Desinfeccion = ?
                               WHERE ID_Desinfeccion = ? AND Operador_Responsable = ?";
             $stmt = $conn->prepare($sql_finalizar);
-            $stmt->bind_param("isii", $desinfectados, $estado_final, $id, $ID_Operador);
+            $stmt->bind_param("issii", $desinfectados, $fecha_fin, $estado_final, $id, $ID_Operador);
 
             if ($stmt->execute()) {
                 header("Location: desinfeccion_explantes.php");
@@ -175,7 +179,7 @@ if (isset($_POST['finalizar'])) {
   <header>
     <div class="encabezado">
       <a class="navbar-brand"><img src="../logoplantulas.png" alt="Logo" width="130" height="124" /></a>
-      <h2>Registro de Desinfección</h2>
+      <h2>Registro de Desinfección de explantes</h2>
       <div></div>
     </div>
     
@@ -197,14 +201,19 @@ if (isset($_POST['finalizar'])) {
       <div class="alert alert-info"><?= $mensaje ?></div>
     <?php endif; ?>
 
-    <h3>🧪 Iniciar nueva desinfección</h3>
+    <h3>🧪 Iniciar nueva desinfección de explantes</h3>
     <form method="POST" class="form-doble-columna">
       <div class="section">
-        <label for="nombre_variedad">Buscar Variedad:</label>
+        <label for="nombre_variedad">Variedad a trabajar:</label>
         <input type="text" id="nombre_variedad" name="nombre_variedad" required>
         <input type="hidden" id="id_variedad" name="id_variedad">
 
-        <label for="explantes_iniciales">Explantes Iniciales:</label>
+        <div class="mb-3">
+        <label for="origen_explantes" class="form-label">Origen de los explantes</label>
+        <input type="text" name="origen_explantes" id="origen_explantes" class="form-control" maxlength="100" required style="text-transform: uppercase;">
+        </div>
+
+        <label for="explantes_iniciales">Cantidad de Explantes Iniciales:</label>
         <input type="number" name="explantes_iniciales" required min="1" />
 
         <button type="submit" name="iniciar" class="btn-inicio">Iniciar Desinfección</button>
@@ -216,11 +225,12 @@ if (isset($_POST['finalizar'])) {
       <form method="POST" class="form-doble-columna">
         <input type="hidden" name="id_desinfeccion" value="<?= $desinfeccion_activa['ID_Desinfeccion'] ?>">
         <div class="section">
-          <p><strong>Variedad:</strong> <?= "{$info_variedad['Codigo_Variedad']} - {$info_variedad['Nombre_Variedad']}" ?> (ID: <?= $desinfeccion_activa['ID_Variedad'] ?>)</p>
-          <p><strong>Explantes Iniciales:</strong> <?= $desinfeccion_activa['Explantes_Iniciales'] ?></p>
+          <p><strong>Variedad trabajada:</strong> <?= "{$info_variedad['Codigo_Variedad']} - {$info_variedad['Nombre_Variedad']}" ?> (ID: <?= $desinfeccion_activa['ID_Variedad'] ?>)</p>
+          <p><strong>Origen de los Explantes:</strong> <?= htmlspecialchars($desinfeccion_activa['Origen_Explantes']) ?></p>
+          <p><strong>Cantidad de Explantes Iniciales:</strong> <?= $desinfeccion_activa['Explantes_Iniciales'] ?></p>
           <p><strong>Fecha de inicio:</strong> <?= $desinfeccion_activa['FechaHr_Desinfeccion'] ?></p>
 
-          <label for="explantes_desinfectados">Explantes Desinfectados:</label>
+          <label for="explantes_desinfectados">Cantidad de Explantes Desinfectados:</label>
           <input type="number" name="explantes_desinfectados" required min="1" />
 
           <label for="estado_final">Estado final:</label>

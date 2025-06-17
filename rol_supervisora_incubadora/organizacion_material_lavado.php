@@ -144,21 +144,21 @@ if (!$result) {
             <?php while($r = $result->fetch_assoc()):
               $disp = $r['llenos'] - $r['organizados'] - $r['perdidos'];
             ?>
-            <tr>
-              <td><?= $r['id'] ?></td>
-              <td><?= htmlspecialchars("{$r['Codigo_Variedad']} – {$r['Nombre_Variedad']}") ?></td>
-              <td><?= $r['Fecha_Siembra'] ?></td>
-              <td><?= $r['llenos'] ?></td>
-              <td><?= $r['organizados'] ?></td>
-              <td><?= $r['perdidos'] ?></td>
-              <td><?= $disp ?></td>
-              <td class="text-center">
-                <button class="btn-consolidar btn-sm"
-                  data-id="<?= $r['id'] ?>"
-                  data-disponibles="<?= $disp ?>"
-                  onclick="abrirModal(this)">✔ Organizar</button>
-              </td>
-            </tr>
+<tr class="align-middle text-nowrap">
+  <td data-label="ID"><?= $r['id'] ?></td>
+  <td data-label="Variedad"><?= htmlspecialchars("{$r['Codigo_Variedad']} – {$r['Nombre_Variedad']}") ?></td>
+  <td data-label="Fecha Siembra"><?= $r['Fecha_Siembra'] ?></td>
+  <td data-label="Tuppers Llenos"><?= $r['llenos'] ?></td>
+  <td data-label="Organizados"><?= $r['organizados'] ?></td>
+  <td data-label="Perdidos"><?= $r['perdidos'] ?></td>
+  <td data-label="Disponibles"><?= $disp ?></td>
+  <td data-label="Acción" class="text-center">
+    <button class="btn-consolidar btn-sm"
+      data-id="<?= $r['id'] ?>"
+      data-disponibles="<?= $disp ?>"
+      onclick="abrirModal(this)">✔ Organizar</button>
+  </td>
+</tr>
             <?php endwhile; ?>
           </tbody>
         </table>
@@ -169,7 +169,7 @@ if (!$result) {
   </div>
 
   <!-- Modal Organizar -->
-  <div class="modal fade" id="organizarModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm" style="max-width: 95%; margin: 1rem auto;">
     <div class="modal-dialog modal-sm">
       <form id="organizarForm" method="POST" class="modal-content" onsubmit="return validarModal()">
         <div class="modal-header">

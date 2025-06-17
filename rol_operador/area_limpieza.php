@@ -73,7 +73,6 @@ $asignaciones = $result->fetch_all(MYSQLI_ASSOC);
     <div class="encabezado">
       <a class="navbar-brand">
         <img src="../logoplantulas.png" alt="Logo" width="130" height="124" />
-        PLÁNTULAS AGRODEX
       </a>
       <h2>Área de Limpieza Asignada</h2>
     </div>
@@ -96,38 +95,40 @@ $asignaciones = $result->fetch_all(MYSQLI_ASSOC);
       <h3>🧹 Asignaciones de limpieza para hoy</h3>
 
       <?php if (count($asignaciones) > 0): ?>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>📅 Fecha</th>
-              <th>🧭 Área Asignada</th>
-              <th>✅ Estado</th>
-              <th>🛠 Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($asignaciones as $asignacion): ?>
-              <tr>
-                <td><?= htmlspecialchars($asignacion['Fecha']) ?></td>
-                <td><?= htmlspecialchars($asignacion['Area']) ?></td>
-                <td><?= htmlspecialchars($asignacion['Estado_Limpieza']) ?></td>
-                <td>
-                  <?php if (strtolower(trim($asignacion['Estado_Limpieza'])) !== 'realizada'): ?>
-                    <form method="POST" class="form-inline">
-                      <input type="hidden" name="fecha" value="<?= htmlspecialchars($asignacion['Fecha']) ?>">
-                      <input type="hidden" name="area" value="<?= htmlspecialchars($asignacion['Area']) ?>">
-                      <button type="submit" name="marcar_realizada" class="save-button verificar btn-sm">
-                        Marcar como realizada
-                      </button>
-                    </form>
-                  <?php else: ?>
-                    <span class="text-success">✔ Realizada</span>
-                  <?php endif; ?>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
+        <div class="table-responsive">
+  <table class="table table-striped table-sm align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>📅 Fecha</th>
+        <th>🧭 Área Asignada</th>
+        <th>✅ Estado</th>
+        <th>🛠 Acción</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($asignaciones as $asignacion): ?>
+        <tr class="align-middle text-nowrap">
+          <td data-label="📅 Fecha"><?= htmlspecialchars($asignacion['Fecha']) ?></td>
+          <td data-label="🧭 Área Asignada"><?= htmlspecialchars($asignacion['Area']) ?></td>
+          <td data-label="✅ Estado"><?= htmlspecialchars($asignacion['Estado_Limpieza']) ?></td>
+          <td data-label="🛠 Acción">
+            <?php if (strtolower(trim($asignacion['Estado_Limpieza'])) !== 'realizada'): ?>
+              <form method="POST" class="form-inline d-inline">
+                <input type="hidden" name="fecha" value="<?= htmlspecialchars($asignacion['Fecha']) ?>">
+                <input type="hidden" name="area" value="<?= htmlspecialchars($asignacion['Area']) ?>">
+                <button type="submit" name="marcar_realizada" class="btn btn-sm btn-success">
+                  Marcar como realizada
+                </button>
+              </form>
+            <?php else: ?>
+              <span class="text-success">✔ Realizada</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+</div>
       <?php else: ?>
         <p style="color: red;">No tienes asignaciones de limpieza para hoy.</p>
       <?php endif; ?>

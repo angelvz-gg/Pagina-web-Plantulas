@@ -24,13 +24,25 @@ $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
 // 2) Capturar filtros
-$filter_fecha = $_GET['fecha'] ?? '';
-$filter_tipo  = $_GET['tipo']  ?? 'all';
+$filter_fecha       = $_GET['fecha']        ?? '';
+$filter_fecha_inicio = $_GET['fecha_inicio'] ?? '';
+$filter_fecha_fin    = $_GET['fecha_fin']    ?? '';
+$filter_tipo         = $_GET['tipo']         ?? 'all';
 
 $where = [];
+
 if ($filter_fecha) {
-    $where[] = "r.fecha = '" . $conn->real_escape_string($filter_fecha) . "'";
+    $where[] = "DATE(r.fecha_hora_registro) = '" . $conn->real_escape_string($filter_fecha) . "'";
+} elseif ($filter_fecha_inicio && $filter_fecha_fin) {
+    $where[] = "DATE(r.fecha_hora_registro) BETWEEN '" .
+                $conn->real_escape_string($filter_fecha_inicio) . "' AND '" .
+                $conn->real_escape_string($filter_fecha_fin) . "'";
+} elseif ($filter_fecha_inicio) {
+    $where[] = "DATE(r.fecha_hora_registro) >= '" . $conn->real_escape_string($filter_fecha_inicio) . "'";
+} elseif ($filter_fecha_fin) {
+    $where[] = "DATE(r.fecha_hora_registro) <= '" . $conn->real_escape_string($filter_fecha_fin) . "'";
 }
+
 $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 // 3) Consulta
@@ -103,29 +115,37 @@ $result = $conn->query($sql);
     </nav>
   </div>
 
-  <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2">
-    <div class="d-flex flex-column" style="min-width:120px;">
-      <label for="filtro-tipo" class="small mb-1">Tipo</label>
-      <select id="filtro-tipo" name="tipo" form="filtrarForm"
-              class="form-select form-select-sm">
-        <option value="all"         <?= $filter_tipo==='all'         ? 'selected':'' ?>>— Todos —</option>
-        <option value="temperaturas"<?= $filter_tipo==='temperaturas'? 'selected':'' ?>>Temperaturas</option>
-        <option value="humedades"   <?= $filter_tipo==='humedades'   ? 'selected':'' ?>>Humedades</option>
-      </select>
-    </div>
+<nav class="filter-toolbar d-flex flex-wrap gap-3 px-3 py-2 w-100" style="overflow-x: auto;">
+  <div class="d-flex flex-column" style="min-width: 130px;">
+    <label for="filtro-tipo" class="small mb-1">Tipo</label>
+    <select id="filtro-tipo" name="tipo" form="filtrarForm" class="form-select form-select-sm">
+      <option value="all"         <?= $filter_tipo==='all'         ? 'selected':'' ?>>— Todos —</option>
+      <option value="temperaturas"<?= $filter_tipo==='temperaturas'? 'selected':'' ?>>Temperaturas</option>
+      <option value="humedades"   <?= $filter_tipo==='humedades'   ? 'selected':'' ?>>Humedades</option>
+    </select>
+  </div>
 
-    <div class="d-flex flex-column" style="min-width:120px;">
-      <label for="filtro-fecha" class="small mb-1">Fecha</label>
-      <input id="filtro-fecha" type="date" name="fecha" form="filtrarForm"
-             class="form-control form-control-sm"
-             value="<?= htmlspecialchars($filter_fecha) ?>">
-    </div>
+  <div class="d-flex flex-column" style="min-width: 130px;">
+    <label for="fecha" class="small mb-1">Fecha exacta</label>
+    <input id="fecha" name="fecha" type="date" form="filtrarForm" class="form-control form-control-sm" value="<?= htmlspecialchars($filter_fecha) ?>">
+  </div>
 
-    <button form="filtrarForm" type="submit"
-            class="btn-inicio btn btn-success btn-sm ms-auto">
-      Filtrar
-    </button>
-  </nav>
+  <div class="d-flex flex-column" style="min-width: 130px;">
+    <label for="fecha_inicio" class="small mb-1">Fecha – Inicio</label>
+    <input id="fecha_inicio" name="fecha_inicio" type="date" form="filtrarForm" class="form-control form-control-sm" value="<?= htmlspecialchars($_GET['fecha_inicio'] ?? '') ?>">
+  </div>
+
+  <div class="d-flex flex-column" style="min-width: 130px;">
+    <label for="fecha_fin" class="small mb-1">Fecha – Fin</label>
+    <input id="fecha_fin" name="fecha_fin" type="date" form="filtrarForm" class="form-control form-control-sm" value="<?= htmlspecialchars($_GET['fecha_fin'] ?? '') ?>">
+  </div>
+
+<div class="d-flex flex-column gap-2">
+  <button form="filtrarForm" type="submit" class="btn btn-success btn-sm">Filtrar</button>
+  <a href="historial_completo_incubadora.php" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+</div>
+
+</nav>
 </header>
 
 
@@ -149,21 +169,34 @@ $result = $conn->query($sql);
         </thead>
         <tbody>
           <?php while ($r = $result->fetch_assoc()): ?>
-          <tr style="background-color: <?= $date_colors[date('Y-m-d', strtotime($r['fecha_hora_registro']))] ?>;">
-            <td><?= date('Y-m-d H:i:s', strtotime($r['fecha_hora_registro'])) ?></td>
-            <td><?= htmlspecialchars($r['turno']) ?></td>
-            <?php if ($filter_tipo==='all' || $filter_tipo==='temperaturas'): ?>
-              <td style="background-color: rgba(255,0,0,0.1);"><?= htmlspecialchars($r['temperatura_inferior']) ?></td>
-              <td style="background-color: rgba(255,0,0,0.1);"><?= htmlspecialchars($r['temperatura_media']) ?></td>
-              <td style="background-color: rgba(255,0,0,0.1);"><?= htmlspecialchars($r['temperatura_superior']) ?></td>
-            <?php endif; ?>
-            <?php if ($filter_tipo==='all' || $filter_tipo==='humedades'): ?>
-              <td style="background-color: rgba(0,0,255,0.1);"><?= htmlspecialchars($r['humedad_superior']) ?></td>
-              <td style="background-color: rgba(0,0,255,0.1);"><?= htmlspecialchars($r['humedad_inferior']) ?></td>
-            <?php endif; ?>
-            <td><?= htmlspecialchars($r['operador']) ?></td>
-            <td><?= htmlspecialchars($r['fecha_hora_registro']) ?></td>
-          </tr>
+<tr style="background-color: <?= $date_colors[date('Y-m-d', strtotime($r['fecha_hora_registro']))] ?>;">
+  <td data-label="Fecha"><?= date('Y-m-d H:i:s', strtotime($r['fecha_hora_registro'])) ?></td>
+  <td data-label="Turno"><?= htmlspecialchars($r['turno']) ?></td>
+
+  <?php if ($filter_tipo==='all' || $filter_tipo==='temperaturas'): ?>
+    <td data-label="Inf. (°C)" style="background-color: rgba(255,0,0,0.1);">
+      <?= htmlspecialchars($r['temperatura_inferior']) ?>
+    </td>
+    <td data-label="Med. (°C)" style="background-color: rgba(255,0,0,0.1);">
+      <?= htmlspecialchars($r['temperatura_media']) ?>
+    </td>
+    <td data-label="Sup. (°C)" style="background-color: rgba(255,0,0,0.1);">
+      <?= htmlspecialchars($r['temperatura_superior']) ?>
+    </td>
+  <?php endif; ?>
+
+  <?php if ($filter_tipo==='all' || $filter_tipo==='humedades'): ?>
+    <td data-label="Hum. Sup. (%)" style="background-color: rgba(0,0,255,0.1);">
+      <?= htmlspecialchars($r['humedad_superior']) ?>
+    </td>
+    <td data-label="Hum. Inf. (%)" style="background-color: rgba(0,0,255,0.1);">
+      <?= htmlspecialchars($r['humedad_inferior']) ?>
+    </td>
+  <?php endif; ?>
+
+  <td data-label="Operador"><?= htmlspecialchars($r['operador']) ?></td>
+  <td data-label="Registrado a las"><?= htmlspecialchars($r['fecha_hora_registro']) ?></td>
+</tr>
           <?php endwhile; ?>
         </tbody>
       </table>
@@ -174,6 +207,34 @@ $result = $conn->query($sql);
     &copy; 2025 PLANTAS AGRODEX
   </footer>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const fecha         = document.getElementById('fecha');
+  const fechaInicio   = document.getElementById('fecha_inicio');
+  const fechaFin      = document.getElementById('fecha_fin');
+
+  function toggleBloqueo() {
+    if (fecha.value) {
+      fechaInicio.disabled = true;
+      fechaFin.disabled = true;
+    } else if (fechaInicio.value || fechaFin.value) {
+      fecha.disabled = true;
+    } else {
+      fecha.disabled = false;
+      fechaInicio.disabled = false;
+      fechaFin.disabled = false;
+    }
+  }
+
+  [fecha, fechaInicio, fechaFin].forEach(input => {
+    input.addEventListener('input', toggleBloqueo);
+  });
+
+  toggleBloqueo(); // ejecutar al cargar
+});
+</script>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->

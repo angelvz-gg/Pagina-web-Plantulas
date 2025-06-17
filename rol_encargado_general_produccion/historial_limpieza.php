@@ -11,7 +11,6 @@ require_once __DIR__ . '/../db.php';
 date_default_timezone_set('America/Mexico_City');
 $conn->query("SET time_zone = '-06:00'");
 
-
 if (!isset($_SESSION['ID_Operador'])) {
     header('Location: ../login.php?mensaje=Debe iniciar sesión');
     exit;
@@ -28,15 +27,14 @@ $sessionLifetime = 60 * 3;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
-
 // Fecha actual para filtros
-$fechaHoy = date('Y-m-d');
-$fechaDesde = $_GET['fecha_desde'] ?? $fechaHoy;
-$fechaHasta = $_GET['fecha_hasta'] ?? $fechaHoy;
+$fechaHoy    = date('Y-m-d');
+$fechaDesde  = $_GET['fecha_desde'] ?? $fechaHoy;
+$fechaHasta  = $_GET['fecha_hasta'] ?? $fechaHoy;
 $estadoFiltro = $_GET['estado'] ?? '';
 
 // Consulta SQL
-$sql = "SELECT rl.ID_Limpieza, rl.Fecha, rl.Area, rl.Estado_Limpieza, 
+$sql = "SELECT rl.ID_Limpieza, rl.Fecha, rl.Area, rl.Estado_Limpieza,
                CONCAT(o.Nombre, ' ', o.Apellido_P, ' ', o.Apellido_M) AS NombreCompleto
         FROM registro_limpieza rl
         JOIN operadores o ON rl.ID_Operador = o.ID_Operador
@@ -82,64 +80,66 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["anular_id"])) {
   </script>
 </head>
 <body>
-  <div class="contenedor-pagina">
-    <header>
-      <div class="encabezado">
-        <a class="navbar-brand">
-          <img src="../logoplantulas.png" alt="Logo" width="130" height="124">
-        </a>
-        <div>
-          <h2>Historial de Limpieza</h2>
-          <p>Consulta de asignaciones realizadas o anuladas.</p>
+  <div class="contenedor-pagina d-flex flex-column" style="min-height:100vh;">
+
+  <header>
+  <div class="encabezado">
+    <a class="navbar-brand">
+      <img src="../logoplantulas.png" alt="Logo" width="130" height="124" />
+    </a>
+    <h2>Historial de Desinfección de Explantes</h2>
+    <div></div>
+  </div>
+
+  <div class="barra-navegacion">
+    <nav class="navbar bg-body-tertiary">
+      <div class="container-fluid">
+        <div class="Opciones-barra">
+          <button onclick="window.location.href='dashboard_egp.php'">
+            🏠 Volver al Inicio
+          </button>
         </div>
       </div>
+    </nav>
+  </div>
 
-      <div class="barra-navegacion">
-        <nav class="navbar bg-body-tertiary">
-          <div class="container-fluid">
-            <div class="Opciones-barra">
-              <button onclick="window.location.href='dashboard_egp.php'">
-              🏠 Volver al Inicio
-              </button>
-            </div>
-          </div>
-        </nav>
+  <!-- Filtros -->
+  <form method="GET" id="filtrosForm">
+    <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
+      <div class="d-flex flex-column" style="min-width:120px;">
+        <label for="filtro-fecha-desde" class="small mb-1">Desde</label>
+        <input type="date" name="fecha_desde" id="filtro-fecha-desde" class="form-control form-control-sm"
+               value="<?= htmlspecialchars($_GET['fecha_desde'] ?? '') ?>">
       </div>
 
-      <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
-  <div class="d-flex flex-column" style="min-width:120px;">
-    <label for="filtro-fecha-desde" class="small mb-1">Desde</label>
-    <input id="filtro-fecha-desde" type="date" name="fecha_desde" form="filtrosForm"
-           class="form-control form-control-sm"
-           value="<?= htmlspecialchars($fechaDesde) ?>">
-  </div>
+      <div class="d-flex flex-column" style="min-width:120px;">
+        <label for="filtro-fecha-hasta" class="small mb-1">Hasta</label>
+        <input type="date" name="fecha_hasta" id="filtro-fecha-hasta" class="form-control form-control-sm"
+               value="<?= htmlspecialchars($_GET['fecha_hasta'] ?? '') ?>">
+      </div>
 
-  <div class="d-flex flex-column" style="min-width:120px;">
-    <label for="filtro-fecha-hasta" class="small mb-1">Hasta</label>
-    <input id="filtro-fecha-hasta" type="date" name="fecha_hasta" form="filtrosForm"
-           class="form-control form-control-sm"
-           value="<?= htmlspecialchars($fechaHasta) ?>">
-  </div>
+      <div class="d-flex flex-column" style="min-width:140px;">
+        <label for="filtro-estado" class="small mb-1">Estado</label>
+        <select name="estado" id="filtro-estado" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          <option value="Correcto" <?= isset($_GET['estado']) && $_GET['estado'] === 'Correcto' ? 'selected' : '' ?>>Correcto</option>
+          <option value="Incorrecto" <?= isset($_GET['estado']) && $_GET['estado'] === 'Incorrecto' ? 'selected' : '' ?>>Incorrecto</option>
+        </select>
+      </div>
 
-  <div class="d-flex flex-column" style="min-width:140px;">
-    <label for="filtro-estado" class="small mb-1">Estado</label>
-    <select id="filtro-estado" name="estado" form="filtrosForm"
-            class="form-select form-select-sm">
-      <option value="">— Todos —</option>
-      <option value="Pendiente" <?= $estadoFiltro==='Pendiente'  ? 'selected':''?>>Pendiente</option>
-      <option value="Realizada" <?= $estadoFiltro==='Realizada'  ? 'selected':''?>>Realizada</option>
-      <option value="Anulado"   <?= $estadoFiltro==='Anulado'    ? 'selected':''?>>Anulado</option>
-    </select>
-  </div>
+      <button type="submit" class="btn-inicio btn btn-success btn-sm ms-auto">
+        Filtrar
+      </button>
+      <button type="button" onclick="limpiarFiltros()" class="btn btn-limpiar btn-sm ms-2">
+        Limpiar filtros
+      </button>
+    </nav>
+  </form>
+</header>
 
-  <button form="filtrosForm" type="submit"
-          class="btn-inicio btn btn-success btn-sm ms-auto">
-    Filtrar
-  </button>
-    </header>
-
-    <main>
-        <table class="table">
+    <main class="flex-fill" style="padding:20px;">
+      <div class="table-responsive">
+        <table class="table table-striped">
           <thead>
             <tr>
               <th>🆔 ID</th>
@@ -161,22 +161,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["anular_id"])) {
                   <td><?= htmlspecialchars($area) ?></td>
                   <td><?= $estado ?></td>
                   <td>
-                    <?php if ($estado !== 'Anulado' && $esHoy): ?>
-                      <form method="POST" onsubmit="return confirm('¿Estás seguro de anular esta asignación?');">
-                        <input type="hidden" name="anular_id" value="<?= $id ?>">
-                        <button type="submit" class="btn-anular">🗑 Anular</button>
-                      </form>
-                    <?php elseif ($estado !== 'Anulado'): ?>
-                      <span class="text-muted-small">Solo hoy</span>
-                    <?php else: ?>
-                      <span class="text-muted">N/A</span>
-                    <?php endif; ?>
-                  </td>
+  <?php if ($estado !== 'Anulado' && $esHoy): ?>
+<form method="POST" class="form-inline" onsubmit="return confirm('¿Estás seguro de anular esta asignación?');">
+  <input type="hidden" name="anular_id" value="<?= $id ?>">
+  <button type="submit" class="btn-reset">🗑 Anular</button>
+</form>
+  <?php elseif ($estado !== 'Anulado'): ?>
+    <span class="text-muted-small">Solo hoy</span>
+  <?php else: ?>
+    <span class="text-muted">N/A</span>
+  <?php endif; ?>
+</td>
+
                 </tr>
               <?php endwhile; ?>
             <?php else: ?>
               <tr>
-                <td colspan="6" class="text-center">No hay asignaciones para hoy.</td>
+                <td colspan="6" class="text-center">No hay asignaciones en este rango.</td>
               </tr>
             <?php endif; ?>
           </tbody>
@@ -184,95 +185,97 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["anular_id"])) {
       </div>
     </main>
 
-    <footer>
+    <footer class="text-center py-3 mt-auto">
       <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
     </footer>
   </div>
 
-  <script>
-    function toggleFiltros() {
-      const filtros = document.getElementById("filtros");
-      const boton = document.getElementById("btnFiltros");
-      const visible = filtros.style.display === "block";
-      filtros.style.display = visible ? "none" : "block";
-      boton.innerText = visible ? "🔍 Mostrar filtros" : "❌ Ocultar filtros";
-    }
-  </script>
-
-<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
 <script>
-(function(){
-  let modalShown = false,
-      warningTimer,
-      expireTimer;
+function aplicarFiltros() {
+  const desde = document.getElementById('filtro-fecha-desde').value;
+  const hasta = document.getElementById('filtro-fecha-hasta').value;
+  const estado = document.getElementById('filtro-estado').value;
 
-  function showModal() {
-    modalShown = true;
-    const modalHtml = `
-      <div id="session-warning" class="modal-overlay">
-        <div class="modal-box">
-          <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
-          <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
-        </div>
-      </div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document.getElementById('keepalive-btn').addEventListener('click', () => {
-      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
-    });
-  }
+  const params = new URLSearchParams();
+  if (desde) params.append('fecha_desde', desde);
+  if (hasta) params.append('fecha_hasta', hasta);
+  if (estado) params.append('estado', estado);
 
-  function cerrarModalYReiniciar() {
-    // 🔥 Cerrar modal inmediatamente
-    const modal = document.getElementById('session-warning');
-    if (modal) modal.remove();
-    reiniciarTimers(); // Reinicia el temporizador visual
+  window.location.href = 'historial_limpieza.php?' + params.toString();
+}
 
-    // 🔄 Enviar ping a la base de datos en segundo plano
-    fetch('../keepalive.php', { credentials: 'same-origin' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status !== 'OK') {
-          alert('No se pudo extender la sesión');
-        }
-      })
-      .catch(() => {}); // Silenciar errores de red
-  }
-
-  function reiniciarTimers() {
-    START_TS   = Date.now();
-    modalShown = false;
-    clearTimeout(warningTimer);
-    clearTimeout(expireTimer);
-    scheduleTimers();
-  }
-
-  function scheduleTimers() {
-    const elapsed     = Date.now() - START_TS;
-    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
-    const expireAfter = SESSION_LIFETIME;
-
-    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
-
-    expireTimer = setTimeout(() => {
-      if (!modalShown) {
-        showModal();
-      } else {
-        window.location.href = '/plantulas/login.php?mensaje='
-          + encodeURIComponent('Sesión caducada por inactividad');
-      }
-    }, Math.max(expireAfter - elapsed, 0));
-  }
-
-  ['click', 'keydown'].forEach(event => {
-    document.addEventListener(event, () => {
-      reiniciarTimers();
-      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
-    });
-  });
-
-  scheduleTimers();
-})();
+function limpiarFiltros() {
+  document.getElementById('filtrosForm').reset();
+  window.location.href = window.location.pathname; // limpia la URL
+}
 </script>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+  <script>
+  (function(){
+    let modalShown = false,
+        warningTimer,
+        expireTimer;
+
+    function showModal() {
+      modalShown = true;
+      const modalHtml = `
+        <div id="session-warning" class="modal-overlay">
+          <div class="modal-box">
+            <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
+            <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
+          </div>
+        </div>`;
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      document.getElementById('keepalive-btn').addEventListener('click', () => {
+        cerrarModalYReiniciar();
+      });
+    }
+
+    function cerrarModalYReiniciar() {
+      const modal = document.getElementById('session-warning');
+      if (modal) modal.remove();
+      reiniciarTimers();
+      fetch('../keepalive.php', { credentials: 'same-origin' })
+        .catch(() => {});
+    }
+
+    function reiniciarTimers() {
+      START_TS   = Date.now();
+      modalShown = false;
+      clearTimeout(warningTimer);
+      clearTimeout(expireTimer);
+      scheduleTimers();
+    }
+
+    function scheduleTimers() {
+      const elapsed     = Date.now() - START_TS;
+      const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
+      const expireAfter = SESSION_LIFETIME;
+
+      warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
+
+      expireTimer = setTimeout(() => {
+        if (!modalShown) {
+          showModal();
+        } else {
+          window.location.href = '/plantulas/login.php?mensaje='
+            + encodeURIComponent('Sesión caducada por inactividad');
+        }
+      }, Math.max(expireAfter - elapsed, 0));
+    }
+
+    ['click','keydown'].forEach(event => {
+      document.addEventListener(event, () => {
+        reiniciarTimers();
+        fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
+      });
+    });
+
+    scheduleTimers();
+  })();
+  </script>
 </body>
 </html>

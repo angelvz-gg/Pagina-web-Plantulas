@@ -37,20 +37,51 @@ $sql = "
     V.Nombre_Variedad,
     V.Codigo_Variedad,
     COALESCE(NULLIF(V.Color,''), 'Sin datos') AS Color,
-    COALESCE(S.Brotes_Disponibles, D.Brotes_Totales) AS Brotes,
-    COALESCE(S.Tuppers_Llenos, D.Tuppers_Llenos) AS Tuppers,
+    DE.Origen_Explantes,
+    
+    -- Brotes y tuppers disponibles
+COALESCE(D.Brotes_Totales, S.Brotes_Disponibles, 0)
+  - COALESCE(P.Brotes_Perdidos, 0) AS Brotes,
+COALESCE(D.Tuppers_Disponibles, S.Tuppers_Disponibles, 0)
+  - COALESCE(P.Tuppers_Perdidos, 0) AS Tuppers,
+
+    -- Sub-etapa
     CASE
       WHEN D.ID_Division IS NOT NULL THEN 'División de brotes'
       ELSE 'Siembra de explantes'
     END AS SubEtapa
+
   FROM lotes L
-  LEFT JOIN siembra_ecas S ON S.ID_Lote = L.ID_Lote
-  LEFT JOIN division_ecas D ON D.ID_Siembra = S.ID_Siembra
   JOIN variedades V ON V.ID_Variedad = L.ID_Variedad
-  WHERE L.ID_Etapa = 1
-    AND COALESCE(S.Brotes_Disponibles, D.Brotes_Totales, 0) > 0
+  LEFT JOIN siembra_ecas S ON S.ID_Lote = L.ID_Lote
+  LEFT JOIN desinfeccion_explantes DE ON S.ID_Desinfeccion = DE.ID_Desinfeccion
+  LEFT JOIN (
+      SELECT D1.*
+      FROM division_ecas D1
+      JOIN (
+          SELECT ID_Siembra, MAX(ID_Division) AS MaxDiv
+          FROM division_ecas
+          GROUP BY ID_Siembra
+      ) UltDiv
+      ON D1.ID_Siembra = UltDiv.ID_Siembra AND D1.ID_Division = UltDiv.MaxDiv
+  ) D ON D.ID_Siembra = S.ID_Siembra
+
+LEFT JOIN (
+  SELECT ID_Entidad,
+         SUM(Tuppers_Perdidos) AS Tuppers_Perdidos,
+         SUM(Brotes_Perdidos)  AS Brotes_Perdidos
+    FROM perdidas_laboratorio
+   WHERE Tipo_Entidad = 'lotes'
+   GROUP BY ID_Entidad
+) P ON P.ID_Entidad = L.ID_Lote
+
+WHERE L.ID_Etapa = 1
+  AND (COALESCE(D.Brotes_Totales, S.Brotes_Disponibles, 0) - COALESCE(P.Brotes_Perdidos, 0)) > 0
+  AND (COALESCE(D.Tuppers_Disponibles, S.Tuppers_Disponibles, 0) - COALESCE(P.Tuppers_Perdidos, 0)) > 0
+
   ORDER BY L.Fecha DESC
 ";
+
 $lotes = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
 
 // 4) Procesar registro de pérdida
@@ -74,57 +105,108 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_evaluacion"])
         }
     }
 
-    if ($cont === "si") {
-        if ($tupp_perd < 1 || $tupp_perd > $tuppers_disponibles) {
-            $mensaje = "❌ La cantidad de tuppers desechados debe estar entre 1 y $tuppers_disponibles.";
-        } elseif ($bro_perd < 1 || $bro_perd > $brotes_disponibles) {
-            $mensaje = "❌ La cantidad de brotes desechados debe estar entre 1 y $brotes_disponibles.";
-        }
-
-        if (empty($mensaje) && ($tupp_perd > 0 || $bro_perd > 0)) {
-            // Buscar ID de siembra asociado
-            $id_siembra = null;
-            $res_siembra = $conn->prepare("SELECT ID_Siembra FROM siembra_ecas WHERE ID_Lote = ? LIMIT 1");
-            $res_siembra->bind_param("i", $id_lote);
-            $res_siembra->execute();
-            $res = $res_siembra->get_result()->fetch_assoc();
-            if ($res) {
-                $id_siembra = (int) $res['ID_Siembra'];
-            }
-
-            // Insertar pérdida
-            $total = $tupp_perd + $bro_perd;
-            $stmt = $conn->prepare("
-                INSERT INTO perdidas_laboratorio
-                  (ID_Entidad, Tipo_Entidad, Fecha_Perdida, Cantidad_Perdida,
-                   Tuppers_Perdidos, Brotes_Perdidos, Motivo,
-                   Operador_Entidad, Operador_Chequeo)
-                VALUES (?, 'lotes', ?, ?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->bind_param("isiiisii",
-                $id_lote, $fecha_perd, $total,
-                $tupp_perd, $bro_perd,
-                $motivo, $ID_Operador, $ID_Operador
-            );
-
-            // Actualizar brotes en siembra_ecas
-            if ($id_siembra !== null) {
-                $upd = $conn->prepare("
-                    UPDATE siembra_ecas
-                       SET Brotes_Disponibles = GREATEST(Brotes_Disponibles - ?, 0)
-                     WHERE ID_Siembra = ?
-                ");
-                $upd->bind_param("ii", $bro_perd, $id_siembra);
-                $upd->execute();
-            }
-
-            $mensaje = $stmt->execute()
-                ? "✅ Pérdida registrada correctamente."
-                : "❌ Error al registrar pérdida: " . $stmt->error;
-        }
-    } elseif ($cont === "no") {
-        $mensaje = "✅ Evaluación registrada sin pérdidas.";
+if ($cont === "si") {
+    // Reglas de consistencia forzada
+    if ($tupp_perd === $tuppers_disponibles && $bro_perd === 0) {
+        $bro_perd = $brotes_disponibles;
+    } elseif ($bro_perd === $brotes_disponibles && $tupp_perd === 0) {
+        $tupp_perd = $tuppers_disponibles;
     }
+
+    // Validaciones
+    if ($tupp_perd < 1 || $tupp_perd > $tuppers_disponibles) {
+        $mensaje = "❌ La cantidad de tuppers desechados debe estar entre 1 y $tuppers_disponibles.";
+    } elseif ($bro_perd < 1 || $bro_perd > $brotes_disponibles) {
+        $mensaje = "❌ La cantidad de brotes desechados debe estar entre 1 y $brotes_disponibles.";
+    } elseif (
+        ($tupp_perd === $tuppers_disponibles && $bro_perd !== $brotes_disponibles) ||
+        ($bro_perd === $brotes_disponibles && $tupp_perd !== $tuppers_disponibles)
+    ) {
+        $mensaje = "❌ Si vas a desechar todos los tuppers o todos los brotes, debes desechar ambos completamente.";
+    }
+
+    if (empty($mensaje)) {
+        // Buscar ID de siembra y división más reciente asociadas al lote
+        $id_siembra = null;
+        $id_division = null;
+
+        $stmt = $conn->prepare("
+            SELECT S.ID_Siembra,
+                   (SELECT MAX(D.ID_Division)
+                      FROM division_ecas D
+                     WHERE D.ID_Siembra = S.ID_Siembra) AS ID_Division
+              FROM siembra_ecas S
+             WHERE S.ID_Lote = ?
+             LIMIT 1
+        ");
+        $stmt->bind_param("i", $id_lote);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        if ($res) {
+            $id_siembra  = (int) $res['ID_Siembra'];
+            $id_division = $res['ID_Division'] !== null ? (int) $res['ID_Division'] : null;
+        }
+
+        // Insertar pérdida
+        $total = $tupp_perd + $bro_perd;
+        $stmt = $conn->prepare("
+            INSERT INTO perdidas_laboratorio
+              (ID_Entidad, Tipo_Entidad, Fecha_Perdida, Cantidad_Perdida,
+               Tuppers_Perdidos, Brotes_Perdidos, Motivo,
+               Operador_Entidad, Operador_Chequeo)
+            VALUES (?, 'lotes', ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->bind_param("isiiisii",
+            $id_lote, $fecha_perd, $total,
+            $tupp_perd, $bro_perd,
+            $motivo, $ID_Operador, $ID_Operador
+        );
+
+        // Actualizar brotes y tuppers según si hay división o no
+        if ($id_division !== null) {
+            $upd = $conn->prepare("
+                UPDATE division_ecas
+                   SET Brotes_Totales = GREATEST(Brotes_Totales - ?, 0)
+                 WHERE ID_Division = ?
+            ");
+            $upd->bind_param("ii", $bro_perd, $id_division);
+            $upd->execute();
+
+            $upd = $conn->prepare("
+                UPDATE division_ecas
+                   SET Tuppers_Disponibles = GREATEST(Tuppers_Disponibles - ?, 0)
+                 WHERE ID_Division = ?
+            ");
+            $upd->bind_param("ii", $tupp_perd, $id_division);
+            $upd->execute();
+        } elseif ($id_siembra !== null) {
+            $upd = $conn->prepare("
+                UPDATE siembra_ecas
+                   SET Brotes_Disponibles = GREATEST(Brotes_Disponibles - ?, 0)
+                 WHERE ID_Siembra = ?
+            ");
+            $upd->bind_param("ii", $bro_perd, $id_siembra);
+            $upd->execute();
+
+            $upd = $conn->prepare("
+                UPDATE siembra_ecas
+                   SET Tuppers_Disponibles = GREATEST(Tuppers_Disponibles - ?, 0)
+                 WHERE ID_Siembra = ?
+            ");
+            $upd->bind_param("ii", $tupp_perd, $id_siembra);
+            $upd->execute();
+        }
+
+        $mensaje = $stmt->execute()
+            ? "✅ Pérdida registrada correctamente."
+            : "❌ Error al registrar pérdida: " . $stmt->error;
+    }
+
+} elseif ($cont === "no") {
+    $mensaje = "✅ Evaluación registrada sin pérdidas.";
+}
+    // Volver a cargar los lotes con datos actualizados
+$lotes = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
 }
 ?>
 
@@ -180,6 +262,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_evaluacion"])
                     data-variedad="<?= htmlspecialchars($l['Nombre_Variedad']) ?>"
                     data-codigo="<?= htmlspecialchars($l['Codigo_Variedad']) ?>"
                     data-color="<?= htmlspecialchars($l['Color']) ?>"
+                    data-origen="<?= htmlspecialchars(trim($l['Origen_Explantes']) !== '' ? $l['Origen_Explantes'] : 'Sin origen') ?>"
                     data-tuppers="<?= $l['Tuppers'] ?>"
                     data-brotes="<?= $l['Brotes'] ?>"
                     data-subetapa="<?= $l['SubEtapa'] ?>">
@@ -196,6 +279,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_evaluacion"])
         <p><strong>Variedad:</strong> <span id="variedad_lote"></span></p>
         <p><strong>Código:</strong> <span id="codigo_var"></span></p>
         <p><strong>Color:</strong> <span id="color_var"></span></p>
+        <p><strong>Origen de explantes:</strong> <span id="origen_explantes"></span></p>
         <p><strong>Sub-etapa:</strong> <span id="subetapa_lote"></span></p>
         <p><strong>Tuppers disponibles:</strong> <span id="tuppers_lote"></span></p>
         <p><strong>Brotes disponibles:</strong> <span id="brotes_lote"></span></p>
@@ -234,9 +318,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_evaluacion"])
           <textarea name="observaciones" class="form-control" rows="3"></textarea>
         </div>
 
-        <button type="submit" name="guardar_evaluacion" class="btn btn-primary">
-          Registrar Evaluación
-        </button>
+<button type="submit" name="guardar_evaluacion" class="btn btn-primary">
+  Registrar Evaluación
+</button>
+
       </form>
 
     <?php else: ?>
@@ -261,6 +346,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["guardar_evaluacion"])
     document.getElementById('variedad_lote').innerText = opt.dataset.variedad;
     document.getElementById('codigo_var').innerText = opt.dataset.codigo;
     document.getElementById('color_var').innerText = opt.dataset.color;
+    document.getElementById('origen_explantes').innerText = opt.dataset.origen;
     document.getElementById('subetapa_lote').innerText = opt.dataset.subetapa;
     document.getElementById('tuppers_lote').innerText = opt.dataset.tuppers;
     document.getElementById('brotes_lote').innerText = opt.dataset.brotes;
