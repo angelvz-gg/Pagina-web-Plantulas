@@ -68,6 +68,15 @@ if (!in_array($tipo, $allowedTypes)) {
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Recibimos los valores (los inputs que no fueron editables se envían vía hidden)
     $tasa = $_POST['Tasa_Multiplicacion'] ?? null;
+    if (!preg_match('/^\d+(\.\d{1,2})?$/', $tasa)) {
+    echo "<script>alert('❌ La tasa debe tener hasta 2 decimales y usar punto como separador. Ejemplo: 3.25'); history.back();</script>";
+    exit;
+}
+
+if ($tasa < 1 || $tasa > 50) {
+    echo "<script>alert('❌ La tasa debe estar entre 1.00 y 50.00'); history.back();</script>";
+    exit;
+}
     $cantidad = $_POST['Cantidad_Dividida'] ?? null;
     $tuppersLlenos = $_POST['Tuppers_Llenos'] ?? null;
     $tuppersVacios = $_POST['Tuppers_Desocupados'] ?? null;
@@ -204,7 +213,9 @@ if (!empty($reporte['Campos_Rechazados'])) {
         <div class="mb-3">
             <label class="form-label">Tasa de Multiplicación</label>
             <?php if (in_array('Tasa_Multiplicacion', $camposRechazados)): ?>
-                <input type="number" name="Tasa_Multiplicacion" class="form-control" value="<?= $reporte['Tasa_Multiplicacion'] ?>" required>
+                <input type="number" name="Tasa_Multiplicacion" class="form-control"
+       value="<?= $reporte['Tasa_Multiplicacion'] ?>"
+       min="1" max="50" step="0.01" inputmode="decimal" required>
             <?php else: ?>
                 <input type="number" class="form-control readonly" value="<?= $reporte['Tasa_Multiplicacion'] ?>" disabled>
                 <input type="hidden" name="Tasa_Multiplicacion" value="<?= $reporte['Tasa_Multiplicacion'] ?>">
@@ -343,15 +354,18 @@ $(function () {
     }
   });
 
-  $('form').on('submit', function () {
-    if (!$('#id_variedad').val()) {
-      alert('❌ Por favor selecciona una variedad válida desde la lista sugerida.');
-      $('#nombre_variedad').addClass('is-invalid').focus();
-      return false;
-    } else {
-      $('#nombre_variedad').removeClass('is-invalid');
-    }
-  });
+$('form').on('submit', function () {
+  // Solo validar si el campo es editable (existe y no está deshabilitado)
+  const campoVariedadEditable = $('#nombre_variedad').is(':enabled');
+
+  if (campoVariedadEditable && !$('#id_variedad').val()) {
+    alert('❌ Por favor selecciona una variedad válida desde la lista sugerida.');
+    $('#nombre_variedad').addClass('is-invalid').focus();
+    return false;
+  }
+
+  $('#nombre_variedad').removeClass('is-invalid');
+});
 });
 </script>
 

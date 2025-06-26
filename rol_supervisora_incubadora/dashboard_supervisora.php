@@ -13,6 +13,7 @@ if (!isset($_SESSION['ID_Operador'])) {
     exit;
 }
 $ID_Operador = (int) $_SESSION['ID_Operador'];
+$volver1 = !empty($_SESSION['origin']) && $_SESSION['origin'] === 1;
 
 if ((int) $_SESSION['Rol'] !== 4) {
     echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Supervisora de Incubadora.</p>";
@@ -56,9 +57,11 @@ $nowTs           = time();
   <div class="contenedor-pagina panel-admin">
     <header>
       <div class="encabezado d-flex align-items-center">
-        <a class="navbar-brand me-3" href="#">
-          <img src="../logoplantulas.png" alt="Logo" width="130" height="124" class="d-inline-block align-text-center"/>
-        </a>
+<img src="../logoplantulas.png"
+     alt="Logo"
+     width="130" height="124"
+     style="cursor:<?= $volver1 ? 'pointer' : 'default' ?>"
+     <?= $volver1 ? "onclick=\"location.href='../rol_administrador/volver_rol.php'\"" : '' ?>>
         <div>
           <h2>Bienvenida, Supervisora de Incubadora</h2>
           <p>Encargado de Suministro de material, limpieza de incubador e Inventarios</p>
@@ -76,7 +79,13 @@ $nowTs           = time();
     </header>
 
     <main>
-      <section class="dashboard-grid">
+      <section class="dashboard-grid" data-card-id="reportes_produccion">
+        <div class="card" data-card-id="reportes-produccion">
+          <h2>🔬 Reportes de Siembra</h2>
+          <p>Revisa y verifica los reportes de Siembra.</p>
+          <a href="reportes_produccion.php">Ver Reportes</a>
+        </div>
+
         <div class="card" data-card-id="inventario_materiales">
           <h2>📦 Inventario de Materiales</h2>
           <p>Agrega y actualiza existencias de pinzas, bisturíes, periódicos y trapos.</p>
@@ -84,19 +93,19 @@ $nowTs           = time();
         </div>
 
         <div class="card" data-card-id="suministro_material">
-          <h2>🚚 Suministro de Insumos</h2>
-          <p>Asigna y despacha medio nutritivo y explantes según etapa.</p>
-          <a href="suministro_material.php">Ver detalles</a>
+          <h2>🚚 Suministro de Juegos</h2>
+          <p>Asigna juegos de herramientas a operador@s.</p>
+          <a href="suministro_material.php">Asignar</a>
         </div>
-        <div class="card" id="card-vista-tuppers">
+        <div class="card" data-card-id="card-vista-tuppers">
           <h2>📋 Existencias de Tuppers</h2>
           <p>Consulta todos los tuppers, sus estados y su trazabilidad completa.</p>
-          <a href="existencias_tuppers.php" onclick="guardarScroll('card-vista-tuppers')">Ir a Vista</a>
+          <a href="existencias_tuppers.php">Ir a Vista</a>
         </div>
-        <div class="card" id="card-seleccion-tuppers">
+        <div class="card" data-card-id="card-seleccion-tuppers">
           <h2>🔬 Registro de acomodo de Tuppers en cajas negras</h2>
           <p>Coordina la selección de tuppers para lavado.</p>
-          <a href="seleccion_tuppers.php" onclick="guardarScroll('card-seleccion-tuppers')">Gestionar selección</a>
+          <a href="seleccion_tuppers.php">Gestionar selección</a>
         </div>
         
         <div class="card" data-card-id="registro_datos_incubadora">
@@ -127,11 +136,17 @@ $nowTs           = time();
             <a href="limpieza_incubador.php">Ir al Registro</a>
         </div>
 
+        <div class="card" data-card-id="rol-limpieza">
+          <h2>🧹 Rol de Limpieza</h2>
+          <p>Define las tareas de limpieza y asigna responsabilidades.</p>
+          <a href="rol_limpieza.php">Crear Rol de Limpieza</a>
+        </div>
+
         <div class="card card-ecas" data-card-id="card-historial-desinfeccion">
             <h2>🧼 Historial de Limpieza</h2>
             <p>Accede al historial de la limpieza.</p>
             <a href="limpieza_repisas.php">Ver Historial</a>
-          </div>
+        </div>
       </section>
     </main>
 
@@ -139,27 +154,25 @@ $nowTs           = time();
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const cards = document.querySelectorAll('.dashboard-grid .card');
-      // Al hacer clic en cualquier enlace de tarjeta
-      cards.forEach(card => {
-        const link = card.querySelector('a');
-        link.addEventListener('click', () => {
-          const id = card.dataset.cardId;
-          sessionStorage.setItem('lastCard', id);
-        });
-      });
+document.addEventListener('DOMContentLoaded', () => {
+  const cards = document.querySelectorAll('.dashboard-grid .card');
 
-      // Al cargar la página, leer y, si existe, hacer scroll y resaltar
-      const last = sessionStorage.getItem('lastCard');
-      if (last) {
-        const target = document.querySelector(`.dashboard-grid .card[data-card-id="${last}"]`);
-        if (target) {
-          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          target.classList.add('highlight');
-        }
-      }
+  cards.forEach(card => {
+    card.addEventListener('click', () => {
+      const id = card.dataset.cardId;
+      if (id) sessionStorage.setItem('lastCard', id);
     });
+  });
+
+  const last = sessionStorage.getItem('lastCard');
+  if (last) {
+    const target = document.querySelector(`.dashboard-grid .card[data-card-id="${last}"]`);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('highlight');
+    }
+  }
+});
   </script>
 
   <script

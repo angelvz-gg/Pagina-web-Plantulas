@@ -7,6 +7,7 @@ error_reporting(E_ALL);
 // 1) Validar sesión y rol
 require_once __DIR__ . '/../session_manager.php';
 require_once __DIR__ . '/../db.php';
+setlocale(LC_TIME, 'es_MX.UTF-8');
 
 if (!isset($_SESSION['ID_Operador'])) {
     header('Location: ../login.php?mensaje=Debe iniciar sesión');
@@ -34,178 +35,50 @@ $lista_materiales = [
 
 // 2) Procesar formularios
 $msg = '';
+
+if (isset($_GET['registrados'])) {
+    $msg = "✅ Se registraron {$_GET['registrados']} juegos nuevos.";
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Registrar nuevos tipos desde checklist
-    if (isset($_POST['registrar_materiales']) && !empty($_POST['materiales_nuevos'])) {
-    // Preparamos las sentencias
-    $stmtCheck = $conn->prepare("
-      SELECT COUNT(*) 
-        FROM materiales 
-       WHERE nombre = ? AND reutilizable = 1
-    ");
-    $stmtInsert = $conn->prepare("
-      INSERT INTO materiales (nombre, reutilizable) 
-      VALUES (?, 1)
-    ");
+    if (isset($_POST['cantidad_juegos_nuevos'])) {
+        $cantidad = max(1, intval($_POST['cantidad_juegos_nuevos']));
+        $registrados = 0;
 
-    foreach ($_POST['materiales_nuevos'] as $nombre) {
-        // 1) Comprobamos si ya existe ese nombre como reutilizable
-        $stmtCheck->bind_param('s', $nombre);
-        $stmtCheck->execute();
-        $stmtCheck->bind_result($count);
-        $stmtCheck->fetch();
-
-        // 2) Si no existe, insertamos
-        if ($count === 0) {
-            $stmtInsert->bind_param('s', $nombre);
-            $stmtInsert->execute();
-        }
-    }
-
-    $msg = '✅ Nuevos materiales registrados';
-}
-
-if (isset($_POST['sumar_esterilizacion'])) {
-    $idMat = intval($_POST['id_material_ester']);
-    $cant  = intval($_POST['cantidad_ester']);
-    $oper  = $_SESSION['ID_Operador'];
-
-    // 1) Verificar cantidad válida
-    if ($cant < 1 || $cant > 50) {
-        $msg = '⚠️ Solo puedes agregar entre 1 y 50 unidades por vez.';
-    } else {
-        // 2) Consultar cantidad actual - esterilizados
         $stmt = $conn->prepare("
-          SELECT 
-            im.cantidad,
-            COALESCE(SUM(mm.cantidad),0) AS esterilizados
-          FROM inventario_materiales im
-          LEFT JOIN movimientos_materiales mm
-            ON im.id_material = mm.id_material AND mm.tipo_movimiento = 'esterilizacion'
-          WHERE im.id_material = ?
-          GROUP BY im.id_material
+            INSERT INTO juegos_materiales (fecha_registro, estado_juego, id_operador_registro)
+            VALUES (CURDATE(), 'Pendiente', ?)
         ");
-        $stmt->bind_param('i', $idMat);
-        $stmt->execute();
-        $stmt->bind_result($total, $esterilizados);
-        if ($stmt->fetch()) {
-            $disponible = max($total - $esterilizados, 0);
-            if ($disponible > 10) {
-                $msg = "🚫 Este material ya tiene suficiente stock para esterilización ($disponible disponibles). Solo se permite agregar si es 10 o menos.";
-            } else {
-                // OK, procede a insertar
-                $stmt->close();
-                $stmt = $conn->prepare("
-                  INSERT INTO inventario_materiales (id_material, cantidad, en_uso, fecha_act, id_operador_registro)
-                  VALUES (?, ?, 0, NOW(), ?)
-                  ON DUPLICATE KEY UPDATE
-                    cantidad = cantidad + VALUES(cantidad),
-                    fecha_act = NOW(),
-                    id_operador_registro = VALUES(id_operador_registro)
-                ");
-                $stmt->bind_param('iii', $idMat, $cant, $oper);
-                $stmt->execute();
-                $msg = '✅ Material disponible para esterilización actualizado.';
-            }
-        } else {
-            $msg = '⚠️ Material no encontrado.';
+        for ($i = 0; $i < $cantidad; $i++) {
+            $stmt->bind_param('i', $ID_Operador);
+            $stmt->execute();
+            if ($stmt->affected_rows > 0) $registrados++;
         }
+
+        header("Location: inventario_materiales.php?registrados=$registrados");
+        exit;
     }
 }
 
-// Actualizar inventario
-if (isset($_POST['actualizar_inventario'])) {
-    $id   = intval($_POST['id_material']);
-    $cant = intval($_POST['cantidad']);
-    $oper = $_SESSION['ID_Operador'];
-
-    // 1) Comprobar disponibilidad real en BD (cantidad – en_uso)
-    $chk = $conn->prepare("
-      SELECT 
-        COALESCE(SUM(cantidad),0) - COALESCE(SUM(en_uso),0) AS disponible
-        FROM inventario_materiales
-       WHERE id_material = ?
-    ");
-    $chk->bind_param('i', $id);
-    $chk->execute();
-    $chk->bind_result($disponible);
-    $chk->fetch();
-    $chk->close();
-
-    // 2) Validaciones en cascada
-    if ($disponible < 1) {
-        $msg = "🚫 No hay stock disponible (disponible = $disponible)";
-    }
-    elseif ($disponible >= 5) {
-        $msg = "🚫 No puedes actualizar este material (disponible $disponible ≥ 5)";
-    }
-    else {
-        // Solo entramos aquí si 1 ≤ $disponible < 5
-
-        // 3) Validación de rango 1–100 para la cantidad a ingresar
-        if ($cant < 1 || $cant > 100) {
-            $msg = '⚠️ La cantidad debe estar entre 1 y 100';
-        } else {
-// 4) Si todo OK, actualizamos la tabla
-$stmt = $conn->prepare("
-    INSERT INTO inventario_materiales
-      (id_material, cantidad, fecha_act, id_operador_registro)
-    VALUES (?, ?, NOW(), ?)
-    ON DUPLICATE KEY UPDATE
-      cantidad             = cantidad + VALUES(cantidad),
-      fecha_act            = NOW(),
-      id_operador_registro = VALUES(id_operador_registro)
+// Consulta para mostrar los juegos registrados por la supervisora
+$juegosPendientes = $conn->prepare("
+SELECT id_juego, fecha_registro
+FROM juegos_materiales
+WHERE estado_juego = 'Pendiente' AND id_operador_registro = ?
+ORDER BY id_juego DESC
 ");
-$stmt->bind_param('iii', $id, $cant, $oper);
-$stmt->execute();
+$juegosPendientes->bind_param('i', $ID_Operador);
+$juegosPendientes->execute();
+$resultadosPendientes = $juegosPendientes->get_result();
+$totalPendientes = $resultadosPendientes->num_rows;
 
-            $msg = '✅ Inventario actualizado';
-        }
-    }
-}
-}
-
-// 3) Cargar datos para dropdown y tabla
-$materiales = $conn->query("SELECT * FROM materiales ORDER BY nombre");
-
-$inv_res = $conn->query("
-  SELECT
-    m.id_material,
-    m.nombre,
-    m.reutilizable,
-    CASE
-      WHEN m.reutilizable = 1
-        THEN COALESCE(i.total,0) - COALESCE(i.uso,0)
-      ELSE COALESCE(i.total,0)
-    END AS cantidad_total
-  FROM materiales m
-  LEFT JOIN (
-    -- sumar todas las filas de inventario por material
-    SELECT
-      id_material,
-      SUM(cantidad) AS total,
-      SUM(en_uso)   AS uso
-    FROM inventario_materiales
-    GROUP BY id_material
-  ) i ON m.id_material = i.id_material
-  ORDER BY m.nombre, m.reutilizable DESC
+$juegosEsterilizados = $conn->query("
+SELECT DATE(fecha_esterilizacion) AS fecha, COUNT(*) AS total
+FROM registro_esterilizacion_juego
+WHERE YEARWEEK(fecha_esterilizacion, 1) = YEARWEEK(CURDATE(), 1)
+GROUP BY fecha
+ORDER BY fecha DESC
 ");
-
-// Construir mapa de id_material → existencia actual
-$qtyMap = [];
-$inv_qty = $conn->query("
-  SELECT 
-    id_material,
-    COALESCE(SUM(cantidad),0)      AS total,
-    COALESCE(SUM(en_uso),0)        AS en_uso
-  FROM inventario_materiales
-  GROUP BY id_material
-");
-while ($row = $inv_qty->fetch_assoc()) {
-    $avail = intval($row['total']) - intval($row['en_uso']);
-    $qtyMap[$row['id_material']] = max($avail, 0);
-}
-
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -233,7 +106,7 @@ while ($row = $inv_qty->fetch_assoc()) {
         </a>
         <div>
           <h2>Inventario de Materiales</h2>
-          <p class="mb-0">Selecciona materiales y actualiza sus existencias.</p>
+          <p class="mb-0">Registra nuevos Juegos de materiales.</p>
         </div>
       </div>
 
@@ -255,156 +128,94 @@ while ($row = $inv_qty->fetch_assoc()) {
     <div class="alert alert-success"><?= $msg ?></div>
   <?php endif; ?>
 
-    <!-- CHECKLIST DE MATERIALES FIJOS 
-    <div class="col-md-6">
-      <div class="card p-3 h-100">
-        <h4>Registrar tipos de material</h4>
-        <form method="POST">
-          <?php foreach ($lista_materiales as $mat): ?>
-            <div class="form-check">
-              <input class="form-check-input"
-                     type="checkbox"
-                     name="materiales_nuevos[]"
-                     value="<?= htmlspecialchars($mat) ?>"
-                     id="<?= str_replace(' ', '_', $mat) ?>">
-              <label class="form-check-label" for="<?= str_replace(' ', '_', $mat) ?>">
-                <?= htmlspecialchars($mat) ?>
-              </label>
-            </div>
-          <?php endforeach; ?>
-          <button name="registrar_materiales" class="btn btn-primary mt-3">
-            Registrar seleccionados
-          </button>
-        </form>
-      </div>
-    </div>
-          -->
-
-    <!-- FORMULARIO: ACTUALIZAR EXISTENCIAS -->
-<div class="row justify-content-center">
-  <div class="col-12">
-    <div class="card card-formulario p-4 mx-auto" style="max-width: 700px;">
-      <h4>Actualizar existencias</h4>
-      <form method="POST" class="row g-3 align-items-end">
-        <div class="col-12 col-md-7">
-          <label for="id_material" class="form-label">Material</label>
-          <select id="id_material" name="id_material" class="form-select" required>
-            <small id="disponible_info" class="text-muted">Selecciona un material para ver su disponibilidad.</small>
-            <option value="" data-cantidad="0">Selecciona material…</option>
-            <?php
-            $materiales->data_seek(0);
-            while ($m = $materiales->fetch_assoc()):
-              $qty = $qtyMap[$m['id_material']] ?? 0;
-            ?>
-              <option 
-                value="<?= $m['id_material'] ?>"
-                data-cantidad="<?= $qty ?>"
-              >
-                <?= htmlspecialchars($m['nombre']) ?> (<?= $qty ?>)
-              </option>
-            <?php endwhile; ?>
-          </select>
+<!-- FORMULARIO: REGISTRO DE NUEVOS JUEGOS -->
+<div class="row justify-content-center g-0 mb-3">
+  <div class="col-12 col-sm-12 col-md-8 col-lg-6">
+    <div class="card p-4">
+      <h4>Registrar juegos de materiales</h4>
+      <form method="POST" class="row g-3">
+        <div class="col-md-12">
+          <label for="cantidad_juegos_nuevos" class="form-label">Cantidad de juegos preparados</label>
+          <input type="number" name="cantidad_juegos_nuevos" id="cantidad_juegos_nuevos"
+                 class="form-control" placeholder="Ej. 5" min="1" max="80" required>
         </div>
-        <div class="col-6 col-md-3">
-          <label for="cantidad" class="form-label">Cantidad</label>
-          <input type="number" id="cantidad" name="cantidad"
-                 class="form-control" placeholder="0" min="1" max="100" required>
+        <div class="col-12 d-grid">
+          <button class="btn btn-primary">Registrar Juegos</button>
         </div>
-<div class="col-12 col-md-2 d-grid">
-  <button name="..." class="btn btn-success w-100">
-    Guardar
-  </button>
-</div>
       </form>
     </div>
   </div>
 </div>
 
-  <!-- FORMULARIO: SUMAR cantidad para esterilización -->
-<div class="row justify-content-center">
-  <div class="col-12">
-    <div class="card card-formulario p-4 mx-auto" style="max-width: 700px;">
-      <h4>Sumar materiales para esterilización</h4>
-      <form method="POST" class="row g-3 align-items-end">
-        <div class="col-12 col-md-7">
-          <label for="id_material_ester" class="form-label">Material</label>
-          <select id="id_material_ester" name="id_material_ester" class="form-select" required>
-            <option value="">Selecciona material…</option>
-            <?php
-            $materiales->data_seek(0);
-            while ($m = $materiales->fetch_assoc()):
-              $id = $m['id_material'];
-              $stmt = $conn->prepare("
-                SELECT 
-                  COALESCE(SUM(im.cantidad),0) AS total,
-                  COALESCE(SUM(im.en_uso),0)   AS en_uso,
-                  (
-                    SELECT COALESCE(SUM(mm.cantidad),0)
-                    FROM movimientos_materiales mm
-                    WHERE mm.id_material = im.id_material AND mm.tipo_movimiento = 'esterilizacion'
-                  ) AS esterilizados
-                FROM inventario_materiales im
-                WHERE im.id_material = ?
-              ");
-              $stmt->bind_param('i', $id);
-              $stmt->execute();
-              $stmt->bind_result($total, $en_uso, $esterilizados);
-              $stmt->fetch();
-              $stmt->close();
-
-              $disp = max($total - $en_uso - $esterilizados, 0);
-            ?>
-              <option value="<?= $id ?>">
-                <?= htmlspecialchars($m['nombre']) ?> (<?= $disp ?> disponibles para esterilización)
-              </option>
-            <?php endwhile; ?>
-          </select>
-        </div>
-        <div class="col-6 col-md-3">
-          <label for="cantidad_ester" class="form-label">Cantidad</label>
-          <input type="number" id="cantidad_ester" name="cantidad_ester"
-                 class="form-control" min="1" max="500" required>
-        </div>
-<div class="col-12 col-md-2 d-grid">
-  <button name="sumar_esterilizacion" class="btn btn-outline-primary w-100">
-    Sumar
-  </button>
-</div>
-      </form>
-    </div>
+<!-- RESUMEN: TOTAL DE JUEGOS PENDIENTES DE ESTERILIZACIÓN -->
+<div class="text-center my-4">
+  <div class="border rounded p-3 bg-body-secondary shadow-sm d-inline-block">
+    <h5 class="mb-2">Juegos disponibles para esterilización</h5>
+    <p class="fs-5 mb-0">
+      📦 Total de juegos disponibles: <strong><?= $totalPendientes ?></strong>
+    </p>
   </div>
 </div>
 
-  <!-- Tabla de inventario actual -->
-  <div class="table-responsive">
-    <table class="table table-bordered table-sm text-center align-middle" style="max-width: 600px; margin: 0 auto;">
+<!-- TABLA: JUEGOS YA ESTERILIZADOS -->
+<div class="text-center my-4">
+  <?php
+$hoy = new DateTime();
+$diaSemana = (int) $hoy->format('N'); // 1 (lunes) a 7 (domingo)
+
+$lunes = clone $hoy;
+$lunes->modify('-' . ($diaSemana - 1) . ' days');
+
+$viernes = clone $lunes;
+$viernes->modify('+4 days');
+
+$formatter = new IntlDateFormatter(
+  'es_MX',
+  IntlDateFormatter::LONG,
+  IntlDateFormatter::NONE,
+  'America/Mexico_City',
+  IntlDateFormatter::GREGORIAN,
+  'd MMMM'
+);
+
+$textoSemana = "Juegos de herramientas esterilizados en la semana del " . $formatter->format($lunes) . " al " . $formatter->format($viernes);
+?>
+<h5 class="mb-2"><?= $textoSemana ?></h5>
+  <div class="table-responsive px-2">
+    <table class="table table-bordered text-center align-middle">
       <thead class="table-light">
         <tr>
-          <th>Material</th>
-          <th>Cantidad Disponible</th>
+          <th>Día</th>
+          <th>Total esterilizados</th>
         </tr>
       </thead>
       <tbody>
-        <?php while ($r = $inv_res->fetch_assoc()): ?>
-          <tr
-            data-id-material-id="<?= $r['id_material'] ?>"
-            data-id-material="<?= htmlspecialchars($r['nombre']) ?>"
-            data-reutilizable="<?= $r['reutilizable'] ?>"
-          >
-            <td>
-              <?= htmlspecialchars($r['nombre']) ?>
-              <?php if ($r['reutilizable']): ?>
-                <span class="badge bg-success">reutilizable</span>
-              <?php else: ?>
-                <span class="badge bg-secondary">desechable</span>
-              <?php endif; ?>
-            </td>
-            <td><?= max(0, intval($r['cantidad_total'])) ?></td>
-          </tr>
-        <?php endwhile; ?>
+        <?php if ($juegosEsterilizados->num_rows === 0): ?>
+          <tr><td colspan="2">Aún no hay juegos esterilizados esta semana.</td></tr>
+        <?php else: ?>
+          <?php while ($row = $juegosEsterilizados->fetch_assoc()): ?>
+            <tr>
+              <?php
+$fecha = new DateTime($row['fecha']);
+$formatter = new IntlDateFormatter(
+  'es_MX',
+  IntlDateFormatter::FULL,
+  IntlDateFormatter::NONE,
+  'America/Mexico_City',
+  IntlDateFormatter::GREGORIAN,
+  "EEEE d/MM/yyyy"
+);
+?>
+<td><?= ucfirst($formatter->format($fecha)) ?></td>
+              <td><?= $row['total'] ?></td>
+            </tr>
+          <?php endwhile; ?>
+        <?php endif; ?>
       </tbody>
     </table>
   </div>
+</div>
+
 </main>
 
 

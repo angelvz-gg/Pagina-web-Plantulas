@@ -13,6 +13,7 @@ if (!isset($_SESSION['ID_Operador'])) {
     exit;
 }
 $ID_Operador = (int) $_SESSION['ID_Operador'];
+$volver1 = !empty($_SESSION['origin']) && $_SESSION['origin'] === 1;
 
 if ((int) $_SESSION['Rol'] !== 10) {
     echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado de Organización y Limpieza de Incubadora.</p>";
@@ -45,15 +46,11 @@ $nowTs           = time();
     <div class="contenedor-pagina">
       <header>
         <div class="encabezado">
-          <a class="navbar-brand" href="#">
-            <img
-              src="../logoplantulas.png"
-              alt="Logo"
-              width="130"
-              height="124"
-              class="d-inline-block align-text-center"
-            />
-          </a>
+<img src="../logoplantulas.png"
+     alt="Logo"
+     width="130" height="124"
+     style="cursor:<?= $volver1 ? 'pointer' : 'default' ?>"
+     <?= $volver1 ? "onclick=\"location.href='../rol_administrador/volver_rol.php'\"" : '' ?>>
           <div>
             <h2>Encargado de Organización y Limpieza de Incubador</h2>
             <p></p>

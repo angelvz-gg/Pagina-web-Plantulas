@@ -36,8 +36,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
             FROM medios_nutritivos 
             WHERE Codigo_Medio LIKE ? 
               AND Estado = 'Activo'
-              AND Etapa_Destinada = 'ECAS'
-            LIMIT 10";
+            ORDER BY Codigo_Medio";
     $stmt = $conn->prepare($sql);
     $like = "%{$term}%";
     $stmt->bind_param("s", $like);
@@ -66,7 +65,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $chk = $conn->prepare("
             SELECT COUNT(*) AS total 
             FROM medios_nutritivos 
-            WHERE Codigo_Medio = ? AND Estado = 'Activo' AND Etapa_Destinada = 'ECAS'
+            WHERE Codigo_Medio = ? AND Estado = 'Activo'
         ");
         $chk->bind_param('s', $codigo_medio);
         $chk->execute();
@@ -74,7 +73,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $chk->close();
 
         if ($res_chk['total'] == 0) {
-            $mensaje = "❌ El código «" . htmlspecialchars($codigo_medio) . "» no está registrado como medio nutritivo activo para ECAS.";
+            $mensaje = "❌ El código «" . htmlspecialchars($codigo_medio) . "» no está registrado como medio nutritivo ACTIVO o No existe.";
         } else {
             // Insertar registro
             $sql = "INSERT INTO medios_nutritivos_madre 

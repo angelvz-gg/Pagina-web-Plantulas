@@ -49,7 +49,7 @@ $result_e = $stmt_e->get_result();
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Notificaciones de Rechazo - Operador</title>
+  <title>Correcciones de reportes - Operador</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <script>
@@ -65,7 +65,7 @@ $result_e = $stmt_e->get_result();
       <a class="navbar-brand" href="#">
         <img src="../logoplantulas.png" alt="Logo" width="130" height="124">
       </a>
-      <h2>Notificaciones de Rechazo</h2>
+      <h2>Correcciónes de reportes</h2>
     </div>
 
     <div class="barra-navegacion">
@@ -81,7 +81,7 @@ $result_e = $stmt_e->get_result();
       </div>
   </header>
 <main class="container mt-4">
-      <h3>Tienes notificaciones de rechazo pendientes</h3>
+      <h3>Tienes correcciones pendientes en reportes de siembra</h3>
       <?php if($result_m->num_rows == 0 && $result_e->num_rows == 0): ?>
         <div class="alert alert-info">No tienes notificaciones de rechazo.</div>
       <?php else: ?>

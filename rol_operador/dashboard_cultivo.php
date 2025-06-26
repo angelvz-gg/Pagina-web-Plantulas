@@ -13,6 +13,7 @@ if (!isset($_SESSION['ID_Operador'])) {
     exit;
 }
 $ID_Operador = (int) $_SESSION['ID_Operador'];
+$volver1 = !empty($_SESSION['origin']) && $_SESSION['origin'] === 1;
 
 if ((int) $_SESSION['Rol'] !== 2) {
     echo "<p class=\"error\">⚠️ Acceso denegado. Solo Operador.</p>";
@@ -120,9 +121,11 @@ if ($row = $result_materiales->fetch_assoc()) {
   <div class="contenedor-pagina">
     <header>
       <div class="encabezado">
-        <a class="navbar-brand" href="#">
-          <img src="../logoplantulas.png" alt="Logo" width="130" height="124" class="d-inline-block align-text-center" />
-        </a>
+<img src="../logoplantulas.png"
+     alt="Logo"
+     width="130" height="124"
+     style="cursor:<?= $volver1 ? 'pointer' : 'default' ?>"
+     <?= $volver1 ? "onclick=\"location.href='../rol_administrador/volver_rol.php'\"" : '' ?>>
         <div>
           <h2>Panel de Operador</h2>
           <p>Mantén el registro de actividades</p>
@@ -144,56 +147,43 @@ if ($row = $result_materiales->fetch_assoc()) {
 
     <main>
       <section class="dashboard-grid">
-<div class="card" data-card-id="reporte_diseccion">
-  <h2>🌿 Trabajo en Disección</h2>
-  <p>Revisa tus etapas asignadas.</p>
-  <a href="reporte_diseccion.php" onclick="guardarUltimaCard('reporte_diseccion')">Trabajo en Disección</a>
-</div>
 
-        <?php if ($materialesAsignados > 0): ?>
+              <?php if ($materialesAsignados > 0): ?>
 <div class="card" data-card-id="ver_materiales">
-  <h2>📦 Materiales Asignados</h2>
-  <p>Tienes artículos asignados para tu trabajo.</p>
-  <a href="ver_materiales.php" onclick="guardarUltimaCard('ver_materiales')">Ver mis materiales</a>
+  <h2>📦 Juegos Asignados</h2>
+  <p>Tienes juegos asignados para tu trabajo.</p>
+  <a href="ver_materiales.php" onclick="guardarUltimaCard('ver_materiales')">Revisar mis materiales</a>
 </div>
         <?php endif; ?>
 
-<div class="card" data-card-id="area_limpieza">
-  <h2>📝 Asignación de Limpieza</h2>
-  <p>Revisa qué área tienes asignada para limpieza.</p>
-  <a href="area_limpieza.php" onclick="guardarUltimaCard('area_limpieza')">Ver detalles</a>
+<div class="card" data-card-id="reporte_diseccion">
+  <h2>🌿 Reporte de Siembra</h2>
+  <p>Crea tu reporte de siembra diario</p>
+  <a href="reporte_diseccion.php" onclick="guardarUltimaCard('reporte_diseccion')">Trabajo en Disección</a>
 </div>
         
         <?php if ($tieneAsignacionesMultiplicacion): ?>
 <div class="card" data-card-id="trabajo_multiplicacion">
-  <h2>🧬 Trabajo en Multiplicación</h2>
-  <p>Tienes asignaciones pendientes de multiplicación para trabajar.</p>
+  <h2>🧬 Asignación de material de Etapa 2</h2>
+  <p>Te asignaron tuppers de Etapa 2 para trabajar</p>
   <a href="trabajo_multiplicacion.php" onclick="guardarUltimaCard('trabajo_multiplicacion')">Ver mis Asignaciones</a>
 </div>
         <?php endif; ?>
 
-<div class="card" data-card-id="relacion_lavado">
-  <h2>🗂 Asignación para Clasificación</h2>
-  <p>Revisa tu rol para la clasificación de plantas.</p>
-  <a href="relacion_lavado.php" onclick="guardarUltimaCard('relacion_lavado')">Ver detalles</a>
-</div>
-
         <?php if (isset($correccionesPendientes) && $correccionesPendientes > 0): ?>
 <div class="card" data-card-id="notificaciones_operador">
   <h2>⚠️ Correcciones Pendientes</h2>
-  <p>Tienes reportes rechazados que requieren corrección.</p>
+  <p>Tienes reportes de siembra que requieren de corrección.</p>
   <a href="notificaciones_operador.php" onclick="guardarUltimaCard('notificaciones_operador')">Corregir Reporte</a>
 </div>
         <?php endif; ?>
 
-        <?php if ($isSupervisor): ?>
-<div class="card" data-card-id="historial_lavado_parcial">
-  <h2>📊 Historial de Lavado Parcial</h2>
-  <p>Supervisa los avances registrados por el equipo.</p>
-  <a href="historial_lavado_parcial.php" onclick="guardarUltimaCard('historial_lavado_parcial')">Ver Historial</a>
+<div class="card" data-card-id="area_limpieza">
+  <h2>📝 Tus Áreas a limpiar</h2>
+  <p>Revisa qué área tienes asignada para limpieza.</p>
+  <a href="area_limpieza.php" onclick="guardarUltimaCard('area_limpieza')">Ver detalles</a>
 </div>
-        <?php endif; ?>
-
+<!--
         <?php if ($isResponsableCajas): ?>
 <div class="card" data-card-id="preparacion_cajas">
   <h2>📦 Preparación de Cajas Negras</h2>
@@ -201,6 +191,13 @@ if ($row = $result_materiales->fetch_assoc()) {
   <a href="preparacion_cajas.php" onclick="guardarUltimaCard('preparacion_cajas')">Preparar Cajas</a>
 </div>
         <?php endif; ?>
+        -->
+
+<div class="card" data-card-id="relacion_lavado">
+  <h2>🗂 Asignación para Lavado</h2>
+  <p>Revisa tu rol para el lavado de plantas.</p>
+  <a href="relacion_lavado.php" onclick="guardarUltimaCard('relacion_lavado')">Ver detalles</a>
+</div>
 
       </section>
     </main>

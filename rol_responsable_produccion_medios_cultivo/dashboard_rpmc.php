@@ -13,6 +13,7 @@ if (!isset($_SESSION['ID_Operador'])) {
     exit;
 }
 $ID_Operador = (int) $_SESSION['ID_Operador'];
+$volver1 = !empty($_SESSION['origin']) && $_SESSION['origin'] === 1;
 
 if ((int) $_SESSION['Rol'] !== 7) {
     echo "<p class=\"error\">⚠️ Acceso denegado. Solo Responsable de Producción de Medios de Cultivo.</p>";
@@ -43,9 +44,11 @@ $nowTs           = time();
 <div class="contenedor-pagina">
   <header>
     <div class="encabezado">
-      <a class="navbar-brand" href="#">
-        <img src="../logoplantulas.png" alt="Logo" width="130" height="124" class="d-inline-block align-text-center" />
-      </a>
+<img src="../logoplantulas.png"
+     alt="Logo"
+     width="130" height="124"
+     style="cursor:<?= $volver1 ? 'pointer' : 'default' ?>"
+     <?= $volver1 ? "onclick=\"location.href='../rol_administrador/volver_rol.php'\"" : '' ?>>
       <div>
         <h2>Bienvenido, Responsable de Producción de Medios de Cultivo</h2>
         <p>Resumen de tus actividades y accesos rápidos.</p>
@@ -77,8 +80,8 @@ $nowTs           = time();
 
       <div class="card">
         <h2>🔥 🛡️ Esterilización en Autoclave</h2>
-        <p>Asegura la esterilización de materiales y medios de cultivo mediante autoclave.</p>
-        <a href="esterilizacion_autoclave.php">Ver detalles</a>
+        <p>Registra el proceso de la esterilización en autoclave</p>
+        <a href="esterilizacion_autoclave.php">Entrar</a>
       </div>
 
       <div class="card">

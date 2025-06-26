@@ -26,112 +26,72 @@ $sessionLifetime = 60 * 3;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
-// 2) Procesar POST de asignación
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['asignar_materiales'])) {
+
+// 3) Leer mensaje GET
+$msg = $_GET['msg'] ?? '';
+
+// Consulta de juegos disponibles
+$resJuegos = $conn->query("
+  SELECT COUNT(*) AS disponibles
+    FROM juegos_materiales jm
+   WHERE jm.estado_juego = 'Esterilizado'
+     AND NOT EXISTS (
+       SELECT 1 FROM asignacion_juego_operadora aj
+        WHERE aj.id_juego = jm.id_juego
+     )
+");
+$juegosDisponibles = $resJuegos->fetch_assoc()['disponibles'] ?? 0;
+
+// 4) Procesar POST de asignación de juegos esterilizados
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['accion'] === 'asignar_juegos') {
     $conn->begin_transaction();
     try {
-        $id_enc   = $_SESSION['ID_Operador'];
-        $id_op    = intval($_POST['id_operador']);
-        $mats     = $_POST['material']  ?? [];
-        $cants    = $_POST['cantidad']  ?? [];
+        $id_operador = (int)$_POST['id_operador'];
+        $cantidad    = (int)$_POST['cantidad_juegos'];
 
-        $detalles = [];
-        foreach ($mats as $i => $id_mat) {
-            $cantidad = intval($cants[$i] ?? 0);
-            if ($cantidad > 0) {
-                $res = $conn->prepare("SELECT nombre FROM materiales WHERE id_material = ?");
-                $res->bind_param('i', $id_mat);
-                $res->execute();
-                $nombre = $res->get_result()->fetch_assoc()['nombre'];
-                $res->close();
-                $detalles[$id_mat] = ['nombre' => $nombre, 'cantidad' => $cantidad];
-            }
-        }
-        if (empty($detalles)) {
-            throw new Exception('⚠️ Debes asignar al menos un material.');
-        }
-
-$ins = $conn->prepare("
-  INSERT INTO suministro_material
-    (id_operador, id_material, cantidad, detalles, id_encargado, fecha_entrega)
-  VALUES (?, ?, ?, ?, ?, ?)
-");
-
-foreach ($detalles as $id_mat => $info) {
-  $cant = $info['cantidad'];
-  $nombre = $info['nombre'];
-  $jsonDetalle = json_encode(['nombre'=>$nombre,'cantidad'=>$cant], JSON_UNESCAPED_UNICODE);
-
-
-  $now = date('Y-m-d H:i:s');
-  $ins->bind_param('iiisis',
-    $id_op,
-    $id_mat,
-    $cant,
-    $jsonDetalle,
-    $id_enc,
-    $now
-  );
-
-  $qDisp = $conn->prepare("
-  SELECT COALESCE(cantidad,0)-COALESCE(en_uso,0) AS disp
-    FROM inventario_materiales
-   WHERE id_material = ?
-");
-$qDisp->bind_param('i',$id_mat);
-$qDisp->execute();
-$qDisp->bind_result($disp);
-$qDisp->fetch();
-$qDisp->close();
-
-if ($cant > $disp) {
-  throw new Exception("No hay suficiente stock de $nombre (disponible $disp).");
-}
-  $ins->execute();
-}
-$ins->close();
-
-        $mov = $conn->prepare("
-            INSERT INTO movimientos_materiales 
-              (id_material, tipo_movimiento, cantidad, id_operador_asignado, id_encargado, observaciones)
-            VALUES (?, ?, ?, ?, ?, ?)
+        // Obtener juegos disponibles no asignados
+        $stmt = $conn->prepare("
+            SELECT id_juego
+              FROM juegos_materiales
+             WHERE estado_juego = 'Esterilizado'
+               AND NOT EXISTS (
+                 SELECT 1 FROM asignacion_juego_operadora aj
+                 WHERE aj.id_juego = juegos_materiales.id_juego
+               )
+             ORDER BY fecha_esterilizacion ASC
+             LIMIT ?
         ");
-        foreach ($detalles as $id_mat => $info) {
-            $cant = $info['cantidad'];
-            $q = $conn->prepare("SELECT reutilizable FROM materiales WHERE id_material = ?");
-            $q->bind_param("i", $id_mat);
-            $q->execute();
-            $res = $q->get_result();
-            $reutilizable = $res->fetch_assoc()['reutilizable'] ?? 0;
-            $q->close();
+        $stmt->bind_param("i", $cantidad);
+        $stmt->execute();
+        $res = $stmt->get_result();
 
-            if ($reutilizable) {
-                $u = $conn->prepare("
-                    INSERT INTO inventario_materiales (id_material, cantidad, en_uso)
-                    VALUES (?, 0, ?)
-                    ON DUPLICATE KEY UPDATE en_uso = en_uso + VALUES(en_uso)
-                ");
-                $u->bind_param("ii", $id_mat, $cant);
-            } else {
-                $u = $conn->prepare("
-                    INSERT INTO inventario_materiales (id_material, cantidad)
-                    VALUES (?, ?)
-                    ON DUPLICATE KEY UPDATE cantidad = cantidad - VALUES(cantidad)
-                ");
-                $u->bind_param("ii", $id_mat, $cant);
-            }
-            $u->execute();
-            $u->close();
-
-            $tipo = 'asignacion';
-            $obs  = "Asignado desde suministro_material.php";
-            $mov->bind_param("isiiss", $id_mat, $tipo, $cant, $id_op, $id_enc, $obs);
-            $mov->execute();
+        $ids = [];
+        while ($row = $res->fetch_assoc()) {
+            $ids[] = $row['id_juego'];
         }
-        $mov->close();
-        $conn->commit();
-        $msg = '✅ Asignación registrada y stock actualizado exitosamente.';
+        $stmt->close();
 
+        if (count($ids) < $cantidad) {
+            throw new Exception("No hay suficientes juegos disponibles para asignar.");
+        }
+        $cantidad = (int) $_POST['cantidad_juegos'];
+        if ($cantidad > $juegosDisponibles) {
+    throw new Exception("La cantidad solicitada ($cantidad) excede los juegos disponibles ($juegosDisponibles).");
+}
+
+        // Insertar en la tabla de asignaciones
+$insert = $conn->prepare("
+    INSERT INTO asignacion_juego_operadora (id_juego, id_operador_asigna, id_operador_asignado, fecha_asignacion)
+    VALUES (?, ?, ?, CURDATE())
+");
+foreach ($ids as $id_juego) {
+    $insert->bind_param("iii", $id_juego, $ID_Operador, $id_operador);
+    $insert->execute();
+}
+        $insert->close();
+
+        $conn->commit();
+        $msg = "✅ Se asignaron $cantidad juegos correctamente.";
     } catch (Exception $e) {
         $conn->rollback();
         $msg = '❌ Error: ' . $e->getMessage();
@@ -140,40 +100,6 @@ $ins->close();
     header('Location: suministro_material.php?msg=' . urlencode($msg));
     exit();
 }
-
-// 3) Leer mensaje GET
-$msg = $_GET['msg'] ?? '';
-
-// 4) Cargar inventario disponible (agrupado y restando en_uso)
-$inventario = $conn->query("
-  SELECT
-    m.id_material,
-    m.nombre,
-    -- Para reutilizables resto en_uso; para desechables uso cantidad directamente
-    CASE 
-      WHEN m.reutilizable = 1 
-        THEN COALESCE(i.total,0) - COALESCE(i.uso,0)
-      ELSE COALESCE(i.total,0)
-    END AS disponibles
-  FROM materiales m
-  LEFT JOIN (
-    -- Agrupamos todos los movimientos de inventario por material
-    SELECT
-      id_material,
-      SUM(cantidad) AS total,
-      SUM(en_uso)   AS uso
-    FROM inventario_materiales
-    GROUP BY id_material
-  ) i ON m.id_material = i.id_material
-  WHERE
-    -- Solo muestro los que realmente tienen algo disponible
-    (m.reutilizable = 1
-      AND COALESCE(i.total,0) - COALESCE(i.uso,0) > 0)
-    OR
-    (m.reutilizable = 0
-      AND COALESCE(i.total,0) > 0)
-  ORDER BY m.nombre
-");
 
 // — Construir mapa id_material → disponibles —
 $qtyMap = [];
@@ -200,39 +126,28 @@ $ops  = $conn->query("
      WHERE ID_Rol = 2
      ORDER BY nombre
 ");
-$mats = $conn->query("SELECT id_material, nombre FROM materiales ORDER BY nombre");
 
 // 6) Traer últimas asignaciones
 $asigs = $conn->query("
   SELECT
-    DATE_FORMAT(s.fecha_entrega, '%Y-%m-%d %H:%i:%s') AS fecha_entrega,
-    CONCAT(enc.Nombre,' ',enc.Apellido_P) AS quien_asigna,
-    CONCAT(rec.Nombre,' ',rec.Apellido_P) AS quien_recibe,
-    GROUP_CONCAT(
-      CONCAT(m.nombre, ': ', s.cantidad)
-      ORDER BY m.nombre
-      SEPARATOR '<br>'
-    ) AS materiales
-  FROM suministro_material s
-  JOIN operadores enc ON s.id_encargado = enc.ID_Operador
-  JOIN operadores rec ON s.id_operador  = rec.ID_Operador
-  JOIN materiales m   ON s.id_material   = m.id_material
-  GROUP BY 
-    s.fecha_entrega,      /* agrupamos por toda la marca de tiempo */
-    quien_asigna,
-    quien_recibe
-  ORDER BY s.fecha_entrega DESC
-  LIMIT 20
+    ajo.fecha_asignacion,
+    CONCAT(asg.Nombre, ' ', asg.Apellido_P, ' ', asg.Apellido_M) AS quien_asigna,
+    CONCAT(rec.Nombre, ' ', rec.Apellido_P, ' ', rec.Apellido_M) AS quien_recibe,
+    COUNT(*) AS juegos_asignados
+  FROM asignacion_juego_operadora ajo
+  JOIN operadores asg ON ajo.id_operador_asigna = asg.ID_Operador
+  JOIN operadores rec ON ajo.id_operador_asignado = rec.ID_Operador
+  WHERE DATE(ajo.fecha_asignacion) = CURDATE()
+  GROUP BY ajo.id_operador_asigna, ajo.id_operador_asignado, ajo.fecha_asignacion
+  ORDER BY ajo.fecha_asignacion DESC
 ");
-
-
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Suministro de Material</title>
+  <title>Asignación de Juegos Esterilizados</title>
   <link rel="stylesheet" href="../style.css?v=<?=time();?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
@@ -259,8 +174,8 @@ $asigs = $conn->query("
           <img src="../logoplantulas.png" width="130" height="124" alt="Logo Plantulas">
         </a>
         <div>
-          <h2>Suministro de Material</h2>
-          <p>Asigna materiales y cantidades a cada operadora.</p>
+<h2>Suministro de Juegos Esterilizados</h2>
+<p>Asigna juegos esterilizados a las operadoras.</p>
         </div>
       </div>
       <div class="barra-navegacion">
@@ -283,74 +198,53 @@ $asigs = $conn->query("
 
       <div class="row g-4">
         <!-- Inventario Disponible -->
-        <div class="col-lg-4">
-          <div class="card">
-            <div class="card-header bg-info text-white text-center">
-              Inventario Disponible
-            </div>
-<ul class="list-group list-group-flush">
-  <?php while ($inv = $inventario->fetch_assoc()): 
-    $d = intval($inv['disponibles']);
-    // elijo Bootstrap: éxito si >=5, advertencia si <5
-    $clase = $d >= 5 ? 'list-group-item-success' : 'list-group-item-danger';
-  ?>
-    <li class="list-group-item d-flex justify-content-between <?= $clase ?>">
-      <span><?= htmlspecialchars($inv['nombre']) ?></span>
-      <span><?= $d ?></span>
-    </li>
-  <?php endwhile; ?>
-</ul>
+<div class="row g-4">
 
-          </div>
-        </div>
+<!-- Formulario de Asignación con resumen incluido -->
+<div class="col-12">
+  <div class="card">
+    <div class="card-header bg-primary text-white text-center">
+      Asignar Material
+    </div>
+    <div class="card-body">
 
-        <!-- Formulario de Asignación -->
-        <div class="col-lg-8">
-          <div class="card h-100">
-            <div class="card-header bg-primary text-white">Asignar Material</div>
-            <div class="card-body">
-              <form method="POST">
-                <div class="mb-3">
-                  <label class="form-label">Operadora</label>
-                  <select name="id_operador" class="form-select" required>
-                    <option value="">Selecciona…</option>
-                    <?php while ($op = $ops->fetch_assoc()): ?>
-                      <option value="<?= $op['ID_Operador'] ?>">
-                        <?= htmlspecialchars($op['nombre']) ?>
-                      </option>
-                    <?php endwhile; ?>
-                  </select>
-                </div>
-                <div class="row g-3">
-                  <?php while ($m = $mats->fetch_assoc()): 
-  $disp = $qtyMap[$m['id_material']] ?? 0;
-?>
-  <div class="col-12 col-sm-6 col-md-4 d-flex align-items-center"
-       data-disponible="<?= $disp ?>">
-    <input type="hidden" name="material[]" value="<?= $m['id_material'] ?>">
-    <label class="form-label flex-grow-1 mb-0"><?= htmlspecialchars($m['nombre']) ?></label>
-    <input type="number"
-           name="cantidad[]"
-           class="form-control"
-           style="width:80px;"
-           min="0"
-           max="<?= $disp ?>"
-           placeholder="0">
-    <small class="text-danger ms-2 d-none">Máx <?= $disp ?></small>
-  </div>
-<?php endwhile; ?>
-
-                </div>
-                <div class="text-end mt-4">
-                  <button name="asignar_materiales" class="btn btn-success">
-                    Guardar Asignación
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
+      <!-- Resumen con marco verde y fondo transparente -->
+      <div class="border border-success rounded p-2 mb-4">
+        <h6 class="mb-1 text-success fw-semibold">✅ Juegos esterilizados disponibles</h6>
+        <p class="mb-0">
+          Total disponibles: <strong><?= $juegosDisponibles ?></strong>
+        </p>
       </div>
+
+      <!-- Formulario -->
+      <form method="POST">
+        <input type="hidden" name="accion" value="asignar_juegos">
+
+        <div class="mb-3">
+          <label class="form-label">Operadora</label>
+          <select name="id_operador" class="form-select" required>
+            <option value="">Selecciona…</option>
+            <?php while ($op = $ops->fetch_assoc()): ?>
+              <option value="<?= $op['ID_Operador'] ?>">
+                <?= htmlspecialchars($op['nombre']) ?>
+              </option>
+            <?php endwhile; ?>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Cantidad de juegos a asignar</label>
+          <input type="number" name="cantidad_juegos" class="form-control" min="1" max="<?= $juegosDisponibles ?>" required>
+        </div>
+
+        <div class="text-end">
+          <button class="btn btn-success">Asignar Juegos</button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+</div>
 
       <!-- Últimas Asignaciones -->
 <div class="card mt-4">
@@ -358,25 +252,24 @@ $asigs = $conn->query("
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table tabla-asignaciones table-striped table-hover table-sm mb-0">
-        <thead class="table-dark">
+<thead class="table-dark">
   <tr>
-    <th>Fecha & Hora</th>
+    <th>Fecha</th>
     <th>Quien Asigna</th>
     <th>Quien Recibe</th>
-    <th>Materiales</th>
+    <th>Juegos Asignados</th>
   </tr>
 </thead>
 <tbody>
   <?php while ($a = $asigs->fetch_assoc()): ?>
     <tr>
-      <td data-label="Fecha & Hora"><?= htmlspecialchars($a['fecha_entrega']) ?></td>
-<td data-label="Quien Asigna"><?= htmlspecialchars($a['quien_asigna']) ?></td>
-<td data-label="Quien Recibe"><?= htmlspecialchars($a['quien_recibe']) ?></td>
-<td data-label="Materiales"><?= $a['materiales'] ?></td>
+      <td><?= htmlspecialchars($a['fecha_asignacion']) ?></td>
+      <td><?= htmlspecialchars($a['quien_asigna']) ?></td>
+      <td><?= htmlspecialchars($a['quien_recibe']) ?></td>
+      <td><?= htmlspecialchars($a['juegos_asignados']) ?></td>
     </tr>
   <?php endwhile; ?>
 </tbody>
-
       </table>
     </div>
   </div>
@@ -389,36 +282,22 @@ $asigs = $conn->query("
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const form       = document.querySelector('form[method="POST"]');
-  const submitBtn  = form.querySelector('button[name="asignar_materiales"]');
-  const wrappers   = form.querySelectorAll('div[data-disponible]');
+  const input = document.querySelector('input[name="cantidad_juegos"]');
+  const max = parseInt(input.max);
 
-  wrappers.forEach(wrapper => {
-    const input   = wrapper.querySelector('input[name="cantidad[]"]');
-    const maxSpan = wrapper.querySelector('small');
-    const cap     = Number(wrapper.getAttribute('data-disponible'));
+  input.addEventListener('input', () => {
+    let val = parseInt(input.value);
+    if (isNaN(val)) return;
+    if (val > max) input.value = max;
+    if (val < 1) input.value = 1;
+  });
 
-    input.max = cap;
-
-    input.addEventListener('input', () => {
-      const val = Number(input.value) || 0;
-      if (val > cap) {
-        maxSpan.textContent = `Máx ${cap}`;
-        maxSpan.classList.remove('d-none');
-      } else {
-        maxSpan.classList.add('d-none');
-      }
-
-      const anyInvalid = Array.from(wrappers).some(w => {
-        const i = w.querySelector('input[name="cantidad[]"]');
-        return Number(i.value) > Number(w.getAttribute('data-disponible'));
-      });
-      submitBtn.disabled = anyInvalid;
-    });
+  input.addEventListener('keypress', (e) => {
+    const char = String.fromCharCode(e.which);
+    if (!/[\d]/.test(char)) e.preventDefault();
   });
 });
 </script>
-
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 

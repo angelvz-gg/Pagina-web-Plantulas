@@ -8,6 +8,9 @@ error_reporting(E_ALL);
 require_once __DIR__ . '/../session_manager.php';
 require_once __DIR__ . '/../db.php';
 
+date_default_timezone_set('America/Mexico_City');
+$conn->query("SET time_zone = '-06:00'");
+
 if (!isset($_SESSION['ID_Operador'])) {
     header('Location: ../login.php?mensaje=Debe iniciar sesión');
     exit;
@@ -25,46 +28,23 @@ $warningOffset   = 60 * 1;
 $nowTs           = time();
 
 $mensaje = $_GET['mensaje'] ?? '';
+// Cargar el proceso seleccionado si se solicitó finalizar
 $procesoSeleccionado = null;
+if (isset($_GET['abrir_modal_finalizar'])) {
+    $idSeleccionado = (int) $_GET['abrir_modal_finalizar'];
 
-// AJAX: info de dilución + medio
-if (isset($_POST['ajax_material_info'])) {
-    $idm = intval($_POST['ajax_material_info']);
-    
-    // Obtener disponibles reales
-    $stmt1 = $conn->prepare("
-        SELECT GREATEST(cantidad - en_uso, 0)
-          - COALESCE((
-            SELECT SUM(cantidad) 
-            FROM movimientos_materiales 
-            WHERE id_material = ? 
-              AND tipo_movimiento IN ('asignacion','esterilizacion')
-          ), 0) AS Disponibles,
-          en_uso
-        FROM inventario_materiales 
-        WHERE id_material = ?
+    $stmt = $conn->prepare("
+        SELECT * FROM esterilizacion_autoclave 
+        WHERE ID_Esterilizacion = ? AND Estado = 'En proceso' 
+        LIMIT 1
     ");
-    $stmt1->bind_param('ii', $idm, $idm);
-    $stmt1->execute();
-    $row = $stmt1->get_result()->fetch_assoc();
-    $disp = max((int)$row['Disponibles'], 0);
+    $stmt->bind_param("i", $idSeleccionado);
+    $stmt->execute();
+    $resultado = $stmt->get_result();
 
-    // Obtener usados desde tabla de esterilización
-    $stmt2 = $conn->prepare("
-        SELECT COALESCE(SUM(Tuppers_Esterilizados),0) AS Usados 
-        FROM esterilizacion_autoclave 
-        WHERE id_material = ?
-    ");
-    $stmt2->bind_param('i', $idm);
-    $stmt2->execute();
-    $used = (int)$stmt2->get_result()->fetch_assoc()['Usados'];
-
-    header('Content-Type: application/json');
-    echo json_encode([
-        'Disponibles' => $disp,
-        'Usados'      => $used
-    ]);
-    exit();
+    if ($resultado->num_rows === 1) {
+        $procesoSeleccionado = $resultado->fetch_assoc();
+    }
 }
 
 // AJAX: lista de tuppers contaminados
@@ -95,37 +75,63 @@ if (isset($_POST['ajax_contaminados'])) {
     exit;
 }
 
-// AJAX: info de material
-if (isset($_POST['ajax_material_info'])) {
-    $idm = intval($_POST['ajax_material_info']);
-    $stmt1 = $conn->prepare("
-        SELECT GREATEST(cantidad - en_uso,0)
-          - COALESCE((SELECT SUM(cantidad) 
-                      FROM movimientos_materiales 
-                      WHERE id_material = ? 
-                        AND tipo_movimiento IN ('asignacion','esterilizacion')),0)
-        AS Disponibles, en_uso
-        FROM inventario_materiales 
-        WHERE id_material = ?
-    ");
-    $stmt1->bind_param('ii', $idm, $idm);
-    $stmt1->execute();
-    $row = $stmt1->get_result()->fetch_assoc();
-    $disp = max((int)$row['Disponibles'],0);
+// AJAX: Info de dilución seleccionada
+if (isset($_POST['ajax_dilucion_info'])) {
+    if (ob_get_level()) ob_end_clean();
+    $id = $_POST['ajax_dilucion_info'];
 
-    $stmt2 = $conn->prepare("
-        SELECT COALESCE(SUM(Tuppers_Esterilizados),0) AS Usados 
-        FROM esterilizacion_autoclave 
-        WHERE id_material = ?
+    $stmt = $conn->prepare("
+        SELECT 
+            d.ID_Dilucion,
+            mn.Codigo_Medio                     AS Medio,
+            d.Tuppers_Llenos                    AS Tuppers_Llenos,
+            COALESCE(SUM(ea.Tuppers_Esterilizados),0) AS Usados
+        FROM dilucion_llenado_tuppers d
+        LEFT JOIN medios_nutritivos_madre mn ON d.ID_MedioNM = mn.ID_MedioNM
+        LEFT JOIN esterilizacion_autoclave ea ON d.ID_Dilucion = ea.ID_Dilucion
+        WHERE d.ID_Dilucion = ?
+        GROUP BY d.ID_Dilucion
     ");
-    $stmt2->bind_param('i', $idm);
-    $stmt2->execute();
-    $used = (int)$stmt2->get_result()->fetch_assoc()['Usados'];
+    $stmt->bind_param("s", $id);
+    $stmt->execute();
+    $res = $stmt->get_result()->fetch_assoc();
+
+    if ($res) {
+        $res['Disponibles'] = max(0, $res['Tuppers_Llenos'] - $res['Usados']);
+    } else {
+        $res = [
+            'Medio' => '—',
+            'Tuppers_Llenos' => 0,
+            'Usados' => 0,
+            'Disponibles' => 0
+        ];
+    }
 
     header('Content-Type: application/json');
-    echo json_encode(['Disponibles'=>$disp,'Usados'=>$used]);
-    exit();
+    echo json_encode($res);
+    exit;
 }
+
+// Consulta de total de juegos con estado 'Pendiente'
+$totalJuegosPendientes = 0;
+$consultaJuegos = $conn->query("
+  SELECT COUNT(*) AS total
+  FROM juegos_materiales
+  WHERE estado_juego = 'Pendiente'
+");
+if ($consultaJuegos && $fila = $consultaJuegos->fetch_assoc()) {
+    $totalJuegosPendientes = $fila['total'];
+}
+
+// Juegos esterilizados esta semana agrupados por día
+$juegosPorDia = $conn->query("
+    SELECT DATE(fecha_esterilizacion) AS fecha, COUNT(*) AS total
+    FROM registro_esterilizacion_juego
+    WHERE YEARWEEK(fecha_esterilizacion, 1) = YEARWEEK(CURDATE(), 1)
+    GROUP BY DATE(fecha_esterilizacion)
+    ORDER BY fecha ASC
+");
+
 
 // Modal de finalización
 if (isset($_GET['abrir_modal_finalizar'])) {
@@ -152,6 +158,7 @@ if (isset($_GET['abrir_modal_finalizar'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['iniciar_esterilizacion'])) {
     $self  = basename(__FILE__);
     $id_op = $_SESSION['ID_Operador'];
+$presion_inicio = isset($_POST['presion_inicio']) ? floatval($_POST['presion_inicio']) : null;
 
 // 0.5) Si seleccionó un registro contaminado, leer ID y cantidad
 $id_perdida_cont = intval($_POST['id_perdida'] ?? 0);
@@ -179,7 +186,17 @@ if (!empty($_POST['esterilizar_vacios'])) {
     $con_tapa = 0;
 }
 
-    // 0) Crear un nuevo paquete y obtener su ID
+// 0) Si hay algún elemento a esterilizar, crear el paquete
+$tiene_periodico = !empty($_POST['periodico_toggle']) && intval($_POST['paquetes_periodico'] ?? 0) > 0;
+
+if (
+    $tupVac > 0 || 
+    (!empty($_POST['id_dilucion'])) || 
+    (!empty($_POST['contaminados_toggle'])) || 
+    (!empty($_POST['juegos_toggle'])) || 
+    $tiene_periodico
+) {
+    // Crear un nuevo paquete
     $stmtP = $conn->prepare("
         INSERT INTO paquete_esterilizacion (operador_id)
         VALUES (?)
@@ -187,25 +204,6 @@ if (!empty($_POST['esterilizar_vacios'])) {
     $stmtP->bind_param("i", $id_op);
     $stmtP->execute();
     $id_paquete = $conn->insert_id;
-
-    // 1) Movimientos para materiales seleccionados
-if (!empty($_POST['articulo_ids'])) {
-    foreach ($_POST['articulo_ids'] as $mid) {
-        // ahora cantidad_articulo es un array asociativo [id_material => cantidad]
-        $cnt = intval($_POST['cantidad_articulo'][$mid] ?? 0);  
-        if ($cnt > 0) {
-            $mvMat = $conn->prepare("
-                INSERT INTO movimientos_materiales
-                  (id_material, tipo_movimiento, cantidad, id_operador_asignado, id_encargado)
-                VALUES
-                  (?, 'esterilizacion', ?, ?, ?)
-            ");
-            $mvMat->bind_param("iiii", $mid, $cnt, $id_op, $id_op);
-            $mvMat->execute();
-        }
-    }
-}
-
 
     // 2) Movimientos para tuppers vacíos y tapas
     if ($tupVac > 0) {
@@ -229,52 +227,33 @@ if (!empty($_POST['articulo_ids'])) {
         $mv->execute();
     }
 
-// 3) Descripción de artículos para guardar en esterilizacion_autoclave
-$parts = [];
-if (!empty($_POST['articulo_ids'])) {
-    foreach ($_POST['articulo_ids'] as $mid) {
-        // lee la cantidad usando el ID como clave
-        $cnt = intval($_POST['cantidad_articulo'][$mid] ?? 0);
-        if ($cnt > 0) {
-            // obtén el nombre del material
-            $stmtMat = $conn->prepare(
-                "SELECT nombre FROM materiales WHERE id_material = ?"
-            );
-            $stmtMat->bind_param("i", $mid);
-            $stmtMat->execute();
-            $resMat = $stmtMat->get_result()->fetch_assoc();
-            $nom = $resMat
-                ? $resMat['nombre']
-                : "Material #$mid";
-            // arma la descripción
-            $parts[] = "$nom ($cnt)";
-        }
-    }
+if ($tupVac > 0 && isset($_POST['vacíos_toggle']) && empty($_POST['id_dilucion']) && empty($_POST['contaminados_toggle']) && empty($_POST['juegos_toggle'])) {
+$insertVacios = $conn->prepare("
+    INSERT INTO esterilizacion_autoclave
+      (id_paquete, Tipo_Articulo, FechaInicio, Estado,
+       ID_Operador, Tuppers_Esterilizados, Con_Tapa, Tuppers_Vacios, Tapas_Vacias, cantidad_juegos, Presion_Inicial)
+    VALUES (?, 'Tuppers vacíos', NOW(), 'En proceso',
+            ?, 0, ?, ?, ?, 0, ?)
+");
+$insertVacios->bind_param("iiiiid", $id_paquete, $id_op, $con_tapa, $tupVac, $tapVac, $presion_inicio);
+    $insertVacios->execute();
 }
-
-    $tipo_art = implode(', ', $parts);
 
 // 3.5) Si marcó “esterilizar contaminados”, insertar ese proceso y descontar en la tabla de pérdidas
 if (!empty($_POST['contaminados_toggle'])) {
     // Solo si hay ID de pérdida y cantidad válida
     if ($id_perdida_cont > 0 && $tupCont > 0) {
         // 3.5.a) Inserta el proceso de tuppers contaminados
-        $insCont = $conn->prepare("
-            INSERT INTO esterilizacion_autoclave
-              (id_paquete, ID_Dilucion, Tipo_Articulo, FechaInicio, Estado,
-               ID_Operador, Tuppers_Esterilizados, Con_Tapa, Tuppers_Vacios, Tapas_Vacias,
-               ID_Perdida)
-            VALUES
-              (?, NULL, 'Tuppers contaminados', NOW(), 'En proceso',
-               ?, ?, 0, 0, 0, ?)
-        ");
-        $insCont->bind_param(
-            "iiii",
-            $id_paquete,        // 1) este paquete
-            $id_op,             // 2) operador
-            $tupCont,           // 3) tuppers contaminados a esterilizar
-            $id_perdida_cont    // 4) ID_Perdida (trazabilidad)
-        );
+$insCont = $conn->prepare("
+    INSERT INTO esterilizacion_autoclave
+      (id_paquete, ID_Dilucion, Tipo_Articulo, FechaInicio, Estado,
+       ID_Operador, Tuppers_Esterilizados, Con_Tapa, Tuppers_Vacios, Tapas_Vacias,
+       ID_Perdida, cantidad_juegos, Presion_Inicial)
+    VALUES
+      (?, NULL, 'Tuppers contaminados', NOW(), 'En proceso',
+       ?, ?, 0, 0, 0, ?, 0, ?)
+");
+$insCont->bind_param("iiiid", $id_paquete, $id_op, $tupCont, $id_perdida_cont, $presion_inicio);
         $insCont->execute();
 
         // 3.5.b) Descontar esos tuppers de la tabla de pérdidas
@@ -307,76 +286,215 @@ if (!empty($_POST['id_dilucion'])) {
         $chk->execute();
         $d = $chk->get_result()->fetch_assoc();
         $restL = $d ? ($d['Tuppers_Llenos'] - $d['usados']) : 0;
+$tipoArticulo = 'Tuppers con medio'; // o lo que quieras mostrar en esa fila
 
         if ($tuppers > 0 && $tuppers <= $restL) {
-            $ins = $conn->prepare("
-              INSERT INTO esterilizacion_autoclave
-                (id_paquete, ID_Dilucion, Tipo_Articulo, FechaInicio, Estado,
-                 ID_Operador, Tuppers_Esterilizados, Con_Tapa, Tuppers_Vacios, Tapas_Vacias)
-              VALUES
-                (?, ?, ?, NOW(), 'En proceso', ?, ?, ?, ?, ?)
-            ");
-            $ins->bind_param(
-              "issiiiii",
-              $id_paquete,
-              $id_dil,
-              $tipo_art,
-              $id_op,
-              $tuppers,
-              $con_tapa,
-              $tupVac,
-              $tapVac
-            );
+$ins = $conn->prepare("
+  INSERT INTO esterilizacion_autoclave
+    (id_paquete, ID_Dilucion, Tipo_Articulo, FechaInicio, Estado,
+     ID_Operador, Tuppers_Esterilizados, Con_Tapa, Tuppers_Vacios, Tapas_Vacias, cantidad_juegos, Presion_Inicial)
+  VALUES
+    (?, ?, ?, NOW(), 'En proceso', ?, ?, ?, ?, ?, 0, ?)
+");
+$ins->bind_param("sssiiiiid", $id_paquete, $id_dil, $tipoArticulo, $id_op, $tuppers, $con_tapa, $tupVac, $tapVac, $presion_inicio);
             $ins->execute();
         }
     }
 }
 
+// 5) Si seleccionó juegos, insertar y actualizar estado
+if (!empty($_POST['juegos_toggle']) && isset($_POST['juegos_esterilizados'])) {
+    $juegosAUsar = max(0, (int) $_POST['juegos_esterilizados']);
+    
+if ($juegosAUsar > 0 && $juegosAUsar <= $totalJuegosPendientes) {
+    // a) Obtener los ID de los juegos más antiguos pendientes
+    $obtenerJuegos = $conn->prepare("
+        SELECT id_juego
+        FROM juegos_materiales
+        WHERE estado_juego = 'Pendiente'
+        ORDER BY fecha_registro ASC
+        LIMIT ?
+    ");
+    $obtenerJuegos->bind_param("i", $juegosAUsar);
+    $obtenerJuegos->execute();
+    $res = $obtenerJuegos->get_result();
+
+    // b) Insertar en registro_esterilizacion_juego y guardar los IDs
+    $ids = [];
+    $insertJuego = $conn->prepare("
+        INSERT INTO registro_esterilizacion_juego
+          (id_juego, fecha_esterilizacion, id_operador_esteriliza, notas)
+        VALUES (?, NOW(), ?, NULL)
+    ");
+
+    while ($row = $res->fetch_assoc()) {
+        $id_juego = (int)$row['id_juego'];
+        $ids[] = $id_juego;
+        $insertJuego->bind_param("ii", $id_juego, $ID_Operador);
+        $insertJuego->execute();
+    }
+
+    $insertJuego->close();
+
+    // c) Marcar como esterilizados los juegos seleccionados
+    if (!empty($ids)) {
+        $in = implode(',', $ids); // lista segura
+        $conn->query("
+            UPDATE juegos_materiales
+               SET estado_juego = 'Esterilizado',
+                   fecha_esterilizacion = NOW()
+             WHERE id_juego IN ($in)
+        ");
+    }
+
+    // d) Registrar proceso en tabla esterilizacion_autoclave
+    $stmtEA = $conn->prepare("
+        INSERT INTO esterilizacion_autoclave
+          (id_paquete, Tipo_Articulo, FechaInicio, Estado,
+           ID_Operador, cantidad_juegos, Presion_Inicial)
+        VALUES (?, 'Juego de herramientas', NOW(), 'En proceso', ?, ?, ?)
+    ");
+    $stmtEA->bind_param("isid", $id_paquete, $id_op, $juegosAUsar, $presion_inicio);
+    $stmtEA->execute();
+}
+}
+
+// 6) Si seleccionó paquetes de periódico, registrar
+if (!empty($_POST['periodico_toggle']) && isset($_POST['paquetes_periodico'])) {
+    $paquetes = max(0, (int) $_POST['paquetes_periodico']);
+    if ($paquetes > 0) {
+$stmtEA = $conn->prepare("
+  INSERT INTO esterilizacion_autoclave
+    (id_paquete, Tipo_Articulo, FechaInicio, Estado,
+     ID_Operador, cantidad_periodico, Presion_Inicial)
+  VALUES (?, 'Periódico', NOW(), 'En proceso', ?, ?, ?)
+");
+$stmtEA->bind_param("iiid", $id_paquete, $id_op, $paquetes, $presion_inicio);
+        $stmtEA->execute();
+    }
+}
 
     header("Location: $self?mensaje=" . urlencode("✅ Procesos iniciados."));
     exit;
 }
-
+}
 // Procesar finalizar
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['finalizar_esterilizacion'])) {
     $self = basename(__FILE__);
-    // 1) Leer el paquete a cerrar
     $id_paquete = intval($_POST['id_paquete'] ?? 0);
+    $resultado = trim($_POST['resultado'] ?? '');
+    $observaciones = trim($_POST['observaciones'] ?? '');
+    $presion_final = isset($_POST['presion_final']) && $_POST['presion_final'] !== ''
+        ? floatval($_POST['presion_final'])
+        : null;
 
-    if ($id_paquete) {
-        // 2) Actualizar todas las filas de ese paquete
-        $up = $conn->prepare("
-          UPDATE esterilizacion_autoclave
-             SET FechaFin      = NOW(),
-                 Resultado     = ?,
-                 Observaciones = ?,
-                 Estado        = 'Finalizado'
-           WHERE id_paquete   = ?
-        ");
-        $up->bind_param(
-          "ssi",
-          $_POST['resultado'],
-          $_POST['observaciones'],
-          $id_paquete
-        );
-        $up->execute();
+if ($id_paquete && $resultado !== '') {
+
+    // Validación del resultado
+    if ($resultado === '') {
+        die("❌ Debes seleccionar un resultado.");
     }
 
-    header("Location: $self?mensaje=" . urlencode("✅ Proceso finalizado."));
-    exit;
+    // Validación de presión final
+    if ($presion_final === null || $presion_final < 1 || $presion_final > 30) {
+        die("❌ La presión final debe estar entre 1 y 30 psi.");
+    }
+
+    // 1. Actualizar todos los registros del paquete
+    $stmtUpdate = $conn->prepare("
+        UPDATE esterilizacion_autoclave
+           SET FechaFin      = NOW(),
+               Resultado     = ?,
+               Observaciones = ?,
+               Estado        = 'Finalizado',
+               Presion_Final = ?
+         WHERE id_paquete   = ?
+    ");
+    $stmtUpdate->bind_param("ssdi", $resultado, $observaciones, $presion_final, $id_paquete);
+
+if (!$stmtUpdate->execute()) {
+    die("❌ Error al guardar el proceso: " . $stmtUpdate->error);
 }
+
+// 2) Si hubo pérdidas parciales, insertarlas (una sola vez)
+if ($resultado === 'Con pérdida parcial') {
+
+    $articulos  = $_POST['articulo_perdido'] ?? [];
+    $cantidades = $_POST['cantidad_perdida'] ?? [];
+    $motivos    = $_POST['motivo_perdida']   ?? [];
+
+    /* 1. Obtenemos UN id_esterilizacion del paquete */
+    $res = $conn->prepare("
+        SELECT ID_Esterilizacion
+        FROM esterilizacion_autoclave
+        WHERE id_paquete = ?
+        ORDER BY ID_Esterilizacion DESC   -- usa ASC si prefieres el primero
+        LIMIT 1
+    ");
+    $res->bind_param("i", $id_paquete);
+    $res->execute();
+    $row = $res->get_result()->fetch_assoc();
+
+    if ($row) {
+        $idEsterilizacion = (int)$row['ID_Esterilizacion'];
+
+        /* 2. Insertamos cada pérdida solo una vez */
+        $stmtPerdida = $conn->prepare("
+            INSERT INTO perdidas_autoclave
+                  (ID_Esterilizacion, Articulo, Cantidad, Motivo)
+            VALUES (?, ?, ?, ?)
+        ");
+
+        for ($i = 0; $i < count($articulos); $i++) {
+
+            $articulo = trim($articulos[$i]);
+            $cantidad = (int)$cantidades[$i];
+            $motivo   = trim($motivos[$i]);
+
+            if ($articulo !== '' && $cantidad > 0) {
+                $stmtPerdida->bind_param(
+                    "isis",
+                    $idEsterilizacion,
+                    $articulo,
+                    $cantidad,
+                    $motivo
+                );
+                $stmtPerdida->execute();
+            }
+        }
+    }
+}
+}
+}
+
+$self = basename(__FILE__);
+$id_paquete = intval($_POST['id_paquete'] ?? 0);
+$resultado = trim($_POST['resultado'] ?? '');
+$observaciones = trim($_POST['observaciones'] ?? '');
+$presion_final = isset($_POST['presion_final']) && $_POST['presion_final'] !== ''
+    ? floatval($_POST['presion_final'])
+    : null;
 
 // “En proceso”
 $procesos = $conn->query("
   SELECT
     e.id_paquete                            AS ID,
+    MIN(e.presion_inicial)                 AS PresionInicial,
     GROUP_CONCAT(COALESCE(e.ID_Dilucion,'—') SEPARATOR ', ') AS Lotes,
     MIN(e.FechaInicio)                      AS FechaInicio,
-    MAX(e.Tipo_Articulo)                    AS Articulos,
-    -- suma solo los tuppers de contaminados
-    SUM(CASE WHEN e.ID_Perdida IS NOT NULL THEN e.Tuppers_Esterilizados ELSE 0 END)
-      AS TotalContaminados,
-    -- totales generales
+    (
+      SELECT GROUP_CONCAT(
+        CASE 
+          WHEN Tipo_Articulo = 'Juego de herramientas' THEN CONCAT('Juegos: ', cantidad_juegos)
+          WHEN Tipo_Articulo = 'Periódico' THEN CONCAT('Periódico: ', cantidad_periodico)
+          ELSE Tipo_Articulo
+        END
+        SEPARATOR ' | '
+      )
+      FROM esterilizacion_autoclave
+      WHERE id_paquete = e.id_paquete
+    ) AS Articulos,
+    SUM(CASE WHEN e.ID_Perdida IS NOT NULL THEN e.Tuppers_Esterilizados ELSE 0 END) AS TotalContaminados,
     SUM(e.Tuppers_Esterilizados)            AS TotalTuppers,
     SUM(e.Tuppers_Vacios)                   AS TotalVacios,
     SUM(e.Tapas_Vacias)                     AS TotalTapas
@@ -386,15 +504,23 @@ $procesos = $conn->query("
   ORDER BY FechaInicio
 ")->fetch_all(MYSQLI_ASSOC);
 
-
 // “Finalizadas”
 $finalizados = $conn->query("
   SELECT
     e.id_paquete                            AS ID,
+    MIN(e.presion_inicial)                 AS PresionInicial,
     GROUP_CONCAT(e.ID_Dilucion SEPARATOR ', ') AS Lotes,
     MIN(e.FechaInicio)                      AS FechaInicio,
     MAX(e.FechaFin)                         AS FechaFin,
-    MAX(e.Tipo_Articulo)                    AS Articulos,              -- <— y aquí
+    (
+      SELECT GROUP_CONCAT(DISTINCT 
+        CASE 
+          WHEN Tipo_Articulo = 'Juego de herramientas' THEN CONCAT('Juegos: ', cantidad_juegos)
+          ELSE Tipo_Articulo
+        END SEPARATOR ' | ')
+      FROM esterilizacion_autoclave
+      WHERE id_paquete = e.id_paquete
+    ) AS Articulos,
     SUM(e.Tuppers_Esterilizados)            AS TotalTuppers,
     SUM(e.Tuppers_Vacios)                   AS TotalVacios,
     SUM(e.Tapas_Vacias)                     AS TotalTapas,
@@ -402,10 +528,10 @@ $finalizados = $conn->query("
     MAX(e.Observaciones)                    AS Observaciones
   FROM esterilizacion_autoclave e
   WHERE e.Estado = 'Finalizado'
+  AND DATE(e.FechaFin) = CURDATE()
   GROUP BY e.id_paquete
   ORDER BY FechaFin DESC
 ")->fetch_all(MYSQLI_ASSOC);
-
 ?>
 
 <!DOCTYPE html>
@@ -461,6 +587,7 @@ $finalizados = $conn->query("
   </header>
   
 <main class="container py-4">
+
   <!-- INICIO -->
   <div id="inicio" class="seccion-interna <?= $procesoSeleccionado ? '' : 'seccion-activa' ?>">
     <div class="card mb-4">
@@ -563,76 +690,79 @@ $finalizados = $conn->query("
   <div id="lotes_container" class="card-body pt-0"></div>
 </div>
 
-          <!-- Sección Artículos -->
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">Artículos a esterilizar</h5>
+          <!-- Sección Juegos-->
+<div class="text-center my-4">
+  <div class="border rounded p-3 bg-light shadow-sm d-inline-block">
+    <h5 class="mb-2">Juegos disponibles para esterilización</h5>
+    <p class="fs-5 mb-0">📦 Total: <strong><?= $totalJuegosPendientes ?></strong></p>
   </div>
-  <div class="card-body d-flex flex-wrap gap-4">
-    <?php
-$sql = "
-  SELECT 
-    m.id_material AS id,
-    m.nombre AS descripcion,
-    GREATEST(
-      COALESCE(inv.total, 0) - COALESCE(inv.en_uso, 0) - COALESCE(est.esterilizados, 0),
-      0
-    ) AS disponible
-  FROM materiales m
-  LEFT JOIN (
-    SELECT id_material, SUM(cantidad) AS total, SUM(en_uso) AS en_uso
-    FROM inventario_materiales
-    GROUP BY id_material
-  ) inv ON m.id_material = inv.id_material
-  LEFT JOIN (
-    SELECT id_material, SUM(cantidad) AS esterilizados
-    FROM movimientos_materiales
-    WHERE tipo_movimiento = 'esterilizacion'
-    GROUP BY id_material
-  ) est ON m.id_material = est.id_material
-  HAVING disponible > 0
-  ORDER BY m.nombre
-";
-
-    $artRes = $conn->query($sql);
-
-    while($art = $artRes->fetch_assoc()):
-      $i    = $art['id'];
-      $disp = $art['disponible'];
-    ?>
-      <div class="form-check d-flex align-items-center mb-2">
-  <input
-    class="form-check-input custom-checkbox me-2"
-    type="checkbox"
-    name="articulo_ids[]"
-    id="art<?= $i ?>"
-    data-id="<?= $i ?>"
-    value="<?= $i ?>">
-  <label class="form-check-label me-3" for="art<?= $i ?>">
-    <?= htmlspecialchars($art['descripcion']) ?>
-  </label>
-  <input
-    type="number"
-    class="form-control cantidad-art me-3"
-    data-id="<?= $i ?>"
-    min="0"
-    placeholder="0"
-    style="width: 80px;"
-    disabled>
-  <small id="info_art_<?= $i ?>" class="text-muted">
-    Disponibles: <?= $disp ?> | Usados: –
-  </small>
 </div>
 
-    <?php endwhile; ?>
+<!-- Esterilizar juegos -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0">¿Desea esterilizar juegos?</h5>
   </div>
+  <div class="card-body d-flex align-items-center gap-3">
+    <div class="form-check">
+      <input class="form-check-input" 
+             type="checkbox" 
+             id="juegos_toggle"
+             name="juegos_toggle" 
+             value="1">
+    </div>
+    <label class="form-check-label" for="juegos_toggle">Sí</label>
+  </div>
+
+  <div id="juegos_input_group" class="card-body d-none">
+    <label class="form-label">¿Cuántos juegos desea esterilizar?</label>
+    <input type="number" 
+           name="juegos_esterilizados" 
+           id="juegos_esterilizados"
+           class="form-control"
+           min="1" 
+           max="<?= $totalJuegosPendientes ?>" 
+           placeholder="Máximo: <?= $totalJuegosPendientes ?>">
+  </div>
+</div>
+
+<!-- Esterilizar paquetes de periódico -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0">¿Desea esterilizar paquetes de periódico?</h5>
+  </div>
+  <div class="card-body d-flex align-items-center gap-3">
+    <div class="form-check">
+      <input class="form-check-input"
+             type="checkbox"
+             id="periodico_toggle"
+             name="periodico_toggle"
+             value="1">
+    </div>
+    <label class="form-check-label" for="periodico_toggle">Sí</label>
+  </div>
+
+  <div id="periodico_input_group" class="card-body d-none">
+    <label class="form-label">¿Cuántos paquetes desea esterilizar?</label>
+    <input type="number"
+           name="paquetes_periodico"
+           id="paquetes_periodico"
+           class="form-control"
+           min="1"
+           placeholder="Ej. 3">
+  </div>
+</div>
+
+<div class="mb-3">
+  <label class="form-label">Presión registrada al inicio (psi)</label>
+  <input type="number" class="form-control" name="presion_inicio" min="1" max="30"step="0.1" placeholder="Ej. 15.2" required>
 </div>
 
           <!-- Botón enviar -->
           <div class="col-12 text-end">
-            <button name="iniciar_esterilizacion" class="btn btn-primary">
-              Iniciar proceso
-            </button>
+<button name="iniciar_esterilizacion" class="btn btn-primary">
+  Iniciar proceso
+</button>
           </div>
 
         </form>
@@ -653,6 +783,7 @@ $sql = "
             <th>Vacíos / Tapas</th>
             <th>Contaminados</th>
             <th>Inicio</th>
+            <th>Presión (psi)</th>
             <th>Artículos</th>
             <th>Acción</th>
           </tr>
@@ -664,21 +795,30 @@ $sql = "
   <td data-label="Lotes">
     <ul class="list-unstyled mb-0">
       <?php
-      $stmtCnt = $conn->prepare("
-        SELECT COALESCE(SUM(Tuppers_Esterilizados),0) AS cnt
-        FROM esterilizacion_autoclave
-        WHERE id_paquete = ?
-          AND ID_Dilucion = ?
-      ");
-      foreach (explode(', ', $p['Lotes']) as $lote):
-        $stmtCnt->bind_param("is", $p['ID'], $lote);
-        $stmtCnt->execute();
-        $cnt = $stmtCnt->get_result()->fetch_assoc()['cnt'];
-      ?>
-        <li>
-          <strong><?= htmlspecialchars($lote) ?></strong>: <?= $cnt ?> tuppers
-        </li>
-      <?php endforeach; ?>
+foreach (explode(', ', $p['Lotes']) as $lote):
+  $stmtCnt = $conn->prepare("
+    SELECT 
+      COALESCE(SUM(ea.Tuppers_Esterilizados),0) AS cnt,
+      mn.Codigo_Medio
+    FROM dilucion_llenado_tuppers d
+    LEFT JOIN esterilizacion_autoclave ea ON d.ID_Dilucion = ea.ID_Dilucion
+    LEFT JOIN medios_nutritivos_madre mn ON d.ID_MedioNM = mn.ID_MedioNM
+    WHERE d.ID_Dilucion = ?
+      AND ea.id_paquete = ?
+    GROUP BY d.ID_Dilucion
+  ");
+  $stmtCnt->bind_param("si", $lote, $p['ID']);
+  $stmtCnt->execute();
+  $res = $stmtCnt->get_result()->fetch_assoc();
+  $cnt = $res['cnt'] ?? 0;
+  $medio = $res['Codigo_Medio'] ?? '–';
+?>
+  <li>
+    <strong><?= htmlspecialchars($lote) ?></strong>: 
+    <?= $cnt ?> tuppers 
+    <span class="text-muted">(Medio: <?= htmlspecialchars($medio) ?>)</span>
+  </li>
+<?php endforeach; ?>
     </ul>
   </td>
   <td data-label="Resumen">
@@ -689,6 +829,7 @@ $sql = "
   </td>
   <td data-label="Contaminados"><?= $p['TotalContaminados'] ?></td>
   <td data-label="Fecha de Inicio"><?= $p['FechaInicio'] ?></td>
+  <td data-label="Presión"><?= $p['PresionInicial'] !== null ? $p['PresionInicial'] . ' psi' : '—' ?></td>
   <td data-label="Artículos" class="text-wrap"><?= htmlspecialchars($p['Articulos']) ?></td>
   <td data-label="Acción">
     <a href="?abrir_modal_finalizar=<?= $p['ID'] ?>" class="btn btn-sm btn-success">
@@ -706,7 +847,9 @@ $sql = "
 <!-- FINALIZADAS -->
 <div id="historial" class="seccion-interna">
   <div class="card mb-4">
-    <div class="card-header bg-secondary text-white">Procesos Finalizados</div>
+    <div class="card-header bg-secondary text-white">
+  Procesos Finalizados hoy, día: <?= date('d/m/Y') ?>
+    </div>
     <div class="card-body table-responsive">
       <table class="table table-bordered table-striped">
         <thead class="table-dark">
@@ -715,7 +858,9 @@ $sql = "
             <th>Detalles por Lote</th>
             <th>Vacíos / Tapas</th>
             <th>Inicio</th>
+            <th>Presión (psi) Inicio</th>
             <th>Fin</th>
+            <th>Presión (psi) Final</th>
             <th>Artículos</th>
             <th>Resultado</th>
             <th>Observaciones</th>
@@ -725,55 +870,109 @@ $sql = "
           <?php if (empty($finalizados)): ?>
             <tr><td colspan="8" class="text-center">No hay procesos finalizados.</td></tr>
           <?php else: ?>
-            <?php
-            // Preparar contador para finalizados
-            $stmtCntF = $conn->prepare("
-              SELECT COALESCE(SUM(Tuppers_Esterilizados),0) AS cnt
-              FROM esterilizacion_autoclave
-              WHERE id_paquete = ?
-                AND ID_Dilucion = ?
-                AND Estado = 'Finalizado'
-            ");
-            ?>
             <?php foreach ($finalizados as $p): ?>
-<tr>
-  <td data-label="ID"><?= $p['ID'] ?></td>
-  <td data-label="Lotes">
-    <ul class="list-unstyled mb-0">
-      <?php 
-      if (trim((string)$p['Lotes']) === ''): ?>
-        <li>
-          <strong>Total</strong>: <?= $p['TotalTuppers'] ?> tuppers
-        </li>
-      <?php 
-      else:
-        foreach (explode(', ', $p['Lotes']) as $lote):
-          $stmtCntF->bind_param("is", $p['ID'], $lote);
-          $stmtCntF->execute();
-          $cntF = $stmtCntF->get_result()->fetch_assoc()['cnt'];
-      ?>
-        <li>
-          <strong><?= htmlspecialchars($lote) ?></strong>: <?= $cntF ?> tuppers
-        </li>
-      <?php 
-        endforeach;
-      endif;
-      ?>
-    </ul>
-  </td>
-  <td data-label="Resumen">
-    <small>
-      Vacíos: <?= $p['TotalVacios'] ?><br>
-      Tapas: <?= $p['TotalTapas'] ?>
-    </small>
-  </td>
-  <td data-label="Inicio"><?= $p['FechaInicio'] ?></td>
-  <td data-label="Final"><?= $p['FechaFin'] ?></td>
-  <td data-label="Artículos" class="text-wrap"><?= htmlspecialchars($p['Articulos']) ?></td>
-  <td data-label="Resultado"><?= htmlspecialchars($p['Resultado']) ?></td>
-  <td data-label="Observaciones"><?= nl2br(htmlspecialchars($p['Observaciones'])) ?></td>
-</tr>
+              <tr>
+                <td data-label="ID"><?= $p['ID'] ?></td>
+                <td data-label="Lotes">
+                  <ul class="list-unstyled mb-0">
+                    <?php 
+                    if (trim((string)$p['Lotes']) === ''): ?>
+                      <li><strong>Total</strong>: <?= $p['TotalTuppers'] ?> tuppers</li>
+                    <?php else:
+                      foreach (explode(', ', $p['Lotes']) as $lote):
+                        $stmtCntF = $conn->prepare("
+                          SELECT 
+                            COALESCE(SUM(ea.Tuppers_Esterilizados),0) AS cnt,
+                            mn.Codigo_Medio
+                          FROM dilucion_llenado_tuppers d
+                          LEFT JOIN esterilizacion_autoclave ea ON d.ID_Dilucion = ea.ID_Dilucion
+                          LEFT JOIN medios_nutritivos_madre mn ON d.ID_MedioNM = mn.ID_MedioNM
+                          WHERE d.ID_Dilucion = ?
+                            AND ea.id_paquete = ?
+                            AND ea.Estado = 'Finalizado'
+                          GROUP BY d.ID_Dilucion
+                        ");
+                        $stmtCntF->bind_param("si", $lote, $p['ID']);
+                        $stmtCntF->execute();
+                        $resF = $stmtCntF->get_result()->fetch_assoc();
+                        $cntF = $resF['cnt'] ?? 0;
+                        $medioF = $resF['Codigo_Medio'] ?? '–';
+                    ?>
+                      <li>
+                        <strong><?= htmlspecialchars($lote) ?></strong>: 
+                        <?= $cntF ?> tuppers 
+                        <span class="text-muted">(Medio: <?= htmlspecialchars($medioF) ?>)</span>
+                      </li>
+                    <?php 
+                      endforeach;
+                    endif;
+                    ?>
+                  </ul>
+                </td>
+                <td data-label="Resumen">
+                  <small>
+                    Vacíos: <?= $p['TotalVacios'] ?><br>
+                    Tapas: <?= $p['TotalTapas'] ?>
+                  </small>
+                </td>
+                <td data-label="Inicio"><?= $p['FechaInicio'] ?></td>
+                <td data-label="Presión">
+  <?= is_null($p['PresionInicial']) ? '—' : $p['PresionInicial'] . ' psi' ?>
+</td>
+                <td data-label="Final"><?= $p['FechaFin'] ?></td>
+                <td data-label="Presión"><?= $p['PresionInicial'] !== null ? $p['PresionInicial'] . ' psi' : '—' ?></td>
+                <td data-label="Artículos" class="text-wrap"><?= htmlspecialchars($p['Articulos']) ?></td>
+                <td data-label="Resultado"><?= htmlspecialchars($p['Resultado']) ?></td>
+                <td data-label="Observaciones">
+                  <?= nl2br(htmlspecialchars($p['Observaciones'])) ?>
+                  <?php
+$textoObs = strtolower($p['Observaciones']);
+$mostrarPerdidas = !str_contains($textoObs, 'pérdidas:') && !str_contains($textoObs, '×');
+?>
+  <?php
+  // Mostrar si hubo paquetes de periódico
+  $stmtPeriodico = $conn->prepare("
+    SELECT SUM(cantidad_periodico) AS total
+    FROM esterilizacion_autoclave
+    WHERE id_paquete = ? AND Tipo_Articulo = 'Periódico'
+  ");
+  $stmtPeriodico->bind_param("i", $p['ID']);
+  $stmtPeriodico->execute();
+  $periodico = $stmtPeriodico->get_result()->fetch_assoc();
 
+  if (!empty($periodico['total'])):
+  ?>
+    <div class="mt-2"><strong>Periódico:</strong> <?= (int)$periodico['total'] ?> paquete(s)</div>
+  <?php endif; ?>
+
+                  <?php
+                  // Mostrar pérdidas si las hay
+                  $stmtPerdidas = $conn->prepare("
+                    SELECT DISTINCT Articulo, Cantidad, Motivo
+                    FROM perdidas_autoclave
+                    WHERE ID_Esterilizacion IN (
+                      SELECT ID_Esterilizacion FROM esterilizacion_autoclave WHERE id_paquete = ?
+                    )
+                  ");
+                  $stmtPerdidas->bind_param("i", $p['ID']);
+                  $stmtPerdidas->execute();
+                  $resPerdidas = $stmtPerdidas->get_result();
+                  if ($resPerdidas->num_rows > 0 && $mostrarPerdidas):
+                  ?>
+                    <div class="mt-2 border-top pt-2">
+                      <strong>Pérdidas:</strong>
+                      <ul class="mb-0 ps-3">
+                        <?php while ($perdida = $resPerdidas->fetch_assoc()): ?>
+                          <li>
+                            <?= htmlspecialchars($perdida['Cantidad']) ?> × <?= htmlspecialchars($perdida['Articulo']) ?> —
+                            <em><?= htmlspecialchars($perdida['Motivo']) ?></em>
+                          </li>
+                        <?php endwhile; ?>
+                      </ul>
+                    </div>
+                  <?php endif; ?>
+                </td>
+              </tr>
             <?php endforeach; ?>
           <?php endif; ?>
         </tbody>
@@ -782,32 +981,120 @@ $sql = "
   </div>
 </div>
 
-
 <!-- MODAL FINALIZAR -->
-<?php if($procesoSeleccionado): ?>
+<?php if ($procesoSeleccionado): ?>
+  <?php
+    // Detectar cantidades según tipo de artículo y su campo
+    $cantidades_por_articulo = [];
+
+    $stmt = $conn->prepare("
+SELECT Tipo_Articulo, 
+       ID_Dilucion,
+       COALESCE(Tuppers_Vacios, 0) AS Tuppers_Vacios,
+       COALESCE(Tapas_Vacias, 0) AS Tapas_Vacias,
+       COALESCE(Tuppers_Esterilizados, 0) AS Tuppers_Esterilizados,
+       COALESCE(cantidad_juegos, 0) AS cantidad_juegos
+      FROM esterilizacion_autoclave
+      WHERE id_paquete = ?
+        AND Estado = 'En proceso'
+    ");
+    $stmt->bind_param("i", $procesoSeleccionado['id_paquete']);
+    $stmt->execute();
+    $res = $stmt->get_result();
+$tiene_tuppers_con_medio = false;
+
+    while ($row = $res->fetch_assoc()) {
+      $tipo = trim($row['Tipo_Articulo']);
+      $cantidad = 0;
+
+if (str_contains(strtolower($tipo), 'nutritivo') || strtolower($tipo) === 'tuppers con medio') {
+  $tiene_tuppers_con_medio = true;
+}
+
+if (!empty($row['ID_Dilucion'])) {
+  // Es un tupper con medio (lote)
+  $tipo = 'Tuppers con medio';
+  $cantidad = $row['Tuppers_Esterilizados'];
+} elseif (str_contains(strtolower($tipo), 'vacío') && !str_contains(strtolower($tipo), 'tapa')) {
+  $cantidad = $row['Tuppers_Vacios'];
+} elseif (str_contains(strtolower($tipo), 'tapa')) {
+  $cantidad = $row['Tapas_Vacias'];
+} elseif (str_contains(strtolower($tipo), 'juego')) {
+  $cantidad = $row['cantidad_juegos'];
+} else {
+  $cantidad = 0;
+}
+
+      if (!isset($cantidades_por_articulo[$tipo])) {
+        $cantidades_por_articulo[$tipo] = 0;
+      }
+
+      $cantidades_por_articulo[$tipo] += $cantidad;
+    }
+  ?>
+
   <div class="modal fade" id="modalFinalizar" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-      <form method="POST" class="modal-content">
+    <div class="modal-dialog modal-lg">
+      <form method="POST" action="<?= basename(__FILE__) ?>" class="modal-content">
         <div class="modal-header bg-success text-white">
-          <h5 class="modal-title">
-            Finalizar Proceso #<?=htmlspecialchars($procesoSeleccionado['ID_Esterilizacion'])?>
-          </h5>
+          <h5 class="modal-title">Finalizar Proceso #<?= htmlspecialchars($procesoSeleccionado['ID_Esterilizacion']) ?></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
         </div>
+
         <div class="modal-body">
-          <input type="hidden" name="id_paquete" value="<?=htmlspecialchars($procesoSeleccionado['id_paquete'])?>">
+          <input type="hidden" name="id_paquete" value="<?= htmlspecialchars($paquete ?? '') ?>">
+          <input type="hidden" name="id_esterilizacion" value="<?= htmlspecialchars($procesoSeleccionado['ID_Esterilizacion']) ?>">
+
           <div class="mb-3">
             <label class="form-label">Resultado</label>
-            <select name="resultado" class="form-select">
-              <option>Exitoso</option>
-              <option>Fallido</option>
+            <select name="resultado" class="form-select" id="resultado-select" required>
+              <option value="">-- Selecciona --</option>
+              <option value="Exitoso">Exitoso</option>
+              <option value="Con pérdida parcial" <?= !$tiene_tuppers_con_medio ? 'disabled' : '' ?>>Con pérdida parcial</option>
+              <option value="Fallido">Fallido</option>
             </select>
           </div>
-          <div class="mb-3">
+
+          <div id="bloque-perdida-parcial" class="d-none border p-3 rounded bg-light">
+            <p class="fw-bold mb-2">Registro de pérdidas</p>
+            <div id="contenedor-perdidas">
+              <div class="row gy-2 align-items-end fila-perdida">
+                <div class="col-md-4">
+                  <label class="form-label">Artículo</label>
+                  <select name="articulo_perdido[]" class="form-select articulo-select">
+                    <option value="">-- Selecciona --</option>
+<?php foreach ($cantidades_por_articulo as $tipo => $cant): ?>
+  <?php if (str_contains(strtolower($tipo), 'nutritivo') || strtolower($tipo) === 'tuppers con medio'): ?>
+    <option value="<?= htmlspecialchars($tipo) ?>"><?= htmlspecialchars($tipo) ?></option>
+  <?php endif; ?>
+<?php endforeach; ?>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Cantidad</label>
+                  <input type="number" name="cantidad_perdida[]" class="form-control cantidad-input" min="1">
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label">Motivo</label>
+                  <input type="text" name="motivo_perdida[]" class="form-control texto-mayusculas" placeholder="Ej. Se cayeron">
+                </div>
+              </div>
+            </div>
+            <div class="text-end mt-2">
+              <button type="button" id="agregar-perdida" class="btn btn-secondary btn-sm">+ Agregar otra pérdida</button>
+            </div>
+          </div>
+
+<div class="mb-3">
+  <label class="form-label">Presión registrada al finalizar (psi)</label>
+  <input type="number" name="presion_final" class="form-control" step="0.1" min="1" max="30" placeholder="Ej. 15.0" required>
+</div>
+          <div class="mb-3 mt-3">
             <label class="form-label">Observaciones</label>
             <textarea name="observaciones" class="form-control" rows="3"></textarea>
           </div>
         </div>
+
         <div class="modal-footer">
           <button name="finalizar_esterilizacion" class="btn btn-success">Finalizar</button>
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -815,12 +1102,138 @@ $sql = "
       </form>
     </div>
   </div>
+
+  <style>
+    .texto-mayusculas {
+      text-transform: uppercase;
+    }
+  </style>
+
+
+
+  <script>
+    const maximosPorArticulo = <?= json_encode($cantidades_por_articulo) ?>;
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const resultadoSelect = document.getElementById('resultado-select');
+      const bloquePerdida = document.getElementById('bloque-perdida-parcial');
+      const contenedor = document.getElementById('contenedor-perdidas');
+      const btnAgregar = document.getElementById('agregar-perdida');
+
+      resultadoSelect.addEventListener('change', function () {
+  // Mostrar u ocultar el bloque de pérdidas
+  bloquePerdida.classList.toggle('d-none', this.value !== 'Con pérdida parcial');
+
+  // Activar o desactivar 'required' solo si es 'Con pérdida parcial'
+  const inputs = bloquePerdida.querySelectorAll('select, input');
+  inputs.forEach(input => {
+    if (this.value === 'Con pérdida parcial') {
+      input.setAttribute('required', 'required');
+    } else {
+      input.removeAttribute('required');
+    }
+  });
+});
+
+      function validarCantidad(input) {
+        const fila = input.closest('.fila-perdida');
+        const select = fila.querySelector('.articulo-select');
+        const articulo = select.value;
+        const maxPermitido = maximosPorArticulo[articulo] || 0;
+        const valor = parseInt(input.value);
+
+        if (valor < 1 || valor > maxPermitido) {
+          alert(`❌ La cantidad para "${articulo}" debe estar entre 1 y ${maxPermitido}.`);
+          input.value = '';
+        }
+      }
+
+      btnAgregar.addEventListener('click', function () {
+        const original = contenedor.querySelector('.fila-perdida');
+        const nueva = original.cloneNode(true);
+        nueva.querySelectorAll('input, select').forEach(el => el.value = '');
+        contenedor.appendChild(nueva);
+      });
+
+      contenedor.addEventListener('input', function (e) {
+        if (e.target.name === 'cantidad_perdida[]') {
+          validarCantidad(e.target);
+        } else if (e.target.name === 'motivo_perdida[]') {
+          e.target.value = e.target.value.toUpperCase();
+        }
+      });
+
+      contenedor.addEventListener('change', function (e) {
+        if (e.target.name === 'articulo_perdido[]') {
+          const fila = e.target.closest('.fila-perdida');
+          const cantidadInput = fila.querySelector('.cantidad-input');
+          cantidadInput.value = '';
+        }
+      });
+    });
+  </script>
 <?php endif; ?>
 
 </main>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const resultadoSelect = document.getElementById('resultado-select');
+  const bloquePerdida = document.getElementById('bloque-perdida-parcial');
+  const btnAgregar = document.getElementById('agregar-perdida');
+  const contenedor = document.getElementById('contenedor-perdidas');
 
+  const MAX_CANTIDAD = <?= $tuppers_total ?>;
 
+  // Mostrar/ocultar bloque según resultado
+  resultadoSelect.addEventListener('change', function () {
+    bloquePerdida.classList.toggle('d-none', this.value !== 'Con pérdida parcial');
+  });
+
+  // Mayúsculas automáticas en motivo
+  contenedor.addEventListener('input', function (e) {
+    if (e.target.name === 'motivo_perdida[]') {
+      e.target.value = e.target.value.toUpperCase();
+    }
+  });
+
+  // Validación de cantidad
+  contenedor.addEventListener('input', function (e) {
+    if (e.target.name === 'cantidad_perdida[]') {
+      const val = parseInt(e.target.value);
+      if (val < 1 || val > MAX_CANTIDAD) {
+        alert(`La cantidad debe ser entre 1 y ${MAX_CANTIDAD}.`);
+        e.target.value = '';
+      }
+    }
+  });
+
+  // Agregar nueva fila
+  btnAgregar.addEventListener('click', function () {
+    const fila = contenedor.querySelector('.row').cloneNode(true);
+    fila.querySelectorAll('input, select').forEach(el => {
+      if (el.tagName === 'SELECT') el.selectedIndex = 0;
+      else el.value = '';
+    });
+    contenedor.appendChild(fila);
+  });
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.body.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'resultado-select') {
+      const bloque = document.getElementById('bloque-perdida-parcial');
+      if (e.target.value === 'Con pérdida parcial') {
+        bloque?.classList.remove('d-none');
+      } else {
+        bloque?.classList.add('d-none');
+      }
+    }
+  });
+});
+</script>
 
 <script>
   // Navegación de secciones
@@ -842,7 +1255,15 @@ $sql = "
             <select name="id_dilucion[]" class="form-select lote-select" required>
               <option value="" disabled selected>-- Selecciona --</option>
               <?php
-                $r = $conn->query("SELECT ID_Dilucion FROM dilucion_llenado_tuppers ORDER BY ID_Dilucion DESC");
+              $r = $conn->query("
+  SELECT d.ID_Dilucion
+  FROM dilucion_llenado_tuppers d
+  LEFT JOIN esterilizacion_autoclave ea ON d.ID_Dilucion = ea.ID_Dilucion
+  GROUP BY d.ID_Dilucion
+  HAVING (MAX(d.Tuppers_Llenos) - COALESCE(SUM(ea.Tuppers_Esterilizados), 0)) > 0
+  ORDER BY d.ID_Dilucion DESC
+");
+
                 while($x = $r->fetch_assoc()):
               ?>
                 <option><?= $x['ID_Dilucion'] ?></option>
@@ -870,7 +1291,6 @@ $sql = "
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-
     // Confirmar cantidad de lotes
     document.getElementById('confirm_lotes')
       .addEventListener('click', () => {
@@ -928,40 +1348,6 @@ $sql = "
           }
         }
       });
-
-    // Lógica de artículos
-    document.querySelectorAll('input[name="articulo_ids[]"]').forEach(chk => {
-      const id    = chk.value;
-      const numIn = document.querySelector(`.cantidad-art[data-id="${id}"]`);
-      const info  = document.getElementById(`info_art_${id}`);
-
-      chk.addEventListener('change', () => {
-        if (chk.checked) {
-          numIn.style.display = 'inline-block';
-          numIn.disabled      = false;
-          numIn.name          = `cantidad_articulo[${id}]`;
-          numIn.required      = true;
-
-          fetch(window.location.pathname, {
-            method: 'POST',
-            headers: {'Content-Type':'application/x-www-form-urlencoded'},
-            body: `ajax_material_info=${encodeURIComponent(id)}`
-          })
-          .then(r => r.json())
-          .then(data => {
-            info.textContent = `Disponibles: ${data.Disponibles} | Usados: ${data.Usados}`;
-          })
-          .catch(err => console.error('Fetch error:', err));
-        } else {
-          numIn.style.display = 'none';
-          numIn.disabled      = true;
-          numIn.removeAttribute('name');
-          numIn.required      = false;
-          numIn.value         = '';
-          info.textContent    = 'Disponibles: – | Usados: –';
-        }
-      });
-    });
 
     // ───────── BLOQUE CONTAMINADOS ─────────
     const contToggle = document.getElementById('contaminados_toggle');
@@ -1063,6 +1449,31 @@ $sql = "
         otroTapas.value = numVacios.value;
       }
     });
+
+    // Mostrar input de juegos si se activa el checkbox
+const juegosToggle = document.getElementById('juegos_toggle');
+const juegosInputGroup = document.getElementById('juegos_input_group');
+const juegosInput = document.getElementById('juegos_esterilizados');
+
+juegosToggle.addEventListener('change', () => {
+  const activo = juegosToggle.checked;
+  juegosInputGroup.classList.toggle('d-none', !activo);
+  juegosInput.required = activo;
+  if (!activo) juegosInput.value = '';
+});
+
+// Mostrar input de paquetes si se activa el checkbox
+const perToggle = document.getElementById('periodico_toggle');
+const perInputGroup = document.getElementById('periodico_input_group');
+const perInput = document.getElementById('paquetes_periodico');
+
+perToggle.addEventListener('change', () => {
+  const activo = perToggle.checked;
+  perInputGroup.classList.toggle('d-none', !activo);
+  perInput.required = activo;
+  if (!activo) perInput.value = '';
+});
+
   });
 
   

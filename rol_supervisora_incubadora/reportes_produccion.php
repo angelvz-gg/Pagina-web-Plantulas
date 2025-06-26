@@ -17,8 +17,8 @@ $conn->query("SET time_zone = '-06:00'");
   }
   $ID_Operador = (int) $_SESSION['ID_Operador'];
 
-  if ((int) $_SESSION['Rol'] !== 5) {
-      echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
+  if ((int) $_SESSION['Rol'] !== 4) {
+      echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Supervisora de Incubadora.</p>";
       exit;
   }
 
@@ -148,7 +148,6 @@ $conn->query("SET time_zone = '-06:00'");
   $result_enraizamiento = $conn->query($sql_enraizamiento);
   ?>
 
-
   <!DOCTYPE html>
   <html lang="es">
   <head>
@@ -175,7 +174,7 @@ $conn->query("SET time_zone = '-06:00'");
           <nav class="navbar bg-body-tertiary">
             <div class="container-fluid">
               <div class="Opciones-barra">
-                <button onclick="window.location.href='dashboard_egp.php'">
+                <button onclick="window.location.href='dashboard_supervisora.php'">
                 🏠 Volver al Inicio
                 </button>
               </div>

@@ -118,8 +118,11 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
           </div>
         </nav>
       </div>
-<form method="GET" id="filtrosForm">
-      <nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
+<form id="filtrosForm" method="GET" class="d-none"></form>
+
+<nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2 mb-3"
+     style="overflow-x:auto;">
+  <!-- Código del medio -->
   <div class="d-flex flex-column" style="min-width:140px;">
     <label for="filtro-codigo" class="small mb-1">Código Medio</label>
     <select id="filtro-codigo" name="codigo_medio" form="filtrosForm"
@@ -134,6 +137,7 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
     </select>
   </div>
 
+  <!-- Fechas -->
   <div class="d-flex flex-column" style="min-width:120px;">
     <label for="filtro-desde" class="small mb-1">Desde</label>
     <input id="filtro-desde" type="date" name="fecha_desde" form="filtrosForm"
@@ -148,32 +152,32 @@ $codigos = $codigosQuery->fetch_all(MYSQLI_ASSOC);
            value="<?= htmlspecialchars($fechaHasta) ?>">
   </div>
 
+  <!-- Cantidad -->
   <div class="d-flex flex-column" style="min-width:140px;">
-    <label for="filtro-cantidad" class="small mb-1">Cantidad Mínima</label>
+    <label for="filtro-cantidad" class="small mb-1">Cantidad mínima</label>
     <input id="filtro-cantidad" type="number" step="0.1" name="cantidad_minima" form="filtrosForm"
            class="form-control form-control-sm"
            value="<?= htmlspecialchars($cantidadMinima) ?>">
   </div>
 
+  <!-- Estado -->
   <div class="d-flex flex-column" style="min-width:120px;">
     <label for="filtro-estado" class="small mb-1">Estado</label>
     <select id="filtro-estado" name="estado" form="filtrosForm"
             class="form-select form-select-sm">
       <option value="">— Todos —</option>
-      <option value="Disponible" <?= $estadoFiltro==='Disponible' ? 'selected':''?>>Disponible</option>
-      <option value="Consumido"   <?= $estadoFiltro==='Consumido'   ? 'selected':''?>>Consumido</option>
+      <option value="Disponible" <?= $estadoFiltro==='Disponible' ? 'selected':''?>>✅ Disponible</option>
+      <option value="Consumido"  <?= $estadoFiltro==='Consumido'  ? 'selected':''?>>🚫 Consumido</option>
     </select>
   </div>
 
-<button onclick="aplicarFiltros()" class="btn-inicio btn btn-success btn-sm ms-auto">
-  Filtrar
-</button>
-<button onclick="limpiarFiltros()" type="button" class="btn btn-limpiar btn-sm ms-2">
-  Limpiar filtros
-</button>
+  <!-- Botones -->
+  <button form="filtrosForm" type="submit"
+          class="btn-inicio btn btn-success btn-sm ms-auto">Filtrar</button>
 
+  <button type="button" onclick="limpiarFiltros()"
+          class="btn btn-limpiar btn-sm ms-2">Limpiar filtros</button>
 </nav>
-</form>
     </header>
 
     <main class="flex-fill" style="flex:1; padding: 20px;">
@@ -233,26 +237,14 @@ $cantidadUsada = number_format((float)$preparada - (float)$disponible, 2);
     </footer>
   </div>
 
-<script>
-function aplicarFiltros() {
-  const codigo   = document.getElementById('filtro-codigo').value;
-  const desde    = document.getElementById('filtro-desde').value;
-  const hasta    = document.getElementById('filtro-hasta').value;
-  const cantidad = document.getElementById('filtro-cantidad').value;
-  const estado   = document.getElementById('filtro-estado').value;
-
-  const params = new URLSearchParams();
-  if (codigo)   params.append('codigo_medio', codigo);
-  if (desde)    params.append('fecha_desde', desde);
-  if (hasta)    params.append('fecha_hasta', hasta);
-  if (cantidad) params.append('cantidad_minima', cantidad);
-  if (estado)   params.append('estado', estado);
-
-  window.location.href = 'inventario_soluciones_madre.php?' + params.toString();
-}
-
+  <script>
 function limpiarFiltros() {
-  window.location.href = 'inventario_soluciones_madre.php';
+  document.getElementById('filtro-codigo').selectedIndex = 0;
+  document.getElementById('filtro-desde').value  = '';
+  document.getElementById('filtro-hasta').value  = '';
+  document.getElementById('filtro-cantidad').value = '';
+  document.getElementById('filtro-estado').selectedIndex = 0;
+  document.getElementById('filtrosForm').submit();
 }
 </script>
 

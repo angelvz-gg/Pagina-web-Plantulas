@@ -100,10 +100,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <input type="text" id="usuario" name="usuario" value="<?= htmlspecialchars($usuario) ?>" required autofocus>
       </div>
 
-      <div class="input-group">
-        <label for="contrasena">Contraseña</label>
-        <input type="password" id="contrasena" name="contrasena" required>
-      </div>
+<div class="input-group">
+  <label for="contrasena">Contraseña</label>
+  <input type="password" id="contrasena" name="contrasena" required>
+</div>
+<div class="input-group mostrar-pass">
+  <label>
+    <input type="checkbox" onclick="togglePassword()"> Mostrar contraseña
+  </label>
+</div>
+
+<style>
+.mostrar-pass {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: -10px;
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+.mostrar-pass input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: green; /* compatible con navegadores modernos */
+  cursor: pointer;
+}
+</style>
+
+<script>
+function togglePassword() {
+  const input = document.getElementById("contrasena");
+  input.type = input.type === "password" ? "text" : "password";
+}
+</script>
+
 
       <button type="submit" class="btn-login">Ingresar</button>
     </form>

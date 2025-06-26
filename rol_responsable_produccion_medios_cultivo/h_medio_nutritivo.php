@@ -31,7 +31,15 @@ function generarNuevoIDDilucion($conn) {
   return 'DL-' . str_pad($nuevoNumero, 3, '0', STR_PAD_LEFT);
 }
 
-$mediosQuery = $conn->query("SELECT ID_MedioNM, Codigo_Medio, FORMAT(Cantidad_Disponible, 2) AS Cantidad_Disponible, Estado FROM medios_nutritivos_madre ORDER BY Codigo_Medio ASC");
+$mediosQuery = $conn->query("
+    SELECT  ID_MedioNM,
+            Codigo_Medio,
+            FORMAT(Cantidad_Disponible, 2) AS Cantidad_Disponible,
+            Estado
+    FROM    medios_nutritivos_madre
+    WHERE   Estado = 'Disponible'     -- excluye los consumidos
+    ORDER BY Codigo_Medio ASC
+");
 $medios = $mediosQuery->fetch_all(MYSQLI_ASSOC);
 
 if (isset($_POST['guardar_registro'])) {
@@ -133,7 +141,9 @@ if (isset($_POST['guardar_registro'])) {
   <tr data-id="<?= $medio['ID_MedioNM'] ?>">
     <td data-label="ID Medio"><?= $medio['ID_MedioNM'] ?></td>
     <td data-label="Código del Medio"><?= htmlspecialchars($medio['Codigo_Medio']) ?></td>
-    <td data-label="Cantidad Disponible (L)"><?= number_format((float) str_replace(',', '', $medio['Cantidad_Disponible']), 2) ?></td>
+    <td data-label="Cantidad Disponible (L)">
+      <?= number_format((float) str_replace(',', '', $medio['Cantidad_Disponible']), 2) ?> L
+    </td>
     <td data-label="Estado"><?= htmlspecialchars($medio['Estado']) ?></td>
   </tr>
   <?php endforeach; ?>

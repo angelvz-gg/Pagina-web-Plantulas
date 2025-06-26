@@ -17,8 +17,8 @@ if (!isset($_SESSION['ID_Operador'])) {
 }
 $ID_Operador = (int) $_SESSION['ID_Operador'];
 
-if ((int) $_SESSION['Rol'] !== 5) {
-    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
+if ((int) $_SESSION['Rol'] !== 4) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Supervisora de Incubadora.</p>";
     exit;
 }
 
@@ -146,7 +146,7 @@ if ($inserts > 0) {
         <nav class="navbar bg-body-tertiary">
           <div class="container-fluid">
             <div class="Opciones-barra">
-              <button onclick="window.location.href='dashboard_egp.php'">
+              <button onclick="window.location.href='dashboard_supervisora.php'">
               🏠 Volver al Inicio
               </button>
             </div>

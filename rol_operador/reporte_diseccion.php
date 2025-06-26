@@ -18,16 +18,14 @@ if ((int) $_SESSION['Rol'] !== 2) {
     echo "<p class=\"error\">⚠️ Acceso denegado. Solo Operador.</p>";
     exit;
 }
+
 // 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
 $sessionLifetime = 60 * 3;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
-
-$ID_Operador = $_SESSION['ID_Operador'] ?? null;
 date_default_timezone_set('America/Mexico_City');
 $fecha_actual = date('Y-m-d H:i:s');
-
 
 // --- NUEVO BLOQUE: cargar etapas Multiplicación y Enraizamiento ---
 $etapas = [];
@@ -68,15 +66,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_medio') {
     $especie = $_GET['especie'] ?? '';
     $etapa = $_GET['etapa'] ?? '';
 
-    $sql = "SELECT ID_MedioNutritivo, Codigo_Medio 
-            FROM medios_nutritivos 
-            WHERE Codigo_Medio LIKE ? 
-              AND Etapa_Destinada = ? 
-              AND Especie = ? 
-            LIMIT 10";
-    $stmt = $conn->prepare($sql);
-    $like = "%$term%";
-    $stmt->bind_param("sss", $like, $etapa, $especie);
+$sql = "SELECT ID_MedioNutritivo, Codigo_Medio 
+        FROM medios_nutritivos 
+        WHERE Codigo_Medio LIKE ? 
+          AND Etapa_Destinada = ? 
+          AND Especie = ? 
+        LIMIT 20";
+$stmt = $conn->prepare($sql);
+$like = "%$term%";
+$stmt->bind_param("sss", $like, $etapa, $especie);
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -122,6 +120,8 @@ if ($asignacion) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && $editable) {
+    $errores = [];
+
     $tasa = floatval($_POST["tasa_multiplicacion"]);
     $id_medio = $_POST["id_medio_nutritivo"];
     $num_brotes = $_POST["numero_brotes"];
@@ -129,68 +129,128 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && $editable) {
     $tupper_vacio = $_POST["tupper_vacios"];
     $etapa = $_POST["etapa"] ?? $ID_Etapa;
     $variedad = $_POST["id_variedad"] ?? $ID_Variedad;
+    $brotes_iniciales = intval($_POST["brotes_iniciales"]);
 
+    // Validar medio nutritivo
+    $stmt = $conn->prepare("SELECT COUNT(*) FROM medios_nutritivos WHERE ID_MedioNutritivo = ?");
+    $stmt->bind_param("i", $id_medio);
+    $stmt->execute();
+    $stmt->bind_result($medio_existe);
+    $stmt->fetch();
+    $stmt->close();
+    if ($medio_existe == 0) {
+        $errores['medio_nutritivo'] = "El medio nutritivo seleccionado no existe.";
+    }
+
+    // Validaciones de campos
+    if ($brotes_iniciales < 1 || $brotes_iniciales > 600) {
+        $errores['brotes_iniciales'] = "Los brotes iniciales deben estar entre 1 y 600.";
+    }
+    if ($num_brotes < 1 || $num_brotes > 1000) {
+        $errores['numero_brotes'] = "Los brotes divididos deben estar entre 1 y 1000.";
+    }
+    if ($tupper_lleno < 1 || $tupper_lleno > 400) {
+        $errores['tupper_lleno'] = "Los tuppers llenos deben estar entre 1 y 400.";
+    }
+    if ($tupper_vacio < 1 || $tupper_vacio > 400) {
+        $errores['tupper_vacios'] = "Los tuppers vacíos deben estar entre 1 y 400.";
+    }
+
+    // Si hay errores, redirigir
+    if (!empty($errores)) {
+        $_SESSION['errores_diseccion'] = $errores;
+        $_SESSION['form_data'] = $_POST;
+        header("Location: reporte_diseccion.php");
+        exit;
+    }
+
+// Insertar o actualizar según corresponda
 $tabla = ($etapa == 2) ? "multiplicacion" : (($etapa == 3) ? "enraizamiento" : null);
 
-$brotes_iniciales = intval($_POST["brotes_iniciales"]);
+if ($reporteExistente) {
 
-if ($brotes_iniciales < 1 || $brotes_iniciales > 300) {
-    echo "<script>alert('❌ Los brotes iniciales deben ser entre 1 y 300'); window.history.back();</script>";
-    exit;
-}
-if ($num_brotes < 1 || $num_brotes > 500) {
-    echo "<script>alert('❌ Los brotes divididos deben ser entre 1 y 500'); window.history.back();</script>";
-    exit;
-}
-if ($tupper_lleno < 1 || $tupper_lleno > 300) {
-    echo "<script>alert('❌ Los tuppers llenos deben ser entre 1 y 300'); window.history.back();</script>";
-    exit;
-}
-if ($tupper_vacio < 1 || $tupper_vacio > 150) {
-    echo "<script>alert('❌ Los tuppers vacíos deben ser entre 1 y 150'); window.history.back();</script>";
-    exit;
+    /* --- UPDATE (no toca movimientos) --- */
+    $sql = "UPDATE $tabla 
+            SET Tasa_Multiplicacion = ?, ID_MedioNutritivo = ?, Cantidad_Dividida = ?, 
+                Tuppers_Llenos = ?, Tuppers_Desocupados = ?, Estado_Revision = 'Pendiente' 
+            WHERE ID_Asignacion = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("diiiii",
+        $tasa, $id_medio, $num_brotes,
+        $tupper_lleno, $tupper_vacio, $ID_Asignacion
+    );
+
+} else {
+
+    /* --- INSERT NUEVO LOTE ------------------------------------------------ */
+    $sql = "INSERT INTO $tabla 
+            (ID_Asignacion, Fecha_Siembra, ID_Variedad, Tasa_Multiplicacion, ID_MedioNutritivo, 
+             Brotes_Iniciales, Cantidad_Dividida, Tuppers_Llenos, Tuppers_Desocupados, Estado_Revision, Operador_Responsable) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("issdiiiiis",
+        $ID_Asignacion, $fecha_actual, $variedad, $tasa, $id_medio,
+        $brotes_iniciales, $num_brotes, $tupper_lleno, $tupper_vacio, $ID_Operador
+    );
 }
 
-    if ($reporteExistente) {
-        $sql = "UPDATE $tabla 
-                SET Tasa_Multiplicacion = ?, ID_MedioNutritivo = ?, Cantidad_Dividida = ?, 
-                    Tuppers_Llenos = ?, Tuppers_Desocupados = ?, Estado_Revision = 'Pendiente' 
-                WHERE ID_Asignacion = ?";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("diiiii", $tasa, $id_medio, $num_brotes, $tupper_lleno, $tupper_vacio, $ID_Asignacion);
-    } else {
-      $sql = "INSERT INTO $tabla 
-    (ID_Asignacion, Fecha_Siembra, ID_Variedad, Tasa_Multiplicacion, ID_MedioNutritivo, 
-     Brotes_Iniciales, Cantidad_Dividida, Tuppers_Llenos, Tuppers_Desocupados, Estado_Revision, Operador_Responsable) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?)";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("issdiiiiis", $ID_Asignacion, $fecha_actual, $variedad, $tasa, $id_medio, $brotes_iniciales, $num_brotes, $tupper_lleno, $tupper_vacio, $ID_Operador);
-    }
 if ($stmt->execute()) {
-    // ✅ Crear lote en la tabla 'lotes'
-    $sql_lote = "INSERT INTO lotes (Fecha, ID_Variedad, ID_Operador, ID_Etapa) VALUES (?, ?, ?, ?)";
+
+    /* ────────────────────────────────★ alta_inicial ★──────────────────────── */
+    if (!$reporteExistente) {                     // solo en INSERT, no en UPDATE
+        $last_id    = $stmt->insert_id;           // ID_Multiplicacion o ID_Enraizamiento
+        $etapaTexto = ($tabla === 'multiplicacion') ? 'multiplicacion' : 'enraizamiento';
+
+        $stmtMov = $conn->prepare("
+            INSERT INTO movimientos_proyeccion
+                  (Fecha, Etapa, ID_Etapa, TipoMovimiento,
+                   Tuppers, Brotes, ID_Operador, Comentarios)
+            VALUES (NOW(), ?, ?, 'alta_inicial',
+                    ?, ?, ?, 'Alta automática')
+        ");
+        $stmtMov->bind_param('siiii',
+            $etapaTexto,
+            $last_id,
+            $tupper_lleno,
+            $num_brotes,
+            $ID_Operador
+        );
+        $stmtMov->execute();
+        $stmtMov->close();
+    }
+    /* ──────────────────────────────────────────────────────────────────────── */
+
+    /* --- Creación de lote en tabla lotes (tu código original) -------------- */
+    $sql_lote = "INSERT INTO lotes (Fecha, ID_Variedad, ID_Operador, ID_Etapa)
+                 VALUES (?, ?, ?, ?)";
     $stmt_lote = $conn->prepare($sql_lote);
-    $stmt_lote->bind_param("siii", $fecha_actual, $variedad, $ID_Operador, $etapa);
+    $stmt_lote->bind_param("siii",
+        $fecha_actual, $variedad, $ID_Operador, $etapa
+    );
 
     if ($stmt_lote->execute()) {
-        $ID_Lote = $stmt_lote->insert_id;
+        $ID_Lote   = $stmt_lote->insert_id;
+        $tabla_id  = ($tabla == "multiplicacion") ? "ID_Multiplicacion" : "ID_Enraizamiento";
+        $last_id   = $reporteExistente ? $reporteExistente[$tabla_id] : $stmt->insert_id;
 
-        // ✅ Asignar el ID_Lote al registro recién creado
-        $tabla_id = ($tabla == "multiplicacion") ? "ID_Multiplicacion" : "ID_Enraizamiento";
-        $stmt_update = $conn->prepare("UPDATE $tabla SET ID_Lote = ? WHERE $tabla_id = ?");
-        $last_id = $stmt->insert_id; // ID del registro recién insertado en multiplicacion/enraizamiento
+        $stmt_update = $conn->prepare("
+            UPDATE $tabla SET ID_Lote = ? WHERE $tabla_id = ?
+        ");
         $stmt_update->bind_param("ii", $ID_Lote, $last_id);
         $stmt_update->execute();
     }
 
-    // ✅ Actualizar el estado de la asignación
+    /* --- Marcar asignación completada -------------------------------------- */
     if ($ID_Asignacion) {
-        $stmt_asig = $conn->prepare("UPDATE asignaciones SET Estado = 'Completado' WHERE ID_Asignacion = ?");
+        $stmt_asig = $conn->prepare("
+            UPDATE asignaciones SET Estado = 'Completado' WHERE ID_Asignacion = ?
+        ");
         $stmt_asig->bind_param("i", $ID_Asignacion);
         $stmt_asig->execute();
     }
 
     echo "<script>alert('Registro guardado correctamente.'); window.location.href='dashboard_cultivo.php';</script>";
+
 } else {
     echo "<script>alert('Error al guardar el registro.');</script>";
 }
@@ -236,55 +296,112 @@ if ($stmt->execute()) {
   </header>
 
   <main>
-    <form method="POST" class="form-doble-columna">
-      <div class="content">
-        <div class="section">
-          <label>Fecha de Reporte:</label>
-          <input type="text" value="<?= $fecha_actual ?>" readonly>
+  <?php
+    $form_data = $_SESSION['form_data'] ?? [];
+    $errores   = $_SESSION['errores_diseccion'] ?? [];
+  ?>
+  <form method="POST" class="form-doble-columna">
+    <div class="content">
+      <div class="section">
+        <label>Fecha de Reporte:</label>
+        <input type="text" value="<?= $fecha_actual ?>" readonly>
 
-          <?php if (!$asignacion): ?>
-            <label for="etapa">Etapa:</label>
-            <select id="etapa" name="etapa" required>
-              <option value="">-- Selecciona una etapa --</option>
-              <?php foreach ($etapas as $etapa): ?>
-              <option value="<?= $etapa['ID_Etapa'] ?>"><?= htmlspecialchars($etapa['Descripcion']) ?></option>
-          <?php endforeach; ?>
+        <?php if (!$asignacion): ?>
+          <label for="etapa">Etapa:</label>
+          <select id="etapa" name="etapa" required class="<?= isset($errores['etapa']) ? 'is-invalid' : '' ?>">
+            <option value="">-- Selecciona una etapa --</option>
+<?php foreach ($etapas as $etapa): ?>
+  <?php
+    // Ajustar etiqueta mostrada al usuario
+    if ($etapa['ID_Etapa'] == 2) {
+        $label = 'Multiplicación – Etapa 2';
+    } elseif ($etapa['ID_Etapa'] == 3) {
+        $label = 'Enraizamiento – Etapa 3';
+    } else {
+        $label = $etapa['Descripcion']; // por si mañana añades más etapas
+    }
+  ?>
+  <option value="<?= $etapa['ID_Etapa'] ?>" 
+          <?= ($form_data['etapa'] ?? '') == $etapa['ID_Etapa'] ? 'selected' : '' ?>>
+    <?= $label ?>
+  </option>
+<?php endforeach; ?>
           </select>
 
-            <label for="nombre_variedad">Buscar Variedad:</label>
-            <input type="text" id="nombre_variedad" required>
-            <input type="hidden" id="id_variedad" name="id_variedad">
-            <input type="hidden" id="especie_variedad">
-          <?php endif; ?>
+          <label for="nombre_variedad">Buscar Variedad:</label>
+          <input type="text" id="nombre_variedad" required value="<?= htmlspecialchars($form_data['nombre_variedad'] ?? '') ?>">
+          <input type="hidden" id="id_variedad" name="id_variedad" value="<?= htmlspecialchars($form_data['id_variedad'] ?? '') ?>">
+          <input type="hidden" id="especie_variedad" value="<?= htmlspecialchars($form_data['especie_variedad'] ?? '') ?>">
+        <?php endif; ?>
 
-          <label for="tasa_multiplicacion">Tasa de Multiplicación:</label>
-          <input type="number" name="tasa_multiplicacion" step="0.01" required <?= $editable ? '' : 'readonly' ?>>
+        <label for="tasa_multiplicacion">Tasa de Multiplicación:</label>
+        <input type="number" name="tasa_multiplicacion" step="0.01"
+               class="<?= isset($errores['tasa_multiplicacion']) ? 'is-invalid' : '' ?>"
+               value="<?= htmlspecialchars($form_data['tasa_multiplicacion'] ?? '') ?>"
+               required <?= $editable ? '' : 'readonly' ?>>
 
-          <label for="medio_nutritivo">Medio Nutritivo:</label>
-          <input type="text" id="medio_nutritivo" <?= $editable ? '' : 'readonly' ?> required>
-          <input type="hidden" id="id_medio_nutritivo" name="id_medio_nutritivo">
+        <label for="medio_nutritivo">Medio Nutritivo:</label>
+        <input type="text" id="medio_nutritivo" name="medio_nutritivo"
+               class="<?= isset($errores['medio_nutritivo']) ? 'is-invalid' : '' ?>"
+               value="<?= htmlspecialchars($form_data['medio_nutritivo'] ?? '') ?>"
+               <?= $editable ? '' : 'readonly' ?> required>
+        <input type="hidden" id="id_medio_nutritivo" name="id_medio_nutritivo"
+               value="<?= htmlspecialchars($form_data['id_medio_nutritivo'] ?? '') ?>">
 
-          <label for="brotes_iniciales">Número de Brotes Iniciales:</label>
-          <input type="number" name="brotes_iniciales" min="1" max="300" required <?= $editable ? '' : 'readonly' ?>>
+        <?php if (isset($errores['medio_nutritivo'])): ?>
+          <div class="invalid-feedback"><?= $errores['medio_nutritivo'] ?></div>
+        <?php endif; ?>
 
-          <label for="numero_brotes">Número de Brotes Finales:</label>
-          <input type="number" name="numero_brotes" min="1" max="1000" required <?= $editable ? '' : 'readonly' ?>>
+        <label for="tupper_lleno">Tuppers Llenos:</label>
+        <input type="number" name="tupper_lleno" min="1" max="500"
+               class="<?= isset($errores['tupper_lleno']) ? 'is-invalid' : '' ?>"
+               value="<?= htmlspecialchars($form_data['tupper_lleno'] ?? '') ?>"
+               required <?= $editable ? '' : 'readonly' ?>>
+        <?php if (isset($errores['tupper_lleno'])): ?>
+          <div class="invalid-feedback"><?= $errores['tupper_lleno'] ?></div>
+        <?php endif; ?>
 
-          <label for="tupper_lleno">Tuppers Llenos:</label>
-          <input type="number" name="tupper_lleno" min="1" max="500" required <?= $editable ? '' : 'readonly' ?>>
+      <label for="numero_brotes">Número de Brotes Finales:</label>
+        <input type="number" name="numero_brotes" min="1" max="1000"
+               class="<?= isset($errores['numero_brotes']) ? 'is-invalid' : '' ?>"
+               value="<?= htmlspecialchars($form_data['numero_brotes'] ?? '') ?>"
+               required <?= $editable ? '' : 'readonly' ?>>
+        <?php if (isset($errores['numero_brotes'])): ?>
+          <div class="invalid-feedback"><?= $errores['numero_brotes'] ?></div>
+        <?php endif; ?>
 
-          <label for="tupper_vacios">Tuppers Vacíos:</label>
-          <input type="number" name="tupper_vacios" min="1" max="500" required <?= $editable ? '' : 'readonly' ?>>
+        <label for="tupper_vacios">Tuppers Vacíos:</label>
+        <input type="number" name="tupper_vacios" min="1" max="500"
+               class="<?= isset($errores['tupper_vacios']) ? 'is-invalid' : '' ?>"
+               value="<?= htmlspecialchars($form_data['tupper_vacios'] ?? '') ?>"
+               required <?= $editable ? '' : 'readonly' ?>>
+        <?php if (isset($errores['tupper_vacios'])): ?>
+          <div class="invalid-feedback"><?= $errores['tupper_vacios'] ?></div>
+        <?php endif; ?>
 
-          <?php if ($editable): ?>
-            <button type="submit" class="save-button">Guardar información</button>
-          <?php else: ?>
-            <p><strong>Este reporte ya fue enviado y está en revisión o aprobado.</strong></p>
-          <?php endif; ?>
-        </div>
+        <label for="brotes_iniciales">Número de Brotes Iniciales:</label>
+        <input type="number" name="brotes_iniciales" min="1" max="600"
+               class="<?= isset($errores['brotes_iniciales']) ? 'is-invalid' : '' ?>"
+               value="<?= htmlspecialchars($form_data['brotes_iniciales'] ?? '') ?>"
+               required <?= $editable ? '' : 'readonly' ?>>
+        <?php if (isset($errores['brotes_iniciales'])): ?>
+          <div class="invalid-feedback"><?= $errores['brotes_iniciales'] ?></div>
+        <?php endif; ?>
+
+        <?php if ($editable): ?>
+          <button type="submit" class="save-button">Guardar información</button>
+        <?php else: ?>
+          <p><strong>Este reporte ya fue enviado y está en revisión o aprobado.</strong></p>
+        <?php endif; ?>
       </div>
-    </form>
-  </main>
+    </div>
+  </form>
+</main>
+
+<?php
+// Limpieza final de errores después de usarlos
+unset($_SESSION['errores_diseccion'], $_SESSION['form_data']);
+?>
 
   <footer>
     <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
@@ -309,7 +426,9 @@ $(function () {
   // Autocompletar medio nutritivo
   $("#medio_nutritivo").autocomplete({
     source: function (request, response) {
-      const etapa = $("#etapa").val() == "1" ? "Multiplicación" : "Enraizamiento";
+      const etapaSeleccionada = $("#etapa").val();
+const etapa = etapaSeleccionada === "2" ? "Multiplicación" :
+              etapaSeleccionada === "3" ? "Enraizamiento" : "";
       const especie = $("#especie_variedad").val();
       $.getJSON("reporte_diseccion.php?action=buscar_medio", {
         term: request.term,

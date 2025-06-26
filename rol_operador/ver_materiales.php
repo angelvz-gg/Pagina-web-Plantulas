@@ -8,7 +8,6 @@ error_reporting(E_ALL);
 require_once __DIR__ . '/../session_manager.php';
 require_once __DIR__ . '/../db.php';
 
-// Definir la zona horaria a México (CDMX)
 date_default_timezone_set('America/Mexico_City');
 $conn->query("SET time_zone = '-06:00'");
 
@@ -23,21 +22,23 @@ if ((int) $_SESSION['Rol'] !== 2) {
     exit;
 }
 
-// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
-$sessionLifetime = 60 * 3;   // 180 s
-$warningOffset   = 60 * 1;   // 60 s
+// 2) Variables para el modal de sesión
+$sessionLifetime = 60 * 3;
+$warningOffset   = 60 * 1;
 $nowTs           = time();
 
-// 3) Consulta de materiales asignados SOLO del día actual
+// 3) Consulta de juegos asignados al operador hoy
 $stmt = $conn->prepare("
   SELECT 
-    m.nombre AS Nombre_Material,
-    SUM(s.cantidad) AS Cantidad_Asignada
-  FROM suministro_material s
-  INNER JOIN materiales m ON s.id_material = m.id_material
-  WHERE s.id_operador = ? AND DATE(s.fecha_entrega) = CURDATE()
-  GROUP BY m.nombre
-  ORDER BY m.nombre
+    ajo.fecha_asignacion,
+    CONCAT(asg.Nombre,' ',asg.Apellido_P,' ',asg.Apellido_M) AS quien_asigna,
+    COUNT(*) AS juegos_asignados
+  FROM asignacion_juego_operadora ajo
+  JOIN operadores asg ON ajo.id_operador_asigna = asg.ID_Operador
+  WHERE ajo.id_operador_asignado = ?
+    AND DATE(ajo.fecha_asignacion) = CURDATE()
+  GROUP BY ajo.fecha_asignacion, ajo.id_operador_asigna
+  ORDER BY ajo.fecha_asignacion DESC
 ");
 $stmt->bind_param("i", $ID_Operador);
 $stmt->execute();
@@ -49,7 +50,7 @@ $resultado = $stmt->get_result();
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mis Materiales Asignados</title>
+  <title>Mis Juegos Asignados</title>
   <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script>
@@ -60,64 +61,62 @@ $resultado = $stmt->get_result();
 </head>
 <body>
 <div class="contenedor-pagina">
-    <header>
-        <div class="encabezado">
-            <a class="navbar-brand" href="#">
-                <img src="../logoplantulas.png" alt="Logo" width="130" height="124">
-            </a>
-            <h2>📦 Mis Materiales Asignados</h2>
-        </div>
-
-        <div class="barra-navegacion">
-        <nav class="navbar bg-body-tertiary">
-          <div class="container-fluid">
-            <div class="Opciones-barra">
-              <button onclick="window.location.href='dashboard_cultivo.php'">
-              🏠 Volver al Inicio
-              </button>
-            </div>
+  <header>
+    <div class="encabezado">
+      <a class="navbar-brand" href="#">
+        <img src="../logoplantulas.png" alt="Logo" width="130" height="124">
+      </a>
+      <h2>📦 Juegos Asignados</h2>
+    </div>
+    <div class="barra-navegacion">
+      <nav class="navbar bg-body-tertiary">
+        <div class="container-fluid">
+          <div class="Opciones-barra">
+            <button onclick="window.location.href='dashboard_cultivo.php'">🏠 Volver al Inicio</button>
           </div>
-        </nav>
-      </div>
-    </header>
+        </div>
+      </nav>
+    </div>
+  </header>
 
-    <main class="container mt-4">
-    <h3 class="mb-4 text-center">📋 Materiales asignados para hoy, día: <?= date('d-m-Y') ?></h3>
+  <main class="container mt-4">
+    <h3 class="mb-4 text-center">📋 Juegos asignados para hoy: <?= date('d-m-Y') ?></h3>
 
     <?php if ($resultado->num_rows > 0): ?>
-      <div class="table-responsive">
-  <table class="table table-striped table-sm align-middle">
-    <thead class="table-light">
-      <tr>
-        <th>Nombre del Material</th>
-        <th>Cantidad Asignada</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php while ($material = $resultado->fetch_assoc()): ?>
-        <tr class="align-middle text-nowrap">
-          <td data-label="Nombre del Material"><?= htmlspecialchars($material['Nombre_Material']) ?></td>
-          <td data-label="Cantidad Asignada"><?= (int)$material['Cantidad_Asignada'] ?></td>
-        </tr>
-      <?php endwhile; ?>
-    </tbody>
-  </table>
-</div>
+    <div class="table-responsive">
+      <table class="table table-striped table-sm align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Fecha de Asignación</th>
+            <th>Asignado por</th>
+            <th>Cantidad de Juegos</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php while ($juego = $resultado->fetch_assoc()): ?>
+          <tr class="align-middle text-nowrap">
+            <td><?= htmlspecialchars($juego['fecha_asignacion']) ?></td>
+            <td><?= htmlspecialchars($juego['quien_asigna']) ?></td>
+            <td><?= (int)$juego['juegos_asignados'] ?></td>
+          </tr>
+          <?php endwhile; ?>
+        </tbody>
+      </table>
+    </div>
     <?php else: ?>
-        <div class="alert alert-warning text-center">
-            <strong>🔔 No tienes materiales asignados para el dia de Hoy.</strong>
-        </div>
+    <div class="alert alert-warning text-center">
+      <strong>🔔 No tienes juegos asignados para hoy.</strong>
+    </div>
     <?php endif; ?>
-</main>
+  </main>
 
-<footer>
+  <footer>
     <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
-</footer>
+  </footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<!-- Modal de sesión -->
 <script>
 (function(){
   let modalShown = false,
@@ -135,29 +134,19 @@ $resultado = $stmt->get_result();
       </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     document.getElementById('keepalive-btn').addEventListener('click', () => {
-      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
+      cerrarModalYReiniciar();
     });
   }
 
   function cerrarModalYReiniciar() {
-    // 🔥 Cerrar modal inmediatamente
     const modal = document.getElementById('session-warning');
     if (modal) modal.remove();
-    reiniciarTimers(); // Reinicia el temporizador visual
-
-    // 🔄 Enviar ping a la base de datos en segundo plano
-    fetch('../keepalive.php', { credentials: 'same-origin' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status !== 'OK') {
-          alert('No se pudo extender la sesión');
-        }
-      })
-      .catch(() => {}); // Silenciar errores de red
+    reiniciarTimers();
+    fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
   }
 
   function reiniciarTimers() {
-    START_TS   = Date.now();
+    START_TS = Date.now();
     modalShown = false;
     clearTimeout(warningTimer);
     clearTimeout(expireTimer);
@@ -165,20 +154,12 @@ $resultado = $stmt->get_result();
   }
 
   function scheduleTimers() {
-    const elapsed     = Date.now() - START_TS;
-    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
-    const expireAfter = SESSION_LIFETIME;
-
-    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
-
+    const elapsed = Date.now() - START_TS;
+    warningTimer = setTimeout(showModal, Math.max(SESSION_LIFETIME - WARNING_OFFSET - elapsed, 0));
     expireTimer = setTimeout(() => {
-      if (!modalShown) {
-        showModal();
-      } else {
-        window.location.href = '/plantulas/login.php?mensaje='
-          + encodeURIComponent('Sesión caducada por inactividad');
-      }
-    }, Math.max(expireAfter - elapsed, 0));
+      if (!modalShown) showModal();
+      else window.location.href = '/plantulas/login.php?mensaje=' + encodeURIComponent('Sesión caducada por inactividad');
+    }, Math.max(SESSION_LIFETIME - elapsed, 0));
   }
 
   ['click', 'keydown'].forEach(event => {
@@ -191,6 +172,5 @@ $resultado = $stmt->get_result();
   scheduleTimers();
 })();
 </script>
-
 </body>
 </html>

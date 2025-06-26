@@ -13,6 +13,7 @@ if (!isset($_SESSION['ID_Operador'])) {
     exit;
 }
 $ID_Operador = (int) $_SESSION['ID_Operador'];
+$volver1 = !empty($_SESSION['origin']) && $_SESSION['origin'] === 1;
 
 if ((int) $_SESSION['Rol'] !== 5) {
     echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
@@ -23,6 +24,7 @@ $sessionLifetime = 60 * 3;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -51,9 +53,11 @@ $nowTs           = time();
     <!-- HEADER -->
     <header>
       <div class="encabezado">
-        <a class="navbar-brand" href="dashboard_egp.php">
-          <img src="../logoplantulas.png" alt="Logo" width="130" height="124" />
-        </a>
+<img src="../logoplantulas.png"
+     alt="Logo"
+     width="130" height="124"
+     style="cursor:<?= $volver1 ? 'pointer' : 'default' ?>"
+     <?= $volver1 ? "onclick=\"window.location.href='../rol_administrador/volver_rol.php'\"" : '' ?>>
         <div>
           <h2>Encargado General de Producción</h2>
           <p>Panel de gestión y supervisión</p>
@@ -144,14 +148,16 @@ $nowTs           = time();
 
       <h3 class="mt-5 mb-3">🔧 Tareas Generales</h3>
       <section class="dashboard-grid">
-        <div class="card" data-card-id="reportes-produccion">
-          <h2>🔬 Reportes de Siembra</h2>
-          <p>Consulta y revisa los reportes de Siembra.</p>
-          <a href="reportes_produccion.php"
-             onclick="rememberCard('reportes-produccion')">
-            Ver Reportes
+
+      <div class="card" data-card-id="proyeccion-lavado">
+        <h2>🧼 Proyección de Lavado</h2>
+        <p>Planifica los tuppers y brotes que se reservarán para lavado.</p>
+          <a href="proyeccion_lavado.php"
+            onclick="rememberCard('proyeccion-lavado')">
+            Crear Proyección 
           </a>
-        </div>
+      </div>
+      
         <div class="card" data-card-id="preparacion-soluciones">
           <h2>🧪 Preparación de Soluciones Madre</h2>
           <p>Registra la preparación de soluciones madre.</p>
@@ -166,14 +172,6 @@ $nowTs           = time();
           <a href="inventario_soluciones_madre.php"
              onclick="rememberCard('inventario-soluciones')">
             Ver Inventario
-          </a>
-        </div>
-        <div class="card" data-card-id="rol-limpieza">
-          <h2>🧹 Rol de Limpieza</h2>
-          <p>Define las tareas de limpieza y asigna responsabilidades.</p>
-          <a href="rol_limpieza.php"
-             onclick="rememberCard('rol-limpieza')">
-            Crear Rol de Limpieza
           </a>
         </div>
       </section>

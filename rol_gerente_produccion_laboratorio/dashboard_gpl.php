@@ -13,6 +13,7 @@ if (!isset($_SESSION['ID_Operador'])) {
     exit;
 }
 $ID_Operador = (int) $_SESSION['ID_Operador'];
+$volver1 = !empty($_SESSION['origin']) && $_SESSION['origin'] === 1;
 
 if ((int) $_SESSION['Rol'] !== 6) {
     echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Gerente de Producción de Laboratorio.</p>";
@@ -41,9 +42,11 @@ $nowTs           = time();
   <div class="contenedor-pagina">
     <header>
       <div class="encabezado">
-        <a class="navbar-brand" href="#">
-          <img src="../logoplantulas.png" alt="Logo" width="130" height="124" />
-        </a>
+<img src="../logoplantulas.png"
+     alt="Logo"
+     width="130" height="124"
+     style="cursor:<?= $volver1 ? 'pointer' : 'default' ?>"
+     <?= $volver1 ? "onclick=\"location.href='../rol_administrador/volver_rol.php'\"" : '' ?>>
         <div>
           <h2>Gerente de Producción de Laboratorio</h2>
           <p>Resumen de tus actividades y accesos rápidos.</p>
@@ -99,6 +102,15 @@ $nowTs           = time();
             Ver Historial
           </a>
         </div>
+
+<div class="card" id="card-verificar-proyecciones">
+  <h2>🔍 Verificar proyecciones de lavado</h2>
+  <p>Aprueba o solicita corrección de las proyecciones generadas por el EGP.</p>
+  <a href="verificar_proyecciones.php"
+     onclick="guardarScroll('card-verificar-proyecciones')">
+    Ir a verificación
+  </a>
+</div>
 
         <div class="card" id="card-vista-tuppers">
           <h2>📋 Inventario de Tuppers</h2>
